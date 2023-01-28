@@ -1,0 +1,99 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.35.0.
+--
+-- see: https://github.com/sol/hpack
+
+name:           glyph
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/rationalis-petra/glyph#readme>
+homepage:       https://github.com/rationalis-petra/glyph#readme
+bug-reports:    https://github.com/rationalis-petra/glyph/issues
+author:         Connor Redfern
+maintainer:     connor.redfern@optunset.com.au
+copyright:      2022 Connor Redfern
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    CHANGELOG.md
+
+source-repository head
+  type: git
+  location: https://github.com/rationalis-petra/glyph
+
+library
+  exposed-modules:
+      Glyph.Core
+      Glyph.Name
+      Glyph.NameResolution
+      Glyph.Parse
+      Glyph.Print
+      Glyph.Substitution
+      Glyph.Term
+      Glyph.Unify
+  other-modules:
+      Paths_glyph
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -XUndecidableInstances -XTypeFamilies -XFlexibleInstances -XFlexibleContexts -XOverloadedStrings -XRankNTypes -XTemplateHaskell -XMultiParamTypeClasses -XRecordWildCards
+  build-depends:
+      base >=4.7 && <5
+    , containers
+    , lens
+    , megaparsec
+    , mtl
+    , prettyprinter
+    , stm
+    , text
+    , topograph
+    , vector
+  default-language: Haskell2010
+
+executable glyph-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_glyph
+  hs-source-dirs:
+      app
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -XUndecidableInstances -XTypeFamilies -XFlexibleInstances -XFlexibleContexts -XOverloadedStrings -XRankNTypes -XTemplateHaskell -XMultiParamTypeClasses -XRecordWildCards -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , containers
+    , glyph
+    , lens
+    , megaparsec
+    , mtl
+    , prettyprinter
+    , stm
+    , text
+    , topograph
+    , vector
+  default-language: Haskell2010
+
+test-suite glyph-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Spec.Glyph.CoreUD
+      Spec.Glyph.NameResolution
+      Spec.Glyph.Parse
+      Spec.Glyph.Syntax.Core
+      Paths_glyph
+  hs-source-dirs:
+      test
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -XUndecidableInstances -XTypeFamilies -XFlexibleInstances -XFlexibleContexts -XOverloadedStrings -XRankNTypes -XTemplateHaskell -XMultiParamTypeClasses -XRecordWildCards -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , containers
+    , glyph
+    , lens
+    , megaparsec
+    , mtl
+    , prettyprinter
+    , stm
+    , text
+    , topograph
+    , vector
+  default-language: Haskell2010
