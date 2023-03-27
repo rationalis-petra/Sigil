@@ -1,32 +1,30 @@
-module Glyph.Term (
-  Term,
-  normalize,
-  equiv)
-  where
+{-# LANGUAGE ScopedTypeVariables #-}
+module Glyph.Abstract.Term
+  (Term(..)) where
 
-import Prelude hiding (head)
+import Prelude hiding (head, lookup)
 import Control.Monad.Except (MonadError, throwError)
 
 import Prettyprinter
 
-import Glyph.Name
-import Glyph.Core
+import Glyph.Abstract.Syntax
+import Glyph.Abstract.Environment
   
+
 {------------------------------- THE TERM CLASS --------------------------------}
 {- The Term class supports only two methods:                                   -}
 {- • normalize: convert to canonical (Β-normal, η-long) form                   -}
 {- • equiv: αβη equivalence                                                    -}
 {-                                                                             -}
 {- Both accept an environment. Currently, this is a local environment, but     -}
-{- evantually the environment will also enclude a 'gloval' (i.e. surrounding   -}
+{- eventually the environment will also include a 'global' (i.e. surrounding   -}
 {- module) component as well, to look up qualified names (QName)               -}
+{-------------------------------------------------------------------------------}
 
-
-type Env a = [a]
 
 class Term a where
-  normalize :: MonadError (Doc ann) m => Env a -> a -> a -> m a
-  equiv :: MonadError (Doc ann) m => Env a -> a -> a -> a -> m Bool
+  normalize :: (MonadError (Doc ann) m, Environment Name e) => e a -> a -> a -> m a
+  equiv :: (MonadError (Doc ann) m, Environment Name e) => e a -> a -> a -> a -> m Bool
 
 
 {------------------------------ DENOTATIVE TERMS -------------------------------}
@@ -41,19 +39,20 @@ class Term a where
 {- accompanied by their type. Neutral terms are those whose evaluation is      -}
 {- blocked because of an uninstantiated variable, e.g. f 2, where f is an      -}
 {- uninstantiated variable.                                                    -}
-  
-  
-data Sem χ
+{-------------------------------------------------------------------------------}
+
+
+data Sem e χ
   = SUni Int
-  | SPrd (Sem χ) (Sem χ)
-  | SAbs (Core Name χ) (Env (Sem χ))
-  | Neutral (Sem χ) (Neutral χ)
+  | SPrd Name (Sem e χ) (Sem e χ)
+  | SAbs Name (Core AnnBind Name χ) (e (Sem e χ))
+  | Neutral (Sem e χ) (Neutral e χ)
 
-data Neutral χ    
+data Neutral e χ
   = NeuVar Name
-  | NeuApp (Neutral χ) (Normal χ)
+  | NeuApp (Neutral e χ) (Normal e χ)
 
-data Normal χ = Normal (Sem χ) (Sem χ)
+data Normal e χ = Normal (Sem e χ) (Sem e χ)
 
 
 {-------------------------------- TERM INSTANCE --------------------------------}
@@ -70,75 +69,73 @@ data Normal χ = Normal (Sem χ) (Sem χ)
 {- • read_nf takes a term in normal form, and reads it back into a Core term.  -}
 {-   this is type-directed because all normal terms have an accompanying type. -}
 {- • read_ne takes a term in netural form, and reads it back into a Core term. -}
+{-------------------------------------------------------------------------------}
 
 
-instance Eq (Coreχ χ) => Term (Core Name χ) where
+-- TODO: now we use IDs for names, need to ensure we do capture-avoiding substitution!!
+instance Eq (Core AnnBind Name χ) => Term (Core AnnBind Name χ) where
   normalize env ty term =
-    read_nf (env_size env) =<< (Normal <$> ty' <*> (eval term =<< env_eval env))
+    read_nf =<< (Normal <$> ty' <*> term')
     where
       ty' = eval ty =<< env_eval env
-
-      env_size :: Env χ -> Int
-      env_size = Prelude.length
+      term' = (eval term =<< env_eval env)
 
   equiv env ty x y = (==) <$> normalize env ty x <*> normalize env ty y
 
 
-read_nf :: MonadError (Doc ann) m => Int -> Normal χ -> m (Core Name χ)
-read_nf n (Normal ty val) = case (ty, val) of 
-  (SPrd a b, f) -> do
-    let neua = Neutral a $ NeuVar $ DeBruijn n "s"
-    f' <- read_nf (n + 1) =<< (Normal <$> (b `app` neua) <*> (f `app` neua))
-    pure $ Abs void "s" f'
+read_nf :: forall e χ m ann. (MonadError (Doc ann) m, Environment Name e) => Normal e χ -> m (Core AnnBind Name χ)
+read_nf (Normal ty val) = case (ty, val) of 
+  (SPrd name a b, f) -> do
+    let neua :: Sem e χ 
+        neua = Neutral a $ NeuVar name
+    
+        lvl = uni_level a
+    a' <- read_nf $ Normal (SUni lvl) a
+    f' <- read_nf =<< (Normal <$> (b `app` neua) <*> (f `app` neua))
+    pure $ Abs void (AnnBind (name, a')) f'
   (SUni _, SUni i) -> pure $ Uni void i
-  (SUni k, SPrd a b) -> do
-    a' <- (read_nf n $ Normal (SUni k) a)
-    b' <- (read_nf n $ Normal (SPrd a (SUni k)) b)
-    pure $ Prd void "s" a' b'
+  (SUni k, SPrd name a b) -> do
+    a' <- (read_nf $ Normal (SUni k) a)
+    b' <- (read_nf $ Normal (SPrd name a (SUni k)) b)
+    pure $ Prd void (AnnBind (name, a')) b'
         
-  (_, Neutral _ e) -> read_ne n e 
+  (_, Neutral _ e) -> read_ne e 
   (_, _) -> throwError "bad read_nf"
 
-read_ne :: MonadError (Doc ann) m => Int -> Neutral χ -> m (Core Name χ)
-read_ne n neu = case neu of 
-  NeuVar name -> case name of 
-    DeBruijn i sym -> pure $ Var void $ DeBruijn (n - (i + 1)) sym 
-    _ -> pure $ Var void $ name
-  NeuApp l r -> App void <$> (read_ne n l) <*> (read_nf n r) 
+read_ne :: (MonadError (Doc ann) m, Environment Name e) => Neutral e χ -> m (Core AnnBind Name χ)
+read_ne neu = case neu of 
+  NeuVar name -> pure $ Var void name
+  NeuApp l r -> App void <$> (read_ne l) <*> (read_nf r) 
 
-eval :: MonadError (Doc ann) m => Core Name χ -> Env (Sem χ) -> m (Sem χ)
+eval :: (MonadError (Doc ann) m, Environment Name e) => Core AnnBind Name χ -> e (Sem e χ) -> m (Sem e χ)
 eval term env = case term of
-  Coreχ _ -> error "cannot eval Coreχ terms" 
+  Coreχ _ -> throwError "cannot eval Coreχ terms" 
   Uni _ n -> pure $ SUni n
-  Prd _ _ a b -> SPrd <$> eval a env <*> eval b env
-  Var _ name -> env_lookup name env
-  Abs _ _ body -> pure $ SAbs body env
+  Prd _ (AnnBind (name, a)) b -> SPrd name <$> eval a env <*> eval b env
+  Var _ name -> lookup_err name env
+  Abs _ (AnnBind (name, _)) body -> pure $ SAbs name body env
   App _ l r -> do
     l' <- (eval l env)
     r' <- (eval r env)
     app l' r'
 
-app :: MonadError (Doc ann) m => Sem χ -> Sem χ -> m (Sem χ)
-app (SAbs body env) val = eval body (env_insert val env)
-app (Neutral (SPrd a b) neu) v =
+app :: (MonadError (Doc ann) m, Environment Name e) => Sem e χ -> Sem e χ -> m (Sem e χ)
+app (SAbs name body env) val = eval body (insert name val env)
+app (Neutral (SPrd _ a b) neu) v =
   Neutral <$> (b `app` v) <*> pure (NeuApp neu (Normal a v))
 app _ _ = throwError "bad args to app"
 
-env_eval :: MonadError (Doc ann) m => Env (Core Name χ) -> m (Env (Sem χ))
-env_eval [] = pure []
-env_eval (v:vs) = do
-  env' <- env_eval vs
-  v' <- eval v env'
-  pure $ v' : env'
+env_eval :: (MonadError (Doc ann) m, Environment Name e) => e (Core AnnBind Name χ) -> m (e (Sem e χ))
+env_eval = eval_helper eval
 
-env_insert :: a -> Env a -> Env a
-env_insert = (:)
-
-env_lookup :: MonadError (Doc ann) m => Name -> (Env a) -> m a
-env_lookup (DeBruijn n _) lst = case drop n lst of 
-  [] -> throwError "variable not in scope"
-  (x:_) -> pure x
-env_lookup (QName _) _ = throwError "can't lookup gloval var!"
-
+-- TODO: fix this function - it is wrong!
+uni_level :: (Sem e χ) -> Int
+uni_level sem = case sem of 
+  SUni n -> n + 1
+  SPrd _ l r -> max (uni_level l) (uni_level r)
+  SAbs _ _ _ -> 0 -- note: predicative vs impredicative!!
+  Neutral _ _ -> 0 -- TODO: this is probably wrong!!!
+  
 void :: a
 void = error "bottom value" 
+

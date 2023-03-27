@@ -30,6 +30,7 @@ dependencies:
 - megaparsec
 - topograph
 - prettyprinter
+- optparse-applicative
 
 ghc-options:
 - -Wall
@@ -43,15 +44,21 @@ ghc-options:
 - -Wmissing-home-modules
 - -Wpartial-fields
 - -Wredundant-constraints
-- -XUndecidableInstances
-- -XTypeFamilies
-- -XFlexibleInstances
-- -XFlexibleContexts
-- -XOverloadedStrings
-- -XRankNTypes
-- -XTemplateHaskell
-- -XMultiParamTypeClasses
-- -XRecordWildCards
+
+default-extensions: 
+- UndecidableInstances
+- TypeFamilies
+- FlexibleInstances
+- FlexibleContexts
+- MultiParamTypeClasses
+- FunctionalDependencies
+- OverloadedStrings
+- RankNTypes
+- TemplateHaskell
+- RecordWildCards
+- LambdaCase
+- GeneralizedNewtypeDeriving
+
 
 library:
   source-dirs: src

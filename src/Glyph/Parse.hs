@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module Glyph.Parse (Range,
               Parsed,
               PrecedenceNode,
@@ -5,13 +6,23 @@ module Glyph.Parse (Range,
               Operator(..),
               Associativity(..),
               Fixity(..),
-              MixParser(..),
               fixity,
               name_parts,
-              expr,
               mixfix,
               core,
               runParser) where
+
+
+{------------------------------------ PARSER -----------------------------------}
+{- The Parsing algorithm contains two distinct parts: the 'primary grammar'    -}
+{- and a mixfix subgrammar. These two parts are expressed in two different     -}
+{- parsers.                                                                    -}
+{-                                                                             -}
+{-                                                                             -}
+{-                                                                             -}
+{-                                                                             -}
+{-------------------------------------------------------------------------------}
+
 
 import Prelude hiding (head, last, tail)
 import Control.Lens
@@ -28,31 +39,22 @@ import Text.Megaparsec hiding (runParser)
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 import Topograph
-import Prettyprinter
 
-import Glyph.Core  
+import Glyph.Abstract.Syntax
+import Glyph.Abstract.Environment (OptBind(..))
 
-
-{--------------------------------- GLYPH PARSER --------------------------------}
-{- The Parsing algorithm contains two distinct parts: the 'primary grammar'    -}
-{- and a mixfix subgrammar. These two parts are expressed in two different     -}
-{- parsers.                                                                    -}
-{-                                                                             -}
-{- Using the trees that grow idom, the core type (from Glyph.Core) is          -}
-{- extended as follows:                                                        -}
-{- • To each node, a range is added, indicating both the source file the       -}
-{-   row/col of that source file a particular node originates from.            -}
-{-                                                                             -}
 
 type Parser = Parsec Text Text
 
-type RawCore = Core Text Parsed
+type RawCore = Core OptBind Text Parsed
 
 type Range = ([Text], Int, Int)
+  
+empty_range :: Range
+empty_range = ([], -1, -1)
 
-instance Monoid Range where
-  mempty = ([], -1, -1)
-  mappend (t, s, e) (_, s', e') = (t, min s s', max e e')
+join_ranges :: Range -> Range -> Range
+join_ranges (t, s, e) (_, s', e') = (t, min s s', max e e')
 
 data Parsed
 type instance Coreχ Parsed = Void
@@ -62,15 +64,11 @@ type instance Prdχ Parsed = Range
 type instance Absχ Parsed = Range
 type instance Appχ Parsed = Range
 
-instance Pretty PLiteral where  
-  pretty (PLInteger n) = pretty n
-  pretty (PLReal n)    = pretty n
-
-range :: Core n Parsed -> Range
-range (Coreχ _) = mempty
+range :: Core b n Parsed -> Range
+range (Coreχ _) = empty_range
 range (Uni r _) = r
 range (Var r _) = r
-range (Prd r _ _ _) = r
+range (Prd r _ _) = r
 range (Abs r _ _) = r
 range (App r _ _) = r
 
@@ -96,6 +94,8 @@ range (App r _ _) = r
 {- + [1] : https://www.cse.chalmers.se/~nad/publications/                      -}
 {-         danielsson-norell-mixfix.pdf                                        -}
 {-                                                                             -}      
+{-------------------------------------------------------------------------------}      
+
 
 data Associativity = LeftAssociative | RightAssociative | NonAssociative
   deriving (Eq, Ord, Show)
@@ -110,14 +110,16 @@ type PrecedenceNode = (Set Operator)
 
 type PrecedenceGraph i = G PrecedenceNode i
 
-data Telescope χ = Tel (Core Text χ) [Core Text χ]
+data Telescope χ = Tel (Core OptBind Text χ) [Core OptBind Text χ]
 
 $(makeLenses ''Operator)
+
 
 {--------------------------------- CORE PARSER ---------------------------------}
 {- The core parser first looks for the head of an expression (λ, let, etc.)    -}
 {- before handing it off to the mixfix parser.                                 -}
 {-                                                                             -}
+{-------------------------------------------------------------------------------}      
 
 
 core :: PrecedenceGraph i -> Parser RawCore
@@ -126,7 +128,7 @@ core graph = choice [plam, pexpr]
     plam :: Parser RawCore
     plam = do
       let unscope :: [Text] -> RawCore -> RawCore
-          unscope = flip $ foldr (\v rest -> Abs mempty v rest)
+          unscope = flip $ foldr (\v rest -> Abs empty_range (OptBind $ Left v) rest)
 
           args :: Parser [Text]
           args = between (symbol "[") (symbol "]") (many1 arg)  
@@ -143,7 +145,7 @@ core graph = choice [plam, pexpr]
       pure $ unscope tel body
 
     pexpr :: Parser (RawCore)
-    pexpr = (mixfix graph)^.expr
+    pexpr = (mixfix graph)
 
  
 {----------------------------- MIXFIX PARSER PHASE -----------------------------}
@@ -161,9 +163,10 @@ infixl 3 <||>
 {- (_&_ right) -> (_=_ non) -> (_+_ left) -> (_!) -> (if_then_else_) -> (_)    -}
 {-                             (_-_ left)                                      -}
 {- -> (false) -> (true)                                                        -}
+{-------------------------------------------------------------------------------}      
 
 
-mixfix :: PrecedenceGraph i -> Parser RawCore
+mixfix :: forall i. PrecedenceGraph i -> Parser RawCore
 mixfix G {..} = expr
   where
     -- 'Toplevel' parsers that are returned by the function
@@ -171,11 +174,11 @@ mixfix G {..} = expr
     expr :: Parser (RawCore)
     expr = precs gVertices
     
-    -- precs :: [i] -> Parser (RawCore)
+    precs :: [i] -> Parser (RawCore)
     precs (p:ps) = prec p <||> precs ps
     precs [] = customFailure "ran out of operators in precedence graph" 
   
-    -- prec :: i -> Parser (RawCore)
+    prec :: i -> Parser (RawCore)
     prec node = choice
       [ try (unscope <$> close Closed)
       , try (appn <$> psucs <*> close (Infix NonAssociative) <*> psucs)
@@ -212,7 +215,7 @@ mixfix G {..} = expr
     inner :: [Operator] -> Parser (Telescope Parsed)
     inner [] = customFailure "inner ran out of operators"
     inner (op : ops) =
-      Tel (Var mempty (opName $ op))
+      Tel (Var empty_range (opName $ op))
         <$> betweenM (fmap symbol $ _name_parts op) expr
       <||> inner ops
 
@@ -222,15 +225,13 @@ mixfix G {..} = expr
     -- sucs : get all successors (adjacent nodes with higher precedence)
     ops :: [Operator] -> Fixity -> [Operator]
     ops op f = filter ((== f) . _fixity) op
-
-
   
 
-unscope :: Telescope Parsed -> (Core Text Parsed)
+unscope :: Telescope Parsed -> RawCore
 unscope (Tel core l) = go core l where
-  go :: Core Text Parsed -> [Core Text Parsed] -> Core Text Parsed
+  go :: RawCore -> [RawCore] -> RawCore
   go core [] = core 
-  go core (c:cs) = go (App (rangeUnion (range core) (range c)) core c) cs 
+  go core (c:cs) = go (App (join_ranges (range core) (range c)) core c) cs 
 
 (<||>) :: Parser a -> Parser a -> Parser a
 l <||> r = try l <|> r   
@@ -253,7 +254,6 @@ betweenM vec p = case length vec of
   1 -> head vec *> pure []
   2 -> between (head vec) (last vec) ((\x -> [x]) <$> p)
   _ -> (head vec) *> ((:) <$> p <*> betweenM (tail vec) p)
-
 
 many1 :: Parser a -> Parser [a]
 many1 p = (:) <$> p <*> many p 
@@ -284,7 +284,6 @@ anyvar = lexeme $ pack <$> (many1 (satisfy symchar))
     symchar '\r' = False
     symchar '\t' = False
     symchar _    = True
-
 
 symbol :: Text -> Parser Text
 symbol = L.symbol sc

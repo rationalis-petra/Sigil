@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -25,25 +25,42 @@ source-repository head
 
 library
   exposed-modules:
-      Glyph.Core
-      Glyph.Name
-      Glyph.NameResolution
+      Backtrack
+      Glyph
+      Glyph.Abstract
+      Glyph.Abstract.Environment
+      Glyph.Abstract.NameResolution
+      Glyph.Abstract.Substitution
+      Glyph.Abstract.Syntax
+      Glyph.Abstract.Term
+      Glyph.Abstract.Typecheck
+      Glyph.Abstract.Unify
       Glyph.Parse
-      Glyph.Print
-      Glyph.Substitution
-      Glyph.Term
-      Glyph.Unify
   other-modules:
       Paths_glyph
   hs-source-dirs:
       src
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -XUndecidableInstances -XTypeFamilies -XFlexibleInstances -XFlexibleContexts -XOverloadedStrings -XRankNTypes -XTemplateHaskell -XMultiParamTypeClasses -XRecordWildCards
+  default-extensions:
+      UndecidableInstances
+      TypeFamilies
+      FlexibleInstances
+      FlexibleContexts
+      MultiParamTypeClasses
+      FunctionalDependencies
+      OverloadedStrings
+      RankNTypes
+      TemplateHaskell
+      RecordWildCards
+      LambdaCase
+      GeneralizedNewtypeDeriving
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
     , containers
     , lens
     , megaparsec
     , mtl
+    , optparse-applicative
     , prettyprinter
     , stm
     , text
@@ -57,7 +74,20 @@ executable glyph-exe
       Paths_glyph
   hs-source-dirs:
       app
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -XUndecidableInstances -XTypeFamilies -XFlexibleInstances -XFlexibleContexts -XOverloadedStrings -XRankNTypes -XTemplateHaskell -XMultiParamTypeClasses -XRecordWildCards -threaded -rtsopts -with-rtsopts=-N
+  default-extensions:
+      UndecidableInstances
+      TypeFamilies
+      FlexibleInstances
+      FlexibleContexts
+      MultiParamTypeClasses
+      FunctionalDependencies
+      OverloadedStrings
+      RankNTypes
+      TemplateHaskell
+      RecordWildCards
+      LambdaCase
+      GeneralizedNewtypeDeriving
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , containers
@@ -65,6 +95,7 @@ executable glyph-exe
     , lens
     , megaparsec
     , mtl
+    , optparse-applicative
     , prettyprinter
     , stm
     , text
@@ -76,14 +107,30 @@ test-suite glyph-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Spec.Glyph.CoreUD
-      Spec.Glyph.NameResolution
+      Spec.Glyph.Abstract.CoreUD
+      Spec.Glyph.Abstract.NameResolution
+      Spec.Glyph.Abstract.Syntax
+      Spec.Glyph.Abstract.Term
+      Spec.Glyph.Abstract.TermBuilder
       Spec.Glyph.Parse
-      Spec.Glyph.Syntax.Core
+      TestFramework
       Paths_glyph
   hs-source-dirs:
       test
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -XUndecidableInstances -XTypeFamilies -XFlexibleInstances -XFlexibleContexts -XOverloadedStrings -XRankNTypes -XTemplateHaskell -XMultiParamTypeClasses -XRecordWildCards -threaded -rtsopts -with-rtsopts=-N
+  default-extensions:
+      UndecidableInstances
+      TypeFamilies
+      FlexibleInstances
+      FlexibleContexts
+      MultiParamTypeClasses
+      FunctionalDependencies
+      OverloadedStrings
+      RankNTypes
+      TemplateHaskell
+      RecordWildCards
+      LambdaCase
+      GeneralizedNewtypeDeriving
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , containers
@@ -91,6 +138,7 @@ test-suite glyph-test
     , lens
     , megaparsec
     , mtl
+    , optparse-applicative
     , prettyprinter
     , stm
     , text

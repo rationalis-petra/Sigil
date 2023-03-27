@@ -1,38 +1,49 @@
 module Main (main) where
 
 import Prelude hiding (putStrLn)
-import Data.Void
-import Data.Text (Text)
+
+--import Data.Semigroup ((<>))
 import Data.Text.IO
-import Prettyprinter
-import Prettyprinter.Render.Text
 
-import Glyph.Name
-import Glyph.Core
+-- import Prettyprinter.Render.Text
+-- import Options.Applicative
 
+-- data Backends = Native | JVM | Javascript | WASM
+
+-- data InteractiveOpts = InteractiveOpts
+--   { ifile :: String
+--   }
+
+-- interactive_ops :: Parser InteractiveOpts
+-- interactive_ops = InteractiveOpts <$>
+--   <$> 
+
+-- data CompileOpts = CompileOpts
+--   { cfile :: String
+--   , backend
+--   }
+
+-- compile_ops :: Parser CompileOpts
+-- compile_ops = CompileOpts <$>
+
+-- data ServerOpts = ServerOpts
+--   { port :: Int
+--   }
+
+-- server_ops :: Parser ServerOpts
+-- server_ops = ServerOpts <$>
+
+-- data Command = InteractiveCommand | CompileCommand | ServerCommand
+
+  
+
+-- glyph_opts :: Parser Command
+-- glyph_opts = subparser $ 
+--   (command "compile" $ info compile_opts (progDesc ""))
+--   <>
+--   (command "serve" $ info serve_opts (progDesc ""))
+--   <>
+--   (command "interactive" $ info interactive_opts (progDesc ""))
 
 main :: IO ()
-main = putDoc doc >> (putStrLn "")
-  where
-    doc = pretty core
-
-    core :: Core Name UD
-    core = Abs void "x" (App void (var "x") (var "x"))
-
-    var :: Text -> Core Name UD
-    var = Var void . DeBruijn 0 
-
--- undecorated tree  
-data UD
-
-void :: Void  
-void = error "attempt to evaluate void"
-
-type instance Coreχ UD = Void
-type instance Varχ UD = Void
-type instance Prdχ UD = Void
-type instance Absχ UD = Void
-type instance Appχ UD = Void
-
-instance Pretty UD where 
-  pretty _ = ""
+main = putStrLn "Hello, World!" -- execParser glyph_opts

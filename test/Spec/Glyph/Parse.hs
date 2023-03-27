@@ -1,7 +1,6 @@
 module Spec.Glyph.Parse (parse_spec) where
 
-import Control.Lens
-import Data.Text (Text, unpack)
+import Data.Text (Text)
 import qualified Data.Map as Map
 import Data.Map (Map)
 import qualified Data.Set as Set
@@ -9,20 +8,18 @@ import Data.Set (Set)
 import qualified Data.Vector as Vec
 
 import Prettyprinter
-import Prettyprinter.Render.Text
 import Topograph
 
+import TestFramework
 import Glyph.Parse
-import Glyph.Core
+import Glyph.Abstract.Syntax
+import Glyph.Abstract.Environment
 
 nr :: Range
 nr = ([], -1, -1)
 
-var :: Text -> Core Text Parsed  
+var :: Text -> Core b Text Parsed  
 var = Var nr
-
-render :: Core Text Parsed -> Text
-render = renderStrict . layoutPretty defaultLayoutOptions . pretty
 
 -- ilit :: Integer -> Core Parsed
 -- ilit i = Coreχ (nr, PLInteger i) 
@@ -31,7 +28,7 @@ render = renderStrict . layoutPretty defaultLayoutOptions . pretty
 -- dlit d = Coreχ (nr, PLReal d)
 
 
-ops :: Map Precedence (Set Precedence)
+ops :: Map PrecedenceNode (Set PrecedenceNode)
 ops = Map.fromList
   [ (node_and,   Set.singleton node_eq)
   , (node_eq,    Set.fromList  [node_arith, node_fact])
@@ -77,45 +74,45 @@ ops = Map.fromList
 
   
 
-parse_spec :: IO ()
-parse_spec = do
+parse_spec :: TestGroup ann
+parse_spec =
   case runG ops go of
-    Left _ -> putStrLn "cycle in ops graph"
-    Right mnd -> mnd
+    Left _ -> TestGroup "parsing" $ Right
+      [Test "parsing" $ Just ("parsing test-suite failed to run as there was a cycle in the precedence graph")]
+    Right tests -> tests
   where
-    go :: PrecedenceGraph i -> IO ()
-    go graph = do
-      parse_mixfix graph
-      parse_core graph
-      putStrLn "parsing suite passed"
+    go :: PrecedenceGraph i -> TestGroup ann
+    go graph = TestGroup "parsing" $ Left
+      [ parse_mixfix graph
+      , parse_expr graph ]
 
 
 -- parsing of mixfix operations 
-parse_mixfix :: PrecedenceGraph i -> IO ()
-parse_mixfix graph = do
+parse_mixfix :: PrecedenceGraph i -> TestGroup ann
+parse_mixfix graph =
   -- tests to add
   -- Backtracking / garden path
     -- operators which have shared name parts, ex. if_then_ and if_then_else_
     -- names with similar beginnings, e.g. 'in' and 'inner' 
   -- test for features as they are added. 
   
-  runtests $
+  TestGroup "parse-mixfix" $ Right
     -- Closed Operations
-    [ mixfix_test "true" (var "true")
-    , mixfix_test "false" (var "false")
-    , mixfix_test "( true )" (App nr (var "(_)") (var "true"))
+    [ mixfix_test "lit-true" "true" (var "true")
+    , mixfix_test "lit-false" "false" (var "false")
+    , mixfix_test "parens-lit" "( true )" (App nr (var "(_)") (var "true"))
 
     -- TODO: these tests fail. Speculation: it's related to the fact that they
     -- have successor nodes which are infix operations!
-    --, mixfix_test "true = false" (App nr (App nr (var "_=_") (var "true" )) (var "false"))
+    , mixfix_test "bin-of-lit1" "true = false" (App nr (App nr (var "_=_") (var "true" )) (var "false"))
     
     -- Right Associative Operations 
-    --, mixfix_test "true & false" (App nr (App nr (var "_&_") (var "true" )) (var "false"))
+    -- , mixfix_test "true & false" (App nr (App nr (var "_&_") (var "true" )) (var "false"))
     -- , mixfix_test graph "true ∧ false" (App nr (App nr (var "_∧_") (var "true" )) (App nr (var "false") (var "true"))) 
 
     -- Left Associative Operations 
-    , mixfix_test "true + false" (App nr (App nr (var "_+_") (var "true" )) (var "false"))
-    , mixfix_test "true + false - false"
+    , mixfix_test "bin-of-lit2" "true + false" (App nr (App nr (var "_+_") (var "true" )) (var "false"))
+    , mixfix_test "bin-precedence" "true + false - false"
         (App nr (App nr (var "_-_")
                  (App nr (App nr (var "_+_") (var "true" )) (var "false")))
                 (var "false"))
@@ -125,39 +122,34 @@ parse_mixfix graph = do
     ]
 
   where
-    runtests = mapM_ $ mapM_ (putStrLn . unpack . mappend "error: ")
-
-    mixfix_test :: Text -> Core Text Parsed -> Maybe Text
-    mixfix_test text out =  
-      case runParser (mixfix graph^.expr) "test" text of  
+    mixfix_test :: Text -> Text -> Core OptBind Text Parsed -> Test ann
+    mixfix_test name text out =  
+      case runParser (mixfix graph) "test" text of  
         Right val ->
           if val == out then
-            Nothing
+            Test name Nothing
           else
-            Just $ "values inequal: " <> render val <> " and " <> render out
-        Left msg -> Just msg
+            Test name $ Just $ "values inequal: " <> pretty val <> " and " <> pretty out
+        Left msg -> Test name $ Just $ pretty msg
 
-parse_core :: PrecedenceGraph i -> IO ()
-parse_core graph = do
-  
-  runtests $
-    [ core_test "λ [x] true" (abs [("x")] (var "true"))
-    , core_test "λ [x y] false" (abs ["x", "y"] (var "false"))
+parse_expr :: PrecedenceGraph i -> TestGroup ann
+parse_expr graph =
+  TestGroup "parse-expr" $ Right
+    [ expr_test "univar-lambda" "λ [x] true" (abs [("x")] (var "true"))
+    , expr_test "bivar-lambda" "λ [x y] false" (abs ["x", "y"] (var "false"))
     ]
 
   where
-    runtests = mapM_ $ mapM_ (putStrLn . unpack . mappend "error: ")
-
-    core_test :: Text -> Core Text Parsed -> Maybe Text
-    core_test text out =  
+    expr_test :: Text -> Text -> Core OptBind Text Parsed -> Test ann
+    expr_test name text out =  
       case runParser (core graph) "test" text of  
         Right val ->
           if val == out then
-            Nothing
+            Test name Nothing
           else
-            Just $ "values inequal: " <> render val <> " and " <> render out
-        Left msg -> Just msg
+            Test name $ Just $ "values inequal: " <> pretty val <> " and " <> pretty out
+        Left msg -> Test name $ Just $ pretty msg
 
 
-    abs :: [Text] -> Core Text Parsed -> Core Text Parsed
-    abs = flip $ foldr (\var body -> Abs nr var body)
+    abs :: [Text] -> Core OptBind Text Parsed -> Core OptBind Text Parsed
+    abs = flip $ foldr (\var body -> Abs nr (OptBind $ Left var) body)
