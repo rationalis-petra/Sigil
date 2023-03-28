@@ -74,21 +74,21 @@ ops = Map.fromList
 
   
 
-parse_spec :: TestGroup ann
+parse_spec :: TestGroup
 parse_spec =
   case runG ops go of
     Left _ -> TestGroup "parsing" $ Right
       [Test "parsing" $ Just ("parsing test-suite failed to run as there was a cycle in the precedence graph")]
     Right tests -> tests
   where
-    go :: PrecedenceGraph i -> TestGroup ann
+    go :: PrecedenceGraph i -> TestGroup
     go graph = TestGroup "parsing" $ Left
       [ parse_mixfix graph
       , parse_expr graph ]
 
 
 -- parsing of mixfix operations 
-parse_mixfix :: PrecedenceGraph i -> TestGroup ann
+parse_mixfix :: PrecedenceGraph i -> TestGroup
 parse_mixfix graph =
   -- tests to add
   -- Backtracking / garden path
@@ -122,7 +122,7 @@ parse_mixfix graph =
     ]
 
   where
-    mixfix_test :: Text -> Text -> Core OptBind Text Parsed -> Test ann
+    mixfix_test :: Text -> Text -> Core OptBind Text Parsed -> Test
     mixfix_test name text out =  
       case runParser (mixfix graph) "test" text of  
         Right val ->
@@ -132,7 +132,7 @@ parse_mixfix graph =
             Test name $ Just $ "values inequal: " <> pretty val <> " and " <> pretty out
         Left msg -> Test name $ Just $ pretty msg
 
-parse_expr :: PrecedenceGraph i -> TestGroup ann
+parse_expr :: PrecedenceGraph i -> TestGroup
 parse_expr graph =
   TestGroup "parse-expr" $ Right
     [ expr_test "univar-lambda" "λ [x] true" (abs [("x")] (var "true"))
@@ -140,7 +140,7 @@ parse_expr graph =
     ]
 
   where
-    expr_test :: Text -> Text -> Core OptBind Text Parsed -> Test ann
+    expr_test :: Text -> Text -> Core OptBind Text Parsed -> Test
     expr_test name text out =  
       case runParser (core graph) "test" text of  
         Right val ->

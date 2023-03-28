@@ -18,8 +18,9 @@ module TestFramework (
 
 import Data.Text
 import Prettyprinter
+import Prettyprinter.Render.Glyph
 
-data TestGroup ann =
-  TestGroup { _group_name :: Text, _children :: Either [TestGroup ann] [Test ann] }
+data TestGroup =
+  TestGroup { _group_name :: Text, _children :: Either [TestGroup] [Test] }
 
-data Test ann = Test { _test_name :: Text, _result :: Maybe (Doc ann) }
+data Test = Test { _test_name :: Text, _result :: Maybe (Doc GlyphStyle) }

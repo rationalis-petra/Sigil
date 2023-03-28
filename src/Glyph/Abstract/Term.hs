@@ -22,7 +22,7 @@ import Glyph.Abstract.Environment
 {-------------------------------------------------------------------------------}
 
 
-class Term a where
+class Pretty a => Term a where
   normalize :: (MonadError (Doc ann) m, Environment Name e) => e a -> a -> a -> m a
   equiv :: (MonadError (Doc ann) m, Environment Name e) => e a -> a -> a -> a -> m Bool
 
@@ -73,17 +73,17 @@ data Normal e χ = Normal (Sem e χ) (Sem e χ)
 
 
 -- TODO: now we use IDs for names, need to ensure we do capture-avoiding substitution!!
-instance Eq (Core AnnBind Name χ) => Term (Core AnnBind Name χ) where
+instance (Eq (Core AnnBind Name χ), Pretty (Core AnnBind Name χ)) => Term (Core AnnBind Name χ) where
   normalize env ty term =
     read_nf =<< (Normal <$> ty' <*> term')
     where
       ty' = eval ty =<< env_eval env
-      term' = (eval term =<< env_eval env)
+      term' = eval term =<< env_eval env
 
   equiv env ty x y = (==) <$> normalize env ty x <*> normalize env ty y
 
 
-read_nf :: forall e χ m ann. (MonadError (Doc ann) m, Environment Name e) => Normal e χ -> m (Core AnnBind Name χ)
+read_nf :: forall e χ m ann. (Pretty (Core AnnBind Name χ), MonadError (Doc ann) m, Environment Name e) => Normal e χ -> m (Core AnnBind Name χ)
 read_nf (Normal ty val) = case (ty, val) of 
   (SPrd name a b, f) -> do
     let neua :: Sem e χ 
@@ -100,9 +100,9 @@ read_nf (Normal ty val) = case (ty, val) of
     pure $ Prd void (AnnBind (name, a')) b'
         
   (_, Neutral _ e) -> read_ne e 
-  (_, _) -> throwError "bad read_nf"
+  (_, _) -> throwError ("bad read_nf: " <+> pretty val <> " : " <+> pretty ty)
 
-read_ne :: (MonadError (Doc ann) m, Environment Name e) => Neutral e χ -> m (Core AnnBind Name χ)
+read_ne :: (Pretty (Core AnnBind Name χ), MonadError (Doc ann) m, Environment Name e) => Neutral e χ -> m (Core AnnBind Name χ)
 read_ne neu = case neu of 
   NeuVar name -> pure $ Var void name
   NeuApp l r -> App void <$> (read_ne l) <*> (read_nf r) 
@@ -111,7 +111,9 @@ eval :: (MonadError (Doc ann) m, Environment Name e) => Core AnnBind Name χ -> 
 eval term env = case term of
   Coreχ _ -> throwError "cannot eval Coreχ terms" 
   Uni _ n -> pure $ SUni n
-  Prd _ (AnnBind (name, a)) b -> SPrd name <$> eval a env <*> eval b env
+  Prd _ (AnnBind (name, a)) b -> do
+    a' <- eval a env
+    pure $ SPrd name a' $ SAbs name b env
   Var _ name -> lookup_err name env
   Abs _ (AnnBind (name, _)) body -> pure $ SAbs name body env
   App _ l r -> do
@@ -138,4 +140,25 @@ uni_level sem = case sem of
   
 void :: a
 void = error "bottom value" 
+
+{-------------------------------- MISC INSTANCES -------------------------------}
+{-                                                                             -}
+{-                                                                             -}
+{-                                                                             -}
+{-------------------------------------------------------------------------------}
+
+instance Pretty (Core AnnBind Name χ) => Pretty (Sem e χ) where
+  pretty sem = case sem of 
+    SUni n -> "𝒰" <> pretty n
+    SPrd n a b -> pretty n <> " : " <> pretty a <+> "→" <+> pretty b
+    SAbs n body _ -> "λ (" <> pretty n <> ")" <+> pretty body
+    Neutral _ n -> pretty n
+  
+instance Pretty (Core AnnBind Name χ) => Pretty (Neutral e χ) where
+  pretty neu = case neu of
+    NeuVar n -> pretty n
+    NeuApp l r -> pretty l <+> pretty r
+
+instance Pretty (Core AnnBind Name χ) => Pretty (Normal e χ) where
+  pretty (Normal _ val) = pretty val
 

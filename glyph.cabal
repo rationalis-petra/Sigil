@@ -36,6 +36,7 @@ library
       Glyph.Abstract.Typecheck
       Glyph.Abstract.Unify
       Glyph.Parse
+      Prettyprinter.Render.Glyph
   other-modules:
       Paths_glyph
   hs-source-dirs:
@@ -62,6 +63,7 @@ library
     , mtl
     , optparse-applicative
     , prettyprinter
+    , prettyprinter-ansi-terminal
     , stm
     , text
     , topograph
@@ -97,6 +99,7 @@ executable glyph-exe
     , mtl
     , optparse-applicative
     , prettyprinter
+    , prettyprinter-ansi-terminal
     , stm
     , text
     , topograph
@@ -111,7 +114,6 @@ test-suite glyph-test
       Spec.Glyph.Abstract.NameResolution
       Spec.Glyph.Abstract.Syntax
       Spec.Glyph.Abstract.Term
-      Spec.Glyph.Abstract.TermBuilder
       Spec.Glyph.Parse
       TestFramework
       Paths_glyph
@@ -140,6 +142,7 @@ test-suite glyph-test
     , mtl
     , optparse-applicative
     , prettyprinter
+    , prettyprinter-ansi-terminal
     , stm
     , text
     , topograph

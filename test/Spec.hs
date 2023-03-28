@@ -1,14 +1,15 @@
-import Prelude hiding (putStrLn, replicate)
+import Prelude hiding (putStrLn)
 
-import Data.Text (Text, replicate)
+import Control.Monad (join)
 import Data.Text.IO (putStrLn)
 
 import Prettyprinter
-import Prettyprinter.Render.Text
+import Prettyprinter.Render.Glyph
 
 import TestFramework
 import Spec.Glyph.Abstract.Syntax
 import Spec.Glyph.Abstract.NameResolution
+import Spec.Glyph.Abstract.Term
 import Spec.Glyph.Parse
 
 
@@ -17,27 +18,32 @@ main = runall
   [ parse_spec
   , resolve_spec
   , syntax_spec
+  , term_spec
   ]
 
 
-runall :: [TestGroup ann] -> IO () 
-runall = mapM_ (rungroup 0) 
+runall :: [TestGroup] -> IO ()
+runall group = do
+  errors <- join <$> mapM (rungroup 0) group
+  if (not $ null errors) then do
+    putStrLn "\nErrors:"
+    mapM_ putDoc $ map (indent 2) errors
+  else 
+    pure ()
 
-rungroup :: Int -> TestGroup ann -> IO ()
+rungroup :: Int -> TestGroup-> IO [Doc GlyphStyle]
 rungroup nesting (TestGroup name children) = do
-  putNested nesting name
+  putDocLn $ indent (nesting * 2) $ pretty name
   case children of
-    Left subgruops -> mapM_ (rungroup (nesting + 1)) subgruops
+    Left subgruops -> join <$> mapM (rungroup (nesting + 1)) subgruops
     
     Right tests -> runtests (nesting + 1) tests
 
-runtests :: Int -> [Test ann] -> IO ()
-runtests nesting = mapM_ runtest where
+runtests :: Int -> [Test] -> IO [Doc GlyphStyle]
+runtests nesting tests = join <$> mapM runtest tests where
   runtest (Test name Nothing) = do
-    putNested nesting name
+    putDocLn $ annotate (fg_colour green) $ indent (nesting * 2) $ pretty name
+    pure []
   runtest (Test name (Just err)) = do
-    putNested nesting $ name <> " failed: "
-      <> (renderStrict $ layoutPretty defaultLayoutOptions err)
-
-putNested :: Int -> Text -> IO () 
-putNested n text = putStrLn (replicate (n * 2) " " <> text)
+    putDocLn $ annotate (fg_colour red) $ indent (nesting * 2) $ pretty name
+    pure [annotate (fg_colour red) (pretty name) <+> annotate (fg_colour yellow) err]

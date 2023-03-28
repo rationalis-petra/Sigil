@@ -35,8 +35,6 @@ import Data.Text.IO
 
 -- data Command = InteractiveCommand | CompileCommand | ServerCommand
 
-  
-
 -- glyph_opts :: Parser Command
 -- glyph_opts = subparser $ 
 --   (command "compile" $ info compile_opts (progDesc ""))
@@ -44,6 +42,7 @@ import Data.Text.IO
 --   (command "serve" $ info serve_opts (progDesc ""))
 --   <>
 --   (command "interactive" $ info interactive_opts (progDesc ""))
+
 
 main :: IO ()
 main = putStrLn "Hello, World!" -- execParser glyph_opts

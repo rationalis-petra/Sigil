@@ -104,8 +104,8 @@ class (Functor e, Foldable e) => Environment n e | e -> n where
   
 
 instance Environment Name (Map Integer) where
-  lookup_err (Name (Right (n, _))) env = case Map.lookup n env of 
-    Nothing -> throwError "variable not in scope"
+  lookup_err (Name (Right (n, v))) env = case Map.lookup n env of 
+    Nothing -> throwError ("variable not in scope: " <> pretty v)
     Just x -> pure x
   lookup_err (Name (Left _)) _ = throwError "cannot lookup global var!"
 
