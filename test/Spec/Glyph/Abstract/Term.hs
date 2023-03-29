@@ -81,7 +81,7 @@ norm_tests =
       Test name $ case runNormM $ normalize default_env ty a of 
         Right result | result == expected -> Nothing
                      | otherwise -> Just "norm-test error: result different to value"
-        Left e -> Just $ "normalization failed - message:" <+> e
+        Left e -> Just $ "normalization err:" <+> e
 
 -- var :: n -> Core b n UD
 -- var = Var void

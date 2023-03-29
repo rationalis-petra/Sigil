@@ -2,47 +2,72 @@ module Main (main) where
 
 import Prelude hiding (putStrLn)
 
---import Data.Semigroup ((<>))
 import Data.Text.IO
+import Data.Text (pack)
 
--- import Prettyprinter.Render.Text
--- import Options.Applicative
+import Options.Applicative
 
--- data Backends = Native | JVM | Javascript | WASM
+data Backends = Native | JVM | Javascript | WASM
+  deriving (Show, Read, Eq)
 
--- data InteractiveOpts = InteractiveOpts
---   { ifile :: String
---   }
+data InteractiveOpts = InteractiveOpts
+  { ifile :: String
+  }
+  deriving (Show, Read, Eq)
 
--- interactive_ops :: Parser InteractiveOpts
--- interactive_ops = InteractiveOpts <$>
---   <$> 
+interactive_opts :: Parser InteractiveOpts
+interactive_opts = InteractiveOpts
+  <$> strOption
+    ( long "file"
+    <> short 'f'
+    <> help "Specify what file to run (if any)" )
 
--- data CompileOpts = CompileOpts
---   { cfile :: String
---   , backend
---   }
+data CompileOpts = CompileOpts
+  { cfile :: String
+  , backend :: Backends
+  }
+  deriving (Show, Read, Eq)
 
--- compile_ops :: Parser CompileOpts
--- compile_ops = CompileOpts <$>
+compile_opts :: Parser CompileOpts
+compile_opts = CompileOpts
+  <$> strOption
+    ( long "input-file"
+    <> short 'i'
+    <> help "Specify an (input) file to compile" )
+  <*> option auto 
+    ( long "backend"
+    <> short 'b'
+    <> value Native )
 
--- data ServerOpts = ServerOpts
---   { port :: Int
---   }
+data ServerOpts = ServerOpts
+  { port :: Int
+  }
+  deriving (Show, Read, Eq)
 
--- server_ops :: Parser ServerOpts
--- server_ops = ServerOpts <$>
+server_opts :: Parser ServerOpts
+server_opts = ServerOpts
+  <$> option auto
+    ( long "port"
+    <> help "What port the server runs from"
+    <> showDefault
+    <> value 8000
+    <> metavar "INT" )
 
--- data Command = InteractiveCommand | CompileCommand | ServerCommand
+data Command
+  = InteractiveCommand InteractiveOpts
+  | CompileCommand CompileOpts
+  | ServerCommand ServerOpts
+  deriving (Show, Read, Eq)
 
--- glyph_opts :: Parser Command
--- glyph_opts = subparser $ 
---   (command "compile" $ info compile_opts (progDesc ""))
---   <>
---   (command "serve" $ info serve_opts (progDesc ""))
---   <>
---   (command "interactive" $ info interactive_opts (progDesc ""))
-
+glyph_opts :: Parser Command
+glyph_opts = subparser $ 
+  (command "compile" $ info (CompileCommand <$> compile_opts) (progDesc "Compile a Glyph program"))
+  <>
+  (command "serve" $ info (ServerCommand <$> server_opts) (progDesc "Launch a Glyph language server"))
+  <>
+  (command "interactive" $ info (InteractiveCommand <$> interactive_opts) (progDesc "Launch Glyph in interactive mode"))
 
 main :: IO ()
-main = putStrLn "Hello, World!" -- execParser glyph_opts
+main = do
+  command <- execParser (info glyph_opts idm)
+  putStrLn $ pack $ show command

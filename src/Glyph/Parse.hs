@@ -12,7 +12,6 @@ module Glyph.Parse (Range,
               core,
               runParser) where
 
-
 {------------------------------------ PARSER -----------------------------------}
 {- The Parsing algorithm contains two distinct parts: the 'primary grammar'    -}
 {- and a mixfix subgrammar. These two parts are expressed in two different     -}
@@ -48,13 +47,18 @@ type Parser = Parsec Text Text
 
 type RawCore = Core OptBind Text Parsed
 
-type Range = ([Text], Int, Int)
+newtype Range = Range (SourcePos, SourcePos)
+  deriving (Eq, Show, Ord)
   
-empty_range :: Range
-empty_range = ([], -1, -1)
+-- TODO: improve ranges
+instance Semigroup Range where
+  (Range (s, e)) <> (Range (s', e')) = Range (start s s', end e e')
+    where 
+      start (SourcePos p l c) (SourcePos _ l' c') = SourcePos p (min l l') (min c c')
+      end (SourcePos _ l c) (SourcePos p' l' c') = SourcePos p' (max l l') (max c c')
 
-join_ranges :: Range -> Range -> Range
-join_ranges (t, s, e) (_, s', e') = (t, min s s', max e e')
+instance Monoid Range where
+  mempty = Range (initialPos [], initialPos [])
 
 data Parsed
 type instance Coreχ Parsed = Void
@@ -65,7 +69,7 @@ type instance Absχ Parsed = Range
 type instance Appχ Parsed = Range
 
 range :: Core b n Parsed -> Range
-range (Coreχ _) = empty_range
+range (Coreχ _) = mempty
 range (Uni r _) = r
 range (Var r _) = r
 range (Prd r _ _) = r
@@ -128,7 +132,7 @@ core graph = choice [plam, pexpr]
     plam :: Parser RawCore
     plam = do
       let unscope :: [Text] -> RawCore -> RawCore
-          unscope = flip $ foldr (\v rest -> Abs empty_range (OptBind $ Left v) rest)
+          unscope = flip $ foldr (\v rest -> Abs mempty (OptBind $ Left v) rest)
 
           args :: Parser [Text]
           args = between (symbol "[") (symbol "]") (many1 arg)  
@@ -155,7 +159,7 @@ core graph = choice [plam, pexpr]
 infixl 3 <||>
 
 {- There is currently a bug in the parser: with the below graph, the & and  =  -}
-{- operators do not parse correctly, e.g. true = fales parses as true.         -}
+{- operators do not parse correctly, e.g. true = false parses as true.         -}
 {- However, the + and - operators do parse correctly. This seems to be related -}
 {- to their position in the graph as changing associativity to right/non does  -}
 {- not affect the outcome - the bug remains.                                   -}
@@ -169,8 +173,6 @@ infixl 3 <||>
 mixfix :: forall i. PrecedenceGraph i -> Parser RawCore
 mixfix G {..} = expr
   where
-    -- 'Toplevel' parsers that are returned by the function
-    -- TOOD: top_prec → like prec, but ensures that must parse eof
     expr :: Parser (RawCore)
     expr = precs gVertices
     
@@ -179,11 +181,12 @@ mixfix G {..} = expr
     precs [] = customFailure "ran out of operators in precedence graph" 
   
     prec :: i -> Parser (RawCore)
-    prec node = choice
-      [ try (unscope <$> close Closed)
-      , try (appn <$> psucs <*> close (Infix NonAssociative) <*> psucs)
-      , try (appr <$> (many1 preRight) <*> psucs)
-      , try (appl <$> psucs <*> (many1 postLeft))
+    prec node = choice'
+      [ unscope <$> close Closed
+      , appn <$> psucs <*> close (Infix NonAssociative) <*> psucs
+      , appr <$> many1 preRight <*> psucs
+      , appl <$> psucs <*> many1 postLeft
+      , customFailure "choice ran out of operators"
       ]
 
       where
@@ -197,7 +200,7 @@ mixfix G {..} = expr
         psucs = precs $ gEdges node
 
         preRight :: Parser (RawCore -> RawCore)
-        preRight =
+        preRight = 
               (\(Tel core lst) val -> unscope $ Tel core (lst <> [val])) <$> close Prefix
           <||> (\l (Tel core lst) r -> unscope $ Tel core (l : lst <> [r]))
                <$> psucs <*> close (Infix RightAssociative)
@@ -214,33 +217,37 @@ mixfix G {..} = expr
 
     inner :: [Operator] -> Parser (Telescope Parsed)
     inner [] = customFailure "inner ran out of operators"
-    inner (op : ops) =
-      Tel (Var empty_range (opName $ op))
-        <$> betweenM (fmap symbol $ _name_parts op) expr
-      <||> inner ops
+    inner (op : ops) = choice'  
+      [ do start <- getSourcePos
+           args <- betweenM (fmap symbol $ op^.name_parts) expr
+           end <- getSourcePos
+           pure $ Tel (Var (Range (start, end)) (opName op)) args
+      , inner ops ]
 
     -- Helper Functions: graph tools
     -- ops  : get all operators in a given node with a specified fixity
     --        also, get all operators of successor nodes
-    -- sucs : get all successors (adjacent nodes with higher precedence)
     ops :: [Operator] -> Fixity -> [Operator]
-    ops op f = filter ((== f) . _fixity) op
+    ops op f = filter ((== f) . view fixity) op
   
 
 unscope :: Telescope Parsed -> RawCore
 unscope (Tel core l) = go core l where
   go :: RawCore -> [RawCore] -> RawCore
   go core [] = core 
-  go core (c:cs) = go (App (join_ranges (range core) (range c)) core c) cs 
+  go core (c:cs) = go (App (range core <> range c) core c) cs 
 
 (<||>) :: Parser a -> Parser a -> Parser a
-l <||> r = try l <|> r   
+l <||> r = try l <|> try r
+  
+choice' :: [Parser a] -> Parser a
+choice' = choice . fmap try
 
 opName :: Operator -> Text
 opName (Operator {..}) = case _fixity of
   Closed -> name
-  Prefix -> "_" <> name
-  Postfix -> name <> "_"
+  Prefix -> name <> "_" 
+  Postfix -> "_"<> name 
   Infix _ -> "_" <> name <> "_"
   where name = underscore (Vector.toList _name_parts)
         underscore [] = ""
@@ -258,7 +265,7 @@ betweenM vec p = case length vec of
 many1 :: Parser a -> Parser [a]
 many1 p = (:) <$> p <*> many p 
 
-  
+
 {-------------------------------- LEXING TOOLS ---------------------------------}
 
 
@@ -267,6 +274,9 @@ sc = L.space
   space1
   (L.skipLineComment ";;")
   (L.skipBlockComment "(;;" ";;)")
+
+symbol :: Text -> Parser Text
+symbol = L.symbol sc
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
@@ -284,9 +294,6 @@ anyvar = lexeme $ pack <$> (many1 (satisfy symchar))
     symchar '\r' = False
     symchar '\t' = False
     symchar _    = True
-
-symbol :: Text -> Parser Text
-symbol = L.symbol sc
 
 
 {------------------------------ RUNNING A PARSER -------------------------------}
