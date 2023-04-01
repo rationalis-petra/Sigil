@@ -1,14 +1,16 @@
 module Glyph.Abstract.Environment (
   -- Name Types
-  OptBind(..),
-  AnnBind(..),
   UniqueName,
   QualName,
   Name(..),
 
+  -- Binding
+  Binding(..),
+  OptBind(..),
+  AnnBind(..),
+
   -- Environment
   Environment(..),
-  (↦),
 
   -- Fresh Variable Generation
   MonadGen(..),
@@ -49,7 +51,7 @@ type QualName = [Text]
 
 -- data DBName = QDBName QualName | DeBruijn Int (Maybe Text)
 newtype Name = Name (Either QualName UniqueName)
-  deriving Eq
+  deriving (Eq, Ord)
 
 -- Bindings: 
 -- An optionally annotated binding
@@ -57,9 +59,27 @@ newtype OptBind n ty = OptBind (Either n (n, ty))
   deriving Eq
 
 -- An annotated binding
-newtype AnnBind n ty = AnnBind (n, ty)   
+newtype AnnBind n ty = AnnBind { unann :: (n, ty) }
   deriving Eq
 
+{------------------------------ BIND ABSTRACTION -------------------------------}
+{-                                                                             -}
+{-------------------------------------------------------------------------------}
+
+class Binding b where 
+  name :: b n a -> n
+  bind :: n -> a -> b n a
+
+instance Binding AnnBind where   
+  name (AnnBind (n, _)) = n
+
+  bind n ty = AnnBind (n, ty)
+
+instance Binding OptBind where   
+  name (OptBind (Left   n)) = n
+  name (OptBind (Right (n, _))) = n
+
+  bind n ty = OptBind $ Right (n, ty)
 
 {--------------------------------- GENERATION ----------------------------------}
 {-                                                                             -}
@@ -124,10 +144,6 @@ instance Environment Name (Map Integer) where
                          val' <- eval val env'
                          pure $ Map.insert id val' env')
     (pure env_empty)
-
-  
-(↦) :: Environment n e => n -> a -> e a
-n ↦ v = insert n v env_empty
 
 
 {---------------------------------- INSTANCES ----------------------------------}

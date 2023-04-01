@@ -1,15 +1,6 @@
 module Glyph.Abstract.Typecheck
   () where
 
--- import Control.Monad.Except (MonadError)
--- import qualified Data.Map as Map
--- import Data.Map (Map)  
-
--- import Prettyprinter
-
--- import Glyph.Abstract.Term  
--- import Glyph.Abstract.Unify  
-
 
 {-------------------------------- TYPECHECKING ---------------------------------}
 {- Typechecking is heavily reliant on Unification, and in fact can be seen as  -}
@@ -19,3 +10,13 @@ module Glyph.Abstract.Typecheck
 {- a term and transforms it into a form amenable to unification, runs the      -}
 {- unifier and interprets the result.                                          -}
 {-------------------------------------------------------------------------------}
+
+
+-- import Control.Monad.Except (MonadError)
+-- import qualified Data.Map as Map
+-- import Data.Map (Map)  
+
+-- import Prettyprinter
+
+-- import Glyph.Abstract.Term  
+-- import Glyph.Abstract.Unify  

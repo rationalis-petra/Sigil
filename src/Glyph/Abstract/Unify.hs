@@ -1,9 +1,10 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables, InstanceSigs #-}
 module Glyph.Abstract.Unify
   (Formula(..),
    SingleConstraint(..),
    Quant(..),
    Unifiable(..)) where
+
 
 {--------------------------------- UNIFICATION ---------------------------------}
 {- This file contains a Higher Order Unification Algorithm for the Glyph       -}
@@ -54,26 +55,17 @@ module Glyph.Abstract.Unify
 {-------------------------------------------------------------------------------}
 
 
-import Control.Monad.Except (MonadError)
-import Control.Monad.Reader (MonadReader)
--- import Control.Monad.Except (MonadError, throwError, 
---                              Except, runExcept)
--- import Control.Monad.Reader (MonadReader, ask,
---                              ReaderT, runReaderT)
--- import Control.Monad.Identity (Identity)
--- import Control.Applicative
--- import Control.Lens (makeLenses, (^.), (%~))
---import Data.Monoid
--- import qualified Data.Set as Set
--- import Data.Set (Set)
--- import qualified Data.Map as Map
--- import Data.Map (Map, (!)) 
---import qualified Data.List as List
-import Data.Text (Text)  
+import Control.Monad (forM)
+import Control.Monad.Except (MonadError, throwError)
+-- import Control.Monad.Reader (MonadReader)
+import Control.Lens (_1, _2, makeLenses, (^.), (%~), view)
+import qualified Data.Set as Set
+import Data.Set (Set)
+import qualified Data.List as List
 
 import Prettyprinter
 
--- import Glyph.Abstract.Syntax
+import Glyph.Abstract.Syntax
 --import Glyph.Abstract.Term
 import Glyph.Abstract.Environment
 import Glyph.Abstract.Substitution
@@ -94,7 +86,7 @@ import Glyph.Abstract.Substitution
 
 
 class Unifiable a where
-  solve :: (Environment Name e, MonadError (Doc ann) m, MonadGen m, MonadReader (e a) m) => Formula a -> m (Substitution a)
+  solve :: (MonadError (Doc ann) m, MonadGen m) => Formula a -> m (Substitution a)
   --solve_isolated :: Env a -> Formula a -> Either (Doc ann) (Substitution a)
 
 data SingleConstraint a
@@ -102,11 +94,12 @@ data SingleConstraint a
   | a :∈: a -- Claim of type occupation 
 
 data Quant = Exists | Forall
+  deriving (Eq, Ord)
 
 data Formula a
   = Conj [SingleConstraint a]     -- Conjuntion of n single constraints ([] = ⊤)
   | And (Formula a) (Formula a)   -- Conjunction of two formulas
-  | Bind Quant Text a (Formula a) -- Quantified (∀/∃) formulas
+  | Bind Quant Name a (Formula a) -- Quantified (∀/∃) formulas
 
 
 instance Functor SingleConstraint where  
@@ -115,22 +108,34 @@ instance Functor SingleConstraint where
     a :∈: b -> f a :∈: f b
 
 instance Subst Name s a => Subst Name s (SingleConstraint a) where  
-  subst sub con = case con of 
-    a :≗: b -> subst sub a :≗: subst sub b
-    a :∈: b -> subst sub a :∈: subst sub b
+  substitute shadow sub con = fmap (substitute shadow sub) con
+
+  free_vars con = case con of
+    a :≗: b -> Set.union (free_vars a) (free_vars b)
+    a :∈: b -> Set.union (free_vars a) (free_vars b)
 
 instance (Subst Name s a) => Subst Name s (Formula a) where
-  subst sub term = case term of 
-    Conj l -> Conj $ map (subst sub) l
-    And l r -> And (subst sub l) (subst sub r)
-    Bind quant var ty body -> Bind quant var (subst sub ty) (subst sub body)
-  
+  substitute shadow sub term = case term of 
+    Conj l ->
+      Conj $ fmap (substitute shadow sub) l
+    And l r ->
+      And (substitute shadow sub l) (substitute shadow sub r)
+    Bind quant var ty body ->
+      Bind quant var (substitute shadow' sub ty) (substitute shadow' sub body)
+      where shadow' = Set.insert var shadow
 
+  free_vars form = case form of
+    Conj l ->
+      List.foldl' Set.union Set.empty $ fmap free_vars l
+    And l r ->
+      Set.union (free_vars l) (free_vars r)
+    Bind _ var ty body ->
+      Set.union (free_vars ty) $ Set.delete var (free_vars body)
 
 {----------------------------- INTERNAL DATATYPES ------------------------------}
 {- TODO: Unification Monad, env and Binds                                      -}
 {-                                                                             -}
-{- These types re are for the most part direct translations of types mentioned -}
+{- These types are for the most part direct translations of types mentioned    -}
 {- above, with the exception of the 'FlatFormula' type. This exists because    -}
 {- Part of the solution process involves taking an arbitrary formula and       -}
 {- converting it to the form:                                                  -}
@@ -149,18 +154,18 @@ instance (Subst Name s a) => Subst Name s (Formula a) where
 {- • Remove any such variables x from the bindings that have now been          -}
 {-   substituted away.                                                         -}
 {- While some transformations lack one of the above steps, this general        -}
-{- procedure is encapsulated in the 'UnifyResult' type. 'UnifyResult'          -}
-{- contains two members:                                                       -}
-{- • A function which will add or remove Bindings                              -}
+{- procedure is encapsulated in the UnifyResult type. UnifyResult              -}
+{- contains three members:                                                     -}
+{- • A new set of bindings to use                                              -}
 {- • A substitution to apply.                                                  -}
+{- • A list of new constraints to add.                                         -}
 {-------------------------------------------------------------------------------}
 
-{--
+
 -- type Unify ann v = ReaderT (Env v) (Except (Doc ann))
 
 -- Bindings: a value is either bound within a formula (and hence quantified)
-type Env = []
-type Binds a = Map.Map Integer (Quant, a)
+type Binds a = [(FBind a)]
 
 type ContT a m c = ((c -> m a) -> m a)
 
@@ -169,34 +174,69 @@ type UnifyResult a =
         , Substitution a
         , [SingleConstraint a])
 
-class UnifyResultM 
-
-unifyempty = (id, [], id)
-
 data FlatFormula a = FlatFormula
   { _binds :: Binds a
   , _constraints :: [SingleConstraint a]
   }
 
-data Binding a = Binding
-  { _elem_name :: IDName
-  , _elem_quant :: Quant
+data FBind a = FBind
+  { _elem_quant :: Quant
+  , _elem_name :: Name
   , _elem_type :: a
   }
 
-type Env' χ              = Env (Core IDName χ)
-type Core' χ             = Core IDName χ
-type Binds' χ            = [(Quant, Core IDName χ)]
-type Binding' χ          = Binding (Core IDName χ)
-type Formula' χ          = Formula (Core IDName χ)
-type UnifyResult' χ      = UnifyResult (Core IDName χ)
-type FlatFormula' χ      = Formula (Core IDName χ)
-type Substitution' χ     = Substitution (Core IDName χ)
-type SingleConstraint' χ = SingleConstraint (Core IDName χ)
+type Core' χ             = Core AnnBind Name χ
+type Binds' χ            = Binds (Core AnnBind Name χ)
+type FBind' χ            = FBind (Core AnnBind Name χ)
+type Formula' χ          = Formula (Core AnnBind Name χ)
+type UnifyResult' χ      = UnifyResult (Core AnnBind Name χ)
+--type FlatFormula' χ      = Formula (Core AnnBind Name χ)
+type Substitution' χ     = Substitution (Core AnnBind Name χ)
+type SingleConstraint' χ = SingleConstraint (Core AnnBind Name χ)
 
 makeLenses ''FlatFormula
-makeLenses ''Binding
+makeLenses ''FBind
+
+instance Eq (FBind a) where
+  b == b' = b^.elem_name == b'^.elem_name
+
+instance (Subst Name s a) => Subst Name s (FBind a) where
+  substitute shadow sub (FBind quant name ty) = 
+    FBind quant name (substitute (Set.insert name shadow) sub ty) 
+
+  free_vars (FBind _ nm et) = Set.delete nm $ free_vars et 
+    
   
+instance (Subst Name s a) => Subst Name s (FlatFormula a) where
+  substitute shadow sub (FlatFormula binds constraints) = 
+    let (shadow', binds') = foldr (\ b (s, bs) ->
+                                     ( Set.insert (b^.elem_name) s
+                                     , substitute s sub b : bs)) (shadow, []) binds
+    in FlatFormula binds' (substitute shadow' sub constraints)
+
+  free_vars (FlatFormula binds constraints) =
+    Set.difference
+      (Set.fromList $ fmap (view elem_name) binds)
+      (foldl Set.union Set.empty $ fmap free_vars constraints)
+
+instance Semigroup (FlatFormula a) where
+  f1 <> f2 = FlatFormula bs scons where
+    bs = f1^.binds <> f2^.binds
+    scons = f1^.constraints <> f2^.constraints
+    
+instance Monoid (FlatFormula a) where
+  mempty = FlatFormula [] []
+
+
+    -- Set.difference (Set.fromList $ fmap ) . fold . fmap free_vars
+  -- substitute shadow sub term = case term of 
+  --   Conj l ->
+  --     Conj $ fmap (substitute shadow sub) l
+  --   And l r ->
+  --     And (substitute shadow sub l) (substitute shadow sub r)
+  --   Bind quant var ty body ->
+  --     Bind quant var (substitute shadow' sub ty) (substitute shadow' sub body)
+  --     where shadow' = Set.insert var shadow
 
 {---------------------------- TOP-LEVEL UNIFICATION ----------------------------}
 {- The solve function is the top-level procedure, and the driver is the        -}
@@ -205,31 +245,30 @@ makeLenses ''Binding
 {-------------------------------------------------------------------------------}
 
 
-instance forall χ. Term (Core IDName χ) => Unifiable (Core IDName χ) where
-  solve = fst <$> uncurry (flip uni_while mempty) . (\v -> (v^.binds, v^.constraints)) . flatten where
+instance (Pretty (Coreχ χ), Eq (Coreχ χ)) => Unifiable (Core AnnBind Name χ) where
+  solve :: forall ann m χ. (Pretty (Coreχ χ), MonadError (Doc ann) m, MonadGen m, Eq (Coreχ χ)) =>
+           Formula' χ -> m (Substitution' χ)
+  solve = fmap fst . (\v -> uni_while (v^.binds) mempty (v^.constraints)) . flatten where
 
-    uni_while :: forall m ann. (MonadError (Doc ann) m, MonadGen m, MonadReader (Env' χ) m) =>
-                 Binds' χ -> Substitution' χ -> [SingleConstraint' χ] -> m (Substitution' χ, [SingleConstraint' χ])
+    uni_while :: Binds' χ -> Substitution' χ -> [SingleConstraint' χ] -> m (Substitution' χ, [SingleConstraint' χ])
     uni_while quant_vars sub cs = 
-      let --uni_with :: (MonadError (Doc ann) m, MonadReader (Env' χ) m) => (SingleConstraint' χ -> ContT b m (UnifyResult' χ))
-          --  -> (Substitution' χ, [SingleConstraint' χ]) -> m (Substitution' χ, [SingleConstraint' χ])
+      let -- uni_with :: (MonadError (Doc ann) m, MonadReader (Env' χ) m) => (SingleConstraint' χ -> ContT b m (UnifyResult' χ))
+          --   -> (Substitution' χ, [SingleConstraint' χ]) -> m (Substitution' χ, [SingleConstraint' χ])
           uni_with f backup = search_in cs []
             where
-              search_in :: (MonadError (Doc ann) m, MonadGen m, MonadReader (Env' χ) m) =>
-                [SingleConstraint' χ] -> [SingleConstraint' χ] -> m (Substitution' χ, [SingleConstraint' χ])
+              search_in :: [SingleConstraint' χ] -> [SingleConstraint' χ] -> m (Substitution' χ, [SingleConstraint' χ])
               search_in [] _ = finish Nothing
               search_in (next:rest) resolved = 
                 f quant_vars next $ \case
                 -- TODO: take into account update to UnifyResult
                   Just (new_fctx, sub', next) ->
                     let
-                      formula  = FlatFormula new_fctx (reverse resolved <> [next] <> rest)
+                      formula  = FlatFormula new_fctx (reverse resolved <> next <> rest)
                       formula' = subst sub' formula
                     in finish $ Just (sub', formula'^.constraints, formula'^.binds)
                   Nothing -> search_in rest (next:resolved)
 
-              finish :: (MonadError (Doc ann) m, MonadGen m, MonadReader (Env' χ) m) =>
-                Maybe (Substitution' χ, [SingleConstraint' χ], Binds' χ) -> m (Substitution' χ, [SingleConstraint' χ])
+              finish :: Maybe (Substitution' χ, [SingleConstraint' χ], Binds' χ) -> m (Substitution' χ, [SingleConstraint' χ])
               finish Nothing = backup
               finish (Just (sub', cs', binds)) =
                 let sub'' = sub <> sub' in
@@ -244,8 +283,7 @@ instance forall χ. Term (Core IDName χ) => Unifiable (Core IDName χ) where
     check_finished [] = pure ()
     check_finished cs = throwError ("ambiguous constraints: " <> pretty cs)
 
-    unify_one :: (MonadError (Doc ann) m, MonadGen m, MonadReader (Env' χ) m) =>
-      Binds' χ -> SingleConstraint' χ -> ContT r m (UnifyResult' χ)
+    unify_one :: Binds' χ -> SingleConstraint' χ -> ContT r m (UnifyResult' χ)
     unify_one binds constraint cont = case constraint of 
       a :≗: b -> do
         c' <- unify_eq binds a b
@@ -254,27 +292,23 @@ instance forall χ. Term (Core IDName χ) => Unifiable (Core IDName χ) where
           r -> cont r
       _ -> cont Nothing
     
-    unify_search :: (MonadError (Doc ann) m, MonadGen m, MonadReader (Env' χ) m) =>
-      Binds' χ -> SingleConstraint' χ -> ContT r m (UnifyResult' χ)
-    unify_search binds constraint cont = case constraint of
+    unify_search :: Binds' χ -> SingleConstraint' χ -> ContT r m (UnifyResult' χ)
+    --unify_search binds constraint cont = case constraint of
+    unify_search _ constraint cont = case constraint of
       --a :∈: b | not_higher_universe b -> right_search binds a b $ new_cont cont
       _ -> cont Nothing
-      where 
-        not_higher_universe (Uni _ k) = k < 1
-        not_higher_universe _ = True
+      -- where 
+      --   not_higher_universe (Uni _ k) = k < 1
+      --   not_higher_universe _ = True
     
-    unify_search_atom :: (MonadError (Doc ann) m, MonadGen m, MonadReader (Env' χ) m) =>
-      Binds' χ ->  SingleConstraint' χ -> ContT r m (UnifyResult' χ)
-    unify_search_atom binds constraint cont = case constraint of
+    unify_search_atom :: Binds' χ ->  SingleConstraint' χ -> ContT r m (UnifyResult' χ)
+    --unify_search_atom binds constraint cont = case constraint of
+    unify_search_atom _ constraint cont = case constraint of
       --a :∈: b -> right_search binds a b $ new_cont cont
       _ -> cont Nothing
     
-    new_cont cont constraint = cont $ fmap (\v -> (mempty, v, False)) constraint
+    --new_cont cont constraint = cont $ fmap (\v -> (mempty, v, False)) constraint
       
-
-  -- solve_isolated env formula = runExcept $ runReaderT env $
-  --   (solve formula :: ReaderT (Env' χ) (Except (Doc ann)) (Substitution (Core Name χ)))
-
 
 {---------------------------- UNIFYING FOR EQUALITY ----------------------------}
 {- The unify_eq function is for unifying constraints of the form M ≗ N.        -}
@@ -293,51 +327,56 @@ instance forall χ. Term (Core IDName χ) => Unifiable (Core IDName χ) where
 {-------------------------------------------------------------------------------}
 
 
-unify_eq :: (MonadError (Doc ann) m, MonadGen m, MonadReader (Env' χ) m) =>
-  (Binds' χ) -> Core IDName χ -> Core IDName χ -> m (UnifyResult' χ)
+unify_eq :: forall m ann χ. (MonadError (Doc ann) m, MonadGen m, Eq (Coreχ χ)) =>
+  Binds' χ -> Core AnnBind Name χ -> Core AnnBind Name χ -> m (UnifyResult' χ)
 unify_eq quant_vars a b = case (a, b) of 
   (Coreχ χ, Coreχ χ') ->
-    if χ == χ'
-    then Just (id, mempty, id)
-    else throwError "unequal Coreχ values"
+    if χ == χ' then
+      pure $ Just (quant_vars, mempty, [])
+    else
+      throwError ("unequal Coreχ values" :: Doc ann)
   (Uni _ n, Uni _ n') ->
-    if n == n'
-    then Just (id, mempty, id)
-    else throwError ("unequal universes: (𝒰 " <> n <> ") and (𝒰 " <> n' <> ")")
+    if n == n' then
+      pure $ Just (quant_vars, mempty, [])
+    else
+      throwError ("inequal universes:"
+                  <+> "(𝒰 " <> pretty n <> ")"
+                  <+> "and"
+                  <+> "(𝒰 " <> pretty n' <> ")")
 
   -- Terms which are otherwise equal
-  (s, s') | s == s' -> Just (id, mempty, id)
+  (s, s') | s == s' -> pure $ Just (quant_vars, mempty, [])
 
   -- (Var χ n, Var χ' n') -> check quantification
-  (Prd _ _ a b, Prd _ _ a' b') -> 
-    pure $ Just (add_bind Forall a, [(a :≗: a'), (b :≗: b')], id)
+  -- (Prd _ (AnnBind (n, a)) b, Prd _ (AnnBind (n', a')) b') -> 
+  --   pure $ Just (add_bind Forall a, [(a :≗: a'), (b :≗: b')], id)
 
   -- Case Lam-Lam
-  (Abs _ _ ty body, Abs _ _ ty' body') -> 
-    pure $ Just (add_bind Forall ty, [(ty :≗: ty'), (body :≗: body')], id)
+  (Abs _ (AnnBind (n, ty)) body, Abs _ (AnnBind (n', ty')) body') -> 
+    pure $ Just (add_bind Forall n ty quant_vars, mempty, [(ty :≗: ty'), (body :≗: subst (n ↦ mkvar n') body')])
 
   -- Case Lam-Any (both left and right variants)
-  (s, Abs _ v ty body) -> 
-    pure $ Just (add_bind Forall ty, [s :≗: (body `app` mkvar 0 v)], id)
-  (Abs _ v ty body, s) -> 
-    pure $ Just (add_bind Forall ty, [(body `app` mkvar 0 v) :≗: s], id)
+  (s, Abs _ (AnnBind (n, ty)) body) -> 
+    pure $ Just (add_bind Forall n ty quant_vars, mempty, [s :≗: (body `app` mkvar n)])
+  (Abs _ (AnnBind (n, ty)) body, s) -> 
+    pure $ Just (add_bind Forall n ty quant_vars, mempty, [(body `app` mkvar n) :≗: s])
 
   -- Note: original was matching with spine, meaning it may include more than
   -- just App (e.g. vars, ∀, ...)
   (s, s') -> do
     (var, terms) <- case (unwind s) of
       Just v -> pure v
-      _ -> (throwError "ran out of unify terms")
+      _ -> throwError "ran out of unify terms"
     bind <- var ! quant_vars
-    if bind^.elem_quant == Exists then do
+    if (bind^.elem_quant) == Exists then do
       let ty = bind^.elem_type
-      fors <- get_foralls_after var binds
-      exists <- get_exists_after var binds
+          fors = Set.fromList $ get_foralls_after var quant_vars
+          exists = Set.fromList $ get_exists_after var quant_vars
       case unwind s' of
         Just (var', terms') -> do
           bind' <- var' ! quant_vars
           case bind' of 
-            Binding { _elem_quant=Forall, _elem_type=ty' }
+            FBind { _elem_quant=Forall, _elem_type=ty' }
               | (not $ elem (mkvar var) terms) && Set.member var' fors ->
                 if not $ is_partial_perm fors terms
                 then pure Nothing
@@ -354,7 +393,7 @@ unify_eq quant_vars a b = case (a, b) of
                 if all_elements_are_vars fors terms
                 then gvar_uvar_outside (var, terms, ty) (var', terms', ty')
                 else throwError "occurs check failed"
-            Binding { _elem_quant=Exists, _elem_type=ty'} ->
+            FBind { _elem_quant=Exists, _elem_type=ty'} ->
               if not $ is_partial_perm fors terms && is_partial_perm fors terms' && Set.member var' exists
               then pure Nothing
               else if var == var'
@@ -374,11 +413,12 @@ unify_eq quant_vars a b = case (a, b) of
           else throwError "can't unify two different universal equalitiies"
     
       -- uvar-uvar!
-      Just (var', terms') | var == var' -> do
-        let match = throwError "not sure what a type constraint is...?"
+      Just (var', _) | var == var' -> do
+        throwError "not sure what a type constraint is...?"
+        --let match _ _ = throwError "not sure what a type constraint is...?"
     
-        sctors <- match terms terms'
-        pure $ Just (id, mempty, id)
+        --sctors <- match terms terms'
+        --pure $ Just (quant_vars, mempty, [])
       _ -> throwError "can't unify a ∀-var against a term"
 
   where
@@ -403,22 +443,25 @@ unify_eq quant_vars a b = case (a, b) of
     -- 
     -- Imitations are performed by the gvar_fixed helper function, meaning
     -- gvar_const doesn't have to do much work!
+    gvar_const :: (Name, [Core' χ], Core' χ) -> (Name, [Core' χ], Core' χ) -> m (UnifyResult' χ)
     gvar_const a@(_, _, _) b@(var', _, _) =
-      gvar_fixed a b $ flip mkvar "s"  . const var'
+      gvar_fixed a b $ mkvar . const var'
 
     -- GVar-Uvar Onside
     -------------------
     --
-    gvar_uvar_outside (var, terms, ty) (var', terms', ty') = gvar_const
+    gvar_uvar_outside :: (Name, [Core' χ], Core' χ) -> (Name, [Core' χ], Core' χ) -> m (UnifyResult' χ)
+    gvar_uvar_outside = gvar_const
 
     -- GVar-Uvar Inside
     -------------------
     --   M has the form y
     --
+    gvar_uvar_inside :: (Name, [Core' χ], Core' χ) -> (Name, [Core' χ], Core' χ) -> m (UnifyResult' χ)
     gvar_uvar_inside a@(_, terms, _) b@(var', _, _) = 
-      case elem_index var' $ reverse terms of 
+      case elem_index (mkvar var') $ reverse terms of
         Nothing -> pure Nothing
-        Just i -> gvar_fixed a b $ (!! i)
+        Just i -> gvar_fixed a b $ mkvar . (!! i) 
 
     -- GVar-Gvar Same
     -----------------
@@ -429,35 +472,34 @@ unify_eq quant_vars a b = case (a, b) of
     -- Then, let L = λ [u₁:A₁ … uₙ:Aₙ] (x' uₚ(1) … uₚ(n)) and transition to
     --    ∃x':(u₁:Aρ(1) → ... → uₙ:Aρ(n) → A) [L/x:Tₓ]Γ,x':Tₓ F
     --
+    gvar_gvar_same :: (Name, [Core' χ], Core' χ) -> (Name, [Core' χ], Core' χ) -> m (UnifyResult' χ)
     gvar_gvar_same (var, terms, ty) (_, terms', _) = do
-      var <- fresh_var 
+      new_var <- fresh_var "@ggs"
       let n = length terms 
-          -- atys = types Aₙ
-          -- a    = the type A
-          (atys, a) = (\(as, a) -> (take n as, a)) $ telescope_type ty
+          -- abindings = bindings u₁:A₁ … uₙ:Aₙ
+          abindings = take n $ fst $ telescope_type ty
           
           -- Note: we use ρ in two places: 
           --  • To create the application in the term L 
           --  • To create the type of x'
           -- Thus, instead of first calculating the permutation, then using it
           -- we intstead embed the types Aₙ and vars uₙ into the computation   
-          -- TODO: adapt to DeBruijn terms
-          perm = [t | t <- filter (\(x,y) -> x == y) (zip terms terms')]
+          perm = [binding | (binding,_) <- filter (\(_,(a,b)) -> a == b) $ zip abindings (zip terms terms') ]
           
           -- construct the term L
-          l = untelescope ((map fst perm), lbody) where
-            lbody = wind (var, (map snd perm))
-          
-          -- The substitution to perform (TODO 
-          -- TODO: adapt to DeBruijn terms
-          sub = var ↦ l
+          l = untelescope (perm, lbody) where
+            lbody = wind (var, (map (mkvar . fst . unann) perm))
 
           -- The type of x' : nty = u₁:Aρ(1) → ... → uₙ:Aρ(n) → A 
-          nty = foldr (Abs undefined "s") a (map fst perm)
+          nty = untelescope_type (perm, get_base n ty)
+          
+          sub = var ↦ l
 
-          modify_binds = remove_bind var . add_before var Exists nty
+          quant_vars' = remove_var var $
+                        add_before var Exists new_var nty $
+                        quant_vars
 
-      pure $ Just ((modify_binds . subst sub), [], id)
+      pure $ Just (quant_vars', sub, [])
           
     -- GVar-Uvar-diff
     -----------------
@@ -487,56 +529,72 @@ unify_eq quant_vars a b = case (a, b) of
     -- 
     -- Can be used to make it apply. 
     --
-    gvar_gvar_diff top (var, terms, ty) (var', terms', ty') bind =
-      raise_to_top top bind (var', terms') $ \b subO -> do
-        let a = (subst subO var, subst subO terms, subst subO ty)
+    gvar_gvar_diff :: FBind' χ -> (Name, [Core' χ], Core' χ) -> (Name, [Core' χ], Core' χ) -> FBind' χ -> m (UnifyResult' χ)
+    gvar_gvar_diff top (var, terms, ty) (var', terms', _) binder =
+      raise_to_top top binder (var', terms') $ \b subO -> do
+        let a = (var, subst subO terms, subst subO ty)
         gvar_gvar_diff' a b
 
     -- See gvar_gvar_diff for more details. In short, this performs a set of 
     -- raising operations on the binding `bind'  
-    raise_to_top top bind sp m | are_adjacent quant_vars top bind =
-      m (sp, ty) mempty
-    raise_to_top top bind sp m = do
-      x' <- freshen (bind^.elem_name)
-      let mod1 = (remove_bind top. add_after top x' Exists ty')
-          
-          hl = reverse $ get_binds_between top bind quant_vars
-          newx_args = x 
+    raise_to_top :: FBind' χ -> FBind' χ -> (Name, [Core' χ]) -> ((Name, [Core' χ], Core' χ) -> Substitution' χ -> m (UnifyResult' χ)) -> m (UnifyResult' χ)
+    raise_to_top top binder sp m | are_adjacent top binder quant_vars =
+      m (fst sp, snd sp, binder^.elem_type) mempty
+    raise_to_top top binder sp m = do
+      x' <- freshen (binder^.elem_name)
+      let hl = reverse $ get_binds_between top binder quant_vars
 
-          sub = x ↦ (wind x' newx_args)
+          newx_args = map (mkvar . view elem_name) hl 
+
+          sub = (binder^.elem_name) ↦ wind (x', newx_args)
+
+          ty' = untelescope_type (map (\fb -> AnnBind (fb^.elem_name, fb^.elem_type)) hl, binder^.elem_type)
 
           add_sub result = case result of 
             Nothing -> pure Nothing
             -- TODO: consult hou - seems to perform substitution twice?? 
-            Just (mod1, sub, cons) ->  
-              
-              pure $ Just (subst sub' . mod1, sub ⋅ sub', cons)
+            Just (quant_vars, sub', cons) ->  
+              let sub'' = (subst sub' <$> sub) <> sub' 
+                  quant_vars' = subst sub' quant_vars
+              in pure $ Just (quant_vars', sub'', cons)
 
-      pure (mod, sub, remove_bind x)
+          update_binds bs = subst sub
+                      $ add_after (top^.elem_name) Exists x' ty'
+                      $ remove_bind top bs 
+
+      result <- add_sub =<< m (fst sp, subst sub (snd sp), ty') sub
+      pure $ fmap (\(quant_vars, sub, cons) -> (remove_var x' $ update_binds quant_vars, sub, cons)) result
 
     -- See gvar_gvar_diff for more details
+    gvar_gvar_diff' :: (Name, [Core' χ], Core' χ) -> (Name, [Core' χ], Core' χ)-> m (UnifyResult' χ)
     gvar_gvar_diff' (var, terms, ty) (var', terms', ty') = do
+      -- ty <- regen ty 
+      -- ty' <- regen ty'
+      new_var <- fresh_var "@ggd"
       let n = length terms
           m = length terms'
 
-          (uNL, atyl) = unzip $ take n $ fst $ untelescope_type ty
-          (vNl, btyl) = unzip $ take m $ fst $ untelescope_type ty'
+          abindings = take n $ fst $ telescope_type ty
+          bbindings = take m $ fst $ telescope_type ty'
 
           perm = do
-            (iyt,y) <- zip (zip uNl atyl) yl
-            (i',_) <- filter (\(_,y') -> y == y') $ zip vNl y'l 
+            (iyt,y) <- zip abindings terms
+            (i',_) <- filter (\(_,y') -> y == y') $ zip (fmap name bbindings) terms' 
             pure (iyt,i')
 
-          l = untelescope ((fst perm), mkvar new_var) (unwind (snd perm))
-          l' = untelescope ((fst perm), mkvar new_var) (unwind (snd perm))
+          l = untelescope (abindings, wind (new_var, fmap (mkvar . name . fst) perm))
+          l' = untelescope (bbindings, wind (new_var, fmap (mkvar . snd) perm))
 
-          xnewty = foldr (uncurry forall) (getBase n aty) (map fst perm)
+          newty = untelescope_type (map fst perm, get_base n ty) 
 
-          sub = (var' ↦ l') *** (var ↦ l)
+          sub = (var' ↦ l') <> (var ↦ l)
 
-          binds' = remove_env sub $ add_before var Exists xnew xnewty $ quant_vars
+          quant_vars' = remove_var var $
+                        remove_var var' $
+                        add_before var Exists new_var newty $ quant_vars
 
-        in pure $ Just (sub, [] {- var xN :@: xNty] -}, False, binds')
+
+        in pure $ Just (quant_vars', sub, [] {- var xN :@: xNty] -} )
 
     -- GVar-Fixed
     -----------------
@@ -550,35 +608,72 @@ unify_eq quant_vars a b = case (a, b) of
     --     ∃xₘ: (u₁:A₁) → (uₙ:Aₙ) → [(xₘ₋₁ u₁ … uₙ/v₁) … (x₁ u₁ … uₙ/vₘ)] Bₘ ...
     --       [L/x]F
     -- 
-    gvar_fixed a@(var, _, ty) b@(var', _, ty') action = do
-      let get_tyargs = fst . telescope_type
+    gvar_fixed :: (Name, [Core' χ], Core' χ) -> (Name, [Core' χ], Core' χ) -> ([Name] -> Core' χ) -> m (UnifyResult' χ)
+    gvar_fixed (var, terms, ty) (var', terms', ty') action = do
+      let get_tybinds = fst . telescope_type
 
-          aₙₛ = get_tyargs ty  -- The types A₁ … Aₙ 
-          bₙₛ = get_tyargs ty' -- The types B₁ … Bₙ
+          aₙₛ = get_tybinds ty  -- The bindings u₁:A₁ … uₙ:Aₙ 
+          bₘₛ = get_tybinds ty' -- The bindings v₁B₁ … vₙ:Bₙ
 
+      -- TOOD: confirm below is true: consider use in toLTerm?
+      -- the vector of bindings x₁: (∪_1:A₁) → … (uₙ:Aₙ) → B, …,
+      --   xₘ (∪_1:A₁) → … (uₙ:Aₙ) → [(xₘ₋₁ u₁ … uₙ/v₁) … (x₁ u₁ … uₙ/vₘ)]B
+      xₘₛ <- forM bₘₛ $ \_ -> do
+        x <- fresh_var "@xm"
+        pure $ (x, wind (x, map (mkvar . name) aₙₛ))
+
+      let to_l_term term = case term of
+              Prd _ bind body -> Abs undefined bind $ to_l_term body
+              _ -> foldr app (action $ fmap name aₙₛ) $ map snd xₘₛ
           -- The term L, which we will substitute for x
-          l = getDepth var
+          l = to_l_term ty
 
-      pure $ Just (id, subst sub $ a :≗: b, id)
+          vbuild e = untelescope_type (aₙₛ, e)
+
+          -- produce the set of substitutions starting at [] and ending with
+          -- [(xₘ₋₁ u₁ … uₙ/v₁) … (x₁ u₁ -- … uₙ/vₘ)] m, which can then be
+          -- applied to B (see transition in description)
+          subst_bty :: Substitution' χ -> Core' χ -> [(Name, Core' χ)] -> m [(Name, Core' χ)]
+          subst_bty sub term l = case (term,l) of 
+            (Prd _ b ty, (x, xi):xmr) ->
+              (:) (x, vbuild $ subst sub (snd $ unann b))
+                <$> (subst_bty (insert (name b) xi sub) ty xmr)
+            (_, []) -> pure []
+            _ -> throwError "_ is not well typed for _ on _"
+
+          sub = var ↦ l
+
+      quant_vars' <- subst sub
+        <$> remove_var var
+        <$> foldr ($) quant_vars
+        <$> fmap (\(n, ty) -> add_after var Exists n ty)
+        <$> (subst_bty mempty ty' xₘₛ)
+
+      -- TODO: quant_vars'
+      pure $ Just ( quant_vars'
+                  , sub
+                  -- application of sub to wind (var, terms) seems to be related
+                  -- to a bug in HOU.hs (Caledon)
+                  , [subst sub (wind (var, terms)) :≗: wind (var', terms')])
 
 
     -------------------------------- Predicates ---------------------------------
     -- These functions correspond to particular properties of an object(s)
 
     -- Returns true if the second argument is a partial permutation of the first
-    is_partial_perm :: Set Int -> [Core IDName χ] -> Bool
+    is_partial_perm :: Set Name -> [Core AnnBind Name χ] -> Bool
     is_partial_perm fors = go mempty where
       go _ [] = True
-      go s (Var _ (UniqueName n _) : rest) =
+      go s (Var _ n : rest) =
          Set.member n fors && not (Set.member n s) && go s rest
       go _ _ = False
 
     -- Returns true if the second argument consists solely of variables found in
     -- the first
-    all_elements_are_vars :: Set Int -> [Core IDName χ] -> Bool
+    all_elements_are_vars :: Set Name -> [Core AnnBind Name χ] -> Bool
     all_elements_are_vars fors = go where
       go [] = True
-      go (Var _ (UniqueName n _) : vars) = Set.member n fors
+      go (Var _ n : vars) = Set.member n fors && go vars
       go _ = False
 
 
@@ -662,40 +757,88 @@ left_search (m, goal) (x, target) = left_cont x target
 {- add : Add a binding at the lowest level                                     -}
 {-------------------------------------------------------------------------------}
 
+(!) :: (MonadError (Doc ann) m) => Name -> Binds a -> m (FBind a)
+name ! (b:bs) 
+  | b^.elem_name == name = pure $ b
+  | otherwise = name ! bs
+name ! [] = throwError $ "couldn't find binding: " <+> pretty name
 
-get_exists_after :: Int -> (Binds a) -> [a]
-get_exists_after n binds =
-  map snd $ filter (\(q, _) -> q == Exists) $ drop (n - length binds) binds
+get_exists_after :: Name -> (Binds a) -> [Name]
+get_exists_after name binds =
+  map (view elem_name) $ 
+    drop_until ((== name) . view elem_name) $ 
+      filter ((== Exists) . view elem_quant)
+      binds
 
-get_foralls_after :: Int -> (Binds a) -> [a]
-get_foralls_after n binds =
-  map snd $ filter (\(q, _) -> q == Forall) $ drop (n - length binds) binds
+get_foralls_after :: Name -> (Binds a) -> [Name]
+get_foralls_after name binds =
+  map (view elem_name) $ 
+    drop_until ((== name) . view elem_name) $ 
+      filter ((== Forall) . view elem_quant)
+      binds
 
-remove_bind :: Int -> FlatFormula a -> FlatFormula a
-remove_bind val = (binds %~ (:) (quant, val)) . (constraints %~ shift 1 0)
+get_binds_between :: (FBind a) -> (FBind a) -> (Binds a) -> (Binds a)
+get_binds_between top bottom binds =
+  between (== top) (== bottom) binds
+  where
+    between f g (x:xs)
+      | f x = drop_until g xs
+      | otherwise = between f g xs
+    between _ _ [] = []
 
-add_bind :: Quant -> a -> FlatFormula a -> FlatFormula a
-add_bind quant val =
-  (binds %~ (:) (quant, val)) . (constraints %~ shift 1 0)
+split_until :: (a -> Bool) -> [a] -> ([a], [a])
+split_until f (x:xs)
+  | f x = (_1 %~ (:) x) $ split_until f xs
+  | otherwise = (_2 %~ (:) x) $ split_until f xs
+split_until _ [] = ([], [])
 
-add_before :: Int -> Quant -> a -> FlatFormula a -> FlatFormula a
-add_before n quant val formula =
-  let beg = take n (formula^.binds) 
-      end = drop n (formula^.binds) 
-  in FlatFormula
-    (beg <> [(quant, val)] <> shift 1 0 end)
-    (shift 1 0 (formula^.constraints))
+drop_until :: (a -> Bool) -> [a] -> [a]
+drop_until p = fst . split_until p
 
-add_after :: Int -> Quant -> a -> FlatFormula a -> FlatFormula a
-add_after n quant val formula =
-  let beg = take n (formula^.binds) 
-      end = drop n (formula^.binds) 
-  in FlatFormula
-    (beg <> [(quant, val)] <> shift 1 0 end)
-    (shift 1 0 (formula^.constraints))
+-- take_until :: (a -> Bool) -> [a] -> [a]
+-- take_until p = snd . split_until p
 
-mkvar :: Int -> Text -> Core IDName χ  
-mkvar n s = Var undefined (Debruijn n s)
+split_before :: (a -> Bool) -> [a] -> ([a], [a])
+split_before p = go
+  where go [] = ([], [])
+        go (x:xs) 
+         | p x = ([], x:xs) 
+         | otherwise = (_1 %~ (:) x) $ go xs
+  
+split_after :: (a -> Bool) -> [a] -> ([a], [a])
+split_after p = go
+  where go [] = ([], [])
+        go (x:xs) 
+         | p x = ([x], xs) 
+         | otherwise = (_1 %~ (:) x) $ go xs
+
+remove_var :: Name -> Binds a -> Binds a
+remove_var var = filter $ (/= var) . view elem_name
+
+remove_bind :: FBind a -> Binds a -> Binds a
+remove_bind bind = filter (/= bind)
+
+add_bind :: Quant -> Name -> a -> Binds a -> Binds a
+add_bind quant name ty = (:) (FBind quant name ty)
+
+are_adjacent :: FBind a -> FBind a -> (Binds a) -> Bool
+are_adjacent a b vars =  
+  any_of (== (a, b)) (zip vars (tail vars))
+  where
+    any_of pred = List.foldl' (||) False . map pred
+
+add_before :: Name -> Quant -> Name -> a -> Binds a -> Binds a
+add_before n quant name val bindings =
+  let (beg, end) = split_before ((== n) . view elem_name) bindings 
+  in beg <> [(FBind quant name val)] <> end
+
+add_after :: Name -> Quant -> Name -> a -> Binds a -> Binds a
+add_after n quant name val bindings =
+  let (beg, end) = split_after ((== n) . view elem_name) bindings 
+  in beg <> [(FBind quant name val)] <> end
+
+mkvar :: n -> Core b n χ  
+mkvar = Var undefined 
 
 elem_index :: Eq a => a -> [a] -> Maybe Int
 elem_index = List.elemIndex  
@@ -720,37 +863,41 @@ elem_index = List.elemIndex
 {-------------------------------------------------------------------------------}
 
 
-unwind :: Core' χ -> Maybe (Int, [Core' χ])        
+unwind :: Core b n χ -> Maybe (n, [Core b n χ])        
 unwind core = case core of 
-  App _ l r -> (_1 %~ (r :)) <$> (unwind l) 
-  Var _ (UniqueName n _) -> Just (n, [])
-  Var _ (QIDName _) -> Nothing
+  App _ l r -> (_2 %~ (r :)) <$> (unwind l)
+  Var _ n -> Just (n, [])
   _ -> Nothing
 
-wind :: (Int, [Core' χ]) -> Core' χ
-wind (n, vars) = foldr (App undefined) (Var $ DeBruijn n "s") vars  
+wind :: (n, [Core b n χ]) -> Core b n χ
+wind (n, vars) = foldr (App undefined) (mkvar n) vars  
     
-telescope :: MonadError (Doc ann) m => Core n χ -> m ( [Core n χ], Core n χ)
-telescope term = case term of
-  Abs χ var body -> (\(end, as) -> (end, a:as)) <$> telescope b
-  a -> (a, [])
+-- telescope :: Core b n χ -> ([b n (Core b n χ)], Core b n χ)
+-- telescope term = case term of
+--   Abs χ b body -> (_1 %~ (:) b) $ telescope body
+--   a -> ([], a)
 
-untelescope :: ([Core' χ], Core' χ) -> Core' χ
-untelescope (list, seed) = foldr (Prd undefined "s") list seed
+untelescope :: ([b n (Core b n χ)], Core b n χ) -> Core b n χ
+untelescope (bindings, body) = foldr (Abs undefined) body bindings
 
-telescope_type :: Core n χ -> ([Core n χ], Core n χ)
+telescope_type :: Core b n χ -> ([b n (Core b n χ)], Core b n χ)
 telescope_type term = case term of
-  Prd χ var a b -> (\(end, as) -> (end, a:as)) <$> telescope_type b
-  a -> (a, [])
+  Prd _ binding b -> (_1 %~ (:) binding) $ telescope_type b
+  a -> ([], a)
 
-untelescope_type :: ([Core n χ], Core n χ) -> Core n χ
-untelescope_type (list, seed) = foldr (Prd undefined "s") list seed
+untelescope_type :: ([b n (Core b n χ)], Core b n χ) -> Core b n χ
+untelescope_type (bindings, ty) = foldr (Prd undefined) ty bindings
   
 flatten :: Formula a -> FlatFormula a
 flatten formula = case formula of
   Conj cs -> FlatFormula [] cs
   And l r -> flatten l <> flatten r
-  Bind q _ ty f -> (binds %~ Map.insert q ty) . flatten f 
+  Bind q n ty f -> (binds %~ (:) (FBind q n ty)) $ flatten f 
+
+get_base :: Int -> Core b n χ -> Core b n χ 
+get_base 0 a = a                            
+get_base n (Abs _ _ r) = get_base (n - 1) r
+get_base _ a = a
 
 
 {------------------------------ PRETTY INSTANCES -------------------------------}
@@ -779,13 +926,10 @@ instance Pretty a => Pretty (Formula a) where
 {------------------------------- MISC. INSTANCES -------------------------------}
 
 
-instance Monoid (FlatFormula a) where
-  mempty = FlatFormula [] []
 
-  mappend f1 f2 = FlatFormula bs scons where
-    bs = f1^.binds <> shift (nvars f1) 0 (f2^.binds)
-    scons = f1^.constraints <> shift (nvars f1) 0 (f2^.constraints)
+-- Helper functions that maybe can be moved to another file??  
 
-    nvars = length . _binds 
-
---}
+app :: forall χ. Core' χ -> Core' χ -> Core' χ  
+app val arg = case val of 
+  Abs _ (AnnBind (n, _)) e -> subst ((n ↦ arg) :: Substitution' χ) e
+  _ -> App undefined val arg 
