@@ -1,0 +1,54 @@
+#+html_head: <link rel="stylesheet" href="../modulus-style.css" type="text/css"/>
+#+title: Modulus Standard Module Layout
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:right">
+[[file:../index.org][Modulus]] / [[file:index.org][Documentation]] / Module Layout
+#+html: </div>
+
+Module
+
+
+* Modules which implement abstractions
+see the list list module.
+
++ There is an inductive datatype: =List A=
+
+#+begin_src modulus
+(induct (List A : 𝒰)
+  (nil : List A)
+  (cons : A → List A → List A))
+#+end_src
+
+
+This datatype can implement some modules interfaces
+
++ functor
++ applicative 
++ monad 
++ magma
++ groupoid
++ monoid
+
+It also /might/ implement some interfaces
++ It implements =Show= if the element type implements =Show=
++ It implements =Ord= if the element type implements =Ord=
++ some others
+
+* Rationale
+What should =open data.coll.list= do?
+
++ We don't want to directly export all values (=⋅=, =length=, =empty=, ...), as
+  this may trample over the namespace where we are opening. Particularly,
+  we don't want to replace functions which are implicit (e.g. =⋅=).
++ We want implicit functions =⋅= to be able to 'see' lists' implementation of
+  their signatures (=groupoid=). 
+
+
+* Layout
+The =list= module has the following structure
++ list 
+  + List A (inductive definition)
+  + list-monad (implicits for functors, applicatives, monads)
+  + list-monoid (implicits for magmas, groupoids, monoids)
+  + list-internal (contains /all/ list functions)

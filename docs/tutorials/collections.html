@@ -1,0 +1,563 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<!-- 2022-12-22 Thu 16:22 -->
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tutorial: Collections</title>
+<meta name="author" content="Connor Redfern" />
+<meta name="generator" content="Org Mode" />
+<style>
+  #content { max-width: 60em; margin: auto; }
+  .title  { text-align: center;
+             margin-bottom: .2em; }
+  .subtitle { text-align: center;
+              font-size: medium;
+              font-weight: bold;
+              margin-top:0; }
+  .todo   { font-family: monospace; color: red; }
+  .done   { font-family: monospace; color: green; }
+  .priority { font-family: monospace; color: orange; }
+  .tag    { background-color: #eee; font-family: monospace;
+            padding: 2px; font-size: 80%; font-weight: normal; }
+  .timestamp { color: #bebebe; }
+  .timestamp-kwd { color: #5f9ea0; }
+  .org-right  { margin-left: auto; margin-right: 0px;  text-align: right; }
+  .org-left   { margin-left: 0px;  margin-right: auto; text-align: left; }
+  .org-center { margin-left: auto; margin-right: auto; text-align: center; }
+  .underline { text-decoration: underline; }
+  #postamble p, #preamble p { font-size: 90%; margin: .2em; }
+  p.verse { margin-left: 3%; }
+  pre {
+    border: 1px solid #e6e6e6;
+    border-radius: 3px;
+    background-color: #f2f2f2;
+    padding: 8pt;
+    font-family: monospace;
+    overflow: auto;
+    margin: 1.2em;
+  }
+  pre.src {
+    position: relative;
+    overflow: auto;
+  }
+  pre.src:before {
+    display: none;
+    position: absolute;
+    top: -8px;
+    right: 12px;
+    padding: 3px;
+    color: #555;
+    background-color: #f2f2f299;
+  }
+  pre.src:hover:before { display: inline; margin-top: 14px;}
+  /* Languages per Org manual */
+  pre.src-asymptote:before { content: 'Asymptote'; }
+  pre.src-awk:before { content: 'Awk'; }
+  pre.src-authinfo::before { content: 'Authinfo'; }
+  pre.src-C:before { content: 'C'; }
+  /* pre.src-C++ doesn't work in CSS */
+  pre.src-clojure:before { content: 'Clojure'; }
+  pre.src-css:before { content: 'CSS'; }
+  pre.src-D:before { content: 'D'; }
+  pre.src-ditaa:before { content: 'ditaa'; }
+  pre.src-dot:before { content: 'Graphviz'; }
+  pre.src-calc:before { content: 'Emacs Calc'; }
+  pre.src-emacs-lisp:before { content: 'Emacs Lisp'; }
+  pre.src-fortran:before { content: 'Fortran'; }
+  pre.src-gnuplot:before { content: 'gnuplot'; }
+  pre.src-haskell:before { content: 'Haskell'; }
+  pre.src-hledger:before { content: 'hledger'; }
+  pre.src-java:before { content: 'Java'; }
+  pre.src-js:before { content: 'Javascript'; }
+  pre.src-latex:before { content: 'LaTeX'; }
+  pre.src-ledger:before { content: 'Ledger'; }
+  pre.src-lisp:before { content: 'Lisp'; }
+  pre.src-lilypond:before { content: 'Lilypond'; }
+  pre.src-lua:before { content: 'Lua'; }
+  pre.src-matlab:before { content: 'MATLAB'; }
+  pre.src-mscgen:before { content: 'Mscgen'; }
+  pre.src-ocaml:before { content: 'Objective Caml'; }
+  pre.src-octave:before { content: 'Octave'; }
+  pre.src-org:before { content: 'Org mode'; }
+  pre.src-oz:before { content: 'OZ'; }
+  pre.src-plantuml:before { content: 'Plantuml'; }
+  pre.src-processing:before { content: 'Processing.js'; }
+  pre.src-python:before { content: 'Python'; }
+  pre.src-R:before { content: 'R'; }
+  pre.src-ruby:before { content: 'Ruby'; }
+  pre.src-sass:before { content: 'Sass'; }
+  pre.src-scheme:before { content: 'Scheme'; }
+  pre.src-screen:before { content: 'Gnu Screen'; }
+  pre.src-sed:before { content: 'Sed'; }
+  pre.src-sh:before { content: 'shell'; }
+  pre.src-sql:before { content: 'SQL'; }
+  pre.src-sqlite:before { content: 'SQLite'; }
+  /* additional languages in org.el's org-babel-load-languages alist */
+  pre.src-forth:before { content: 'Forth'; }
+  pre.src-io:before { content: 'IO'; }
+  pre.src-J:before { content: 'J'; }
+  pre.src-makefile:before { content: 'Makefile'; }
+  pre.src-maxima:before { content: 'Maxima'; }
+  pre.src-perl:before { content: 'Perl'; }
+  pre.src-picolisp:before { content: 'Pico Lisp'; }
+  pre.src-scala:before { content: 'Scala'; }
+  pre.src-shell:before { content: 'Shell Script'; }
+  pre.src-ebnf2ps:before { content: 'ebfn2ps'; }
+  /* additional language identifiers per "defun org-babel-execute"
+       in ob-*.el */
+  pre.src-cpp:before  { content: 'C++'; }
+  pre.src-abc:before  { content: 'ABC'; }
+  pre.src-coq:before  { content: 'Coq'; }
+  pre.src-groovy:before  { content: 'Groovy'; }
+  /* additional language identifiers from org-babel-shell-names in
+     ob-shell.el: ob-shell is the only babel language using a lambda to put
+     the execution function name together. */
+  pre.src-bash:before  { content: 'bash'; }
+  pre.src-csh:before  { content: 'csh'; }
+  pre.src-ash:before  { content: 'ash'; }
+  pre.src-dash:before  { content: 'dash'; }
+  pre.src-ksh:before  { content: 'ksh'; }
+  pre.src-mksh:before  { content: 'mksh'; }
+  pre.src-posh:before  { content: 'posh'; }
+  /* Additional Emacs modes also supported by the LaTeX listings package */
+  pre.src-ada:before { content: 'Ada'; }
+  pre.src-asm:before { content: 'Assembler'; }
+  pre.src-caml:before { content: 'Caml'; }
+  pre.src-delphi:before { content: 'Delphi'; }
+  pre.src-html:before { content: 'HTML'; }
+  pre.src-idl:before { content: 'IDL'; }
+  pre.src-mercury:before { content: 'Mercury'; }
+  pre.src-metapost:before { content: 'MetaPost'; }
+  pre.src-modula-2:before { content: 'Modula-2'; }
+  pre.src-pascal:before { content: 'Pascal'; }
+  pre.src-ps:before { content: 'PostScript'; }
+  pre.src-prolog:before { content: 'Prolog'; }
+  pre.src-simula:before { content: 'Simula'; }
+  pre.src-tcl:before { content: 'tcl'; }
+  pre.src-tex:before { content: 'TeX'; }
+  pre.src-plain-tex:before { content: 'Plain TeX'; }
+  pre.src-verilog:before { content: 'Verilog'; }
+  pre.src-vhdl:before { content: 'VHDL'; }
+  pre.src-xml:before { content: 'XML'; }
+  pre.src-nxml:before { content: 'XML'; }
+  /* add a generic configuration mode; LaTeX export needs an additional
+     (add-to-list 'org-latex-listings-langs '(conf " ")) in .emacs */
+  pre.src-conf:before { content: 'Configuration File'; }
+
+  table { border-collapse:collapse; }
+  caption.t-above { caption-side: top; }
+  caption.t-bottom { caption-side: bottom; }
+  td, th { vertical-align:top;  }
+  th.org-right  { text-align: center;  }
+  th.org-left   { text-align: center;   }
+  th.org-center { text-align: center; }
+  td.org-right  { text-align: right;  }
+  td.org-left   { text-align: left;   }
+  td.org-center { text-align: center; }
+  dt { font-weight: bold; }
+  .footpara { display: inline; }
+  .footdef  { margin-bottom: 1em; }
+  .figure { padding: 1em; }
+  .figure p { text-align: center; }
+  .equation-container {
+    display: table;
+    text-align: center;
+    width: 100%;
+  }
+  .equation {
+    vertical-align: middle;
+  }
+  .equation-label {
+    display: table-cell;
+    text-align: right;
+    vertical-align: middle;
+  }
+  .inlinetask {
+    padding: 10px;
+    border: 2px solid gray;
+    margin: 10px;
+    background: #ffffcc;
+  }
+  #org-div-home-and-up
+   { text-align: right; font-size: 70%; white-space: nowrap; }
+  textarea { overflow-x: auto; }
+  .linenr { font-size: smaller }
+  .code-highlighted { background-color: #ffff00; }
+  .org-info-js_info-navigation { border-style: none; }
+  #org-info-js_console-label
+    { font-size: 10px; font-weight: bold; white-space: nowrap; }
+  .org-info-js_search-highlight
+    { background-color: #ffff00; color: #000000; font-weight: bold; }
+  .org-svg { width: 90%; }
+</style>
+<link rel="stylesheet" href="../glyph-style.css" type="text/css"/>
+</head>
+<body>
+<div id="content" class="content">
+<h1 class="title">Tutorial: Collections</h1>
+<div style="text-align:right">
+<p>
+<a href="../index.html">Glyph</a> / <a href="index.html">Tutorials</a> / Projects
+</p>
+</div>
+
+
+
+<div id="outline-container-org0e8d534" class="outline-2">
+<h2 id="org0e8d534">Types and Arrays</h2>
+<div class="outline-text-2" id="text-org0e8d534">
+<p>
+Glyph is a statically typed language. What this means is that it assigns a
+type to everything in your program, and uses this to check for errors before
+your program runs. A type is like a category of values - for example, <code>ℤ</code> (which
+you read 'Integer') is the type of values which are whole numbers. An equally
+common type is <code>String</code>, which is a sequence of Characters. For example, "hello"
+and "my name is chris" are both Strings. Glyph uses types to catch errors
+before you run your program. As an example, suppose you write <code>pi + 2</code>,
+expecting <code>pi</code> to hold the value <code>3.14159...</code>. However, someone decided to set
+it to the string "pi". In this case, Glyph will report a <i>type error</i>,
+because + expects both inputs to have the type <code>ℤ</code>, but you gave it a
+<code>String</code>.
+</p>
+
+<p>
+The second topic of this tutorial is the <i>array</i> which are a collection of
+values. Arrays are written as a list of values between 'tortoise' brackets <code>⦗⦘</code>
+(these have codes <code>;[</code> and <code>;]</code>, or <code>:left-tortoise</code> and <code>:right-tortoise</code>). For
+example, the array containing the numbers 1, 2 and 3 is written <code>⦗1 2 3⦘</code>.
+</p>
+</div>
+</div>
+
+
+<div id="outline-container-org4b51aee" class="outline-2">
+<h2 id="org4b51aee">Functions</h2>
+<div class="outline-text-2" id="text-org4b51aee">
+</div>
+<div id="outline-container-org48b63a8" class="outline-3">
+<h3 id="org48b63a8">The Function Type</h3>
+<div class="outline-text-3" id="text-org48b63a8">
+<p>
+In the last tutorial, we defined several functions to calculate values for
+us. Below is a very simple function which adds 1 to a number - I've called it
+<code>next</code>. 
+</p>
+
+<div class="org-src-container">
+<pre class="src src-glyph">&gt; next n &#8796; n + <span style="color: #cea2ca;">1</span>
+</pre>
+</div>
+
+<p>
+But what is the type of the <code>next</code> function?. Well, it can takes as input a whole
+number, and output a whole number. This means we can give it type
+<code>ℤ → ℤ</code>, where the ℤ on the left of the arrow represents the input, and the ℤ
+on the right represents the output. More generally, we can construct a function
+<code>A → B</code>, which has input type 'A' and output type 'B'. As an example, the
+function <code>even?</code>, which returns <code>True</code> when its' input is even and <code>False</code>
+otherwise could have type <code>ℤ → Bool</code>.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org059f734" class="outline-3">
+<h3 id="org059f734">Type Annotation</h3>
+<div class="outline-text-3" id="text-org059f734">
+<p>
+Sometimes it is useful to <i>annotate</i> values, which tells Glyph what we're
+expecting the types to be. This is done for two reasons:
+</p>
+<ul class="org-ul">
+<li>Clarity: it can be useful to know what type a function can be</li>
+</ul>
+</div>
+</div>
+
+<div id="outline-container-orgc6f23a2" class="outline-3">
+<h3 id="orgc6f23a2">Currying</h3>
+<div class="outline-text-3" id="text-orgc6f23a2">
+<p>
+So, we've established that functions have type <code>A → B</code>, where <code>A</code> is the <i>input</i>
+type and <code>B</code> is the <i>output</i> type. But, what if a function has more than one
+input? Take for example the <code>add</code> function:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-glyph">&gt; add n m &#8796; n + m
+</pre>
+</div>
+
+<p>
+While it may seem like it takes two inputs, <code>add</code> function here is pulling a
+cheeky trick: it only takes 1! This means that <code>add 1</code>, <code>add 3</code> and <code>add 5</code> are
+all completely ok expressions, as <code>add</code> only takes one argument. What the
+<i>output</i> of <code>add</code> is is another function, so the output of <code>add 1</code> is a function
+equivalent to: <code>add-one m ≜ 1 + m</code>. Similarly, the output of <code>add 3</code> is a
+function equivalent to: <code>add-three m ≜ 3 + m</code>. This means, for any value <code>n</code> we
+provide as input, <code>add n</code> has type <code>ℤ → ℤ</code>. Zooming out, we see that the
+function <code>add</code> takes as input a <code>ℤ</code>, and outputs a <code>ℤ → ℤ</code>. Hence, the final
+type of <code>add</code> is <code>ℤ → (ℤ → ℤ)</code>. You may recall that <code>→</code> is one of the few
+exceptions to operator precedence - <code>→</code> is <b>right associative</b>, so <code>ℤ → ℤ → ℤ</code>
+is bracketed as <code>ℤ → (ℤ → ℤ)</code> <b>not</b> <code>(ℤ → ℤ) → ℤ</code>, as the former is what we want
+to do most of the time.
+</p>
+
+<p>
+While currying is relatively simple, it can be somewhat difficult to properly
+internalize it, so if you don't normally, I would definitely recommend doing 
+the [exercises] for this section.
+</p>
+</div>
+</div>
+
+<div id="outline-container-orgdbcf62c" class="outline-3">
+<h3 id="orgdbcf62c">Polymorphism</h3>
+<div class="outline-text-3" id="text-orgdbcf62c">
+<p>
+Sometimes, simple types can be too restrictive. Take for instance the function
+<code>id</code>, which does absolutely nothing:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-glyph">&gt; id x &#8796; x
+</pre>
+</div>
+
+<p>
+What is the type of id? We could give it the type <code>ℤ → ℤ</code>, but we could also
+give it the type <code>String → String</code>, or <code>Array ℤ → Array ℤ</code>. In fact, for any
+type <code>A</code>, we can give <code>id</code> the type <code>A → A</code>. Fortunately, Glyph lets us do
+just this - we can add an argument <code>A</code>, which has the type <code>𝒰</code> (𝒰 for Universe, 
+the type of types), then tell Glyph that the type of <code>x</code> is A.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-glyph">&gt; id <span style="color: #807f96;">(</span><span style="color: #d24b83;">A</span> : &#119984;<span style="color: #807f96;">)</span> <span style="color: #807f96;">(</span>x : <span style="color: #d24b83;">A</span><span style="color: #807f96;">)</span> &#8796; x
+</pre>
+</div>
+
+<p>
+Then, we can apply the function <code>id</code> to a type and a value of that type:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-glyph">&gt; id &#8484; <span style="color: #cea2ca;">2</span>
+<span style="color: #cea2ca;">2</span>
+&gt; id <span style="color: #d24b83;">String</span> <span style="color: #7CF083;">"hello"</span>
+<span style="color: #7CF083;">"hello"</span>
+&gt; id <span style="color: #d24b83;">Bool</span> <span style="color: #807f96;">(</span><span style="color: #cea2ca;">2</span> &lt; <span style="color: #cea2ca;">3</span><span style="color: #807f96;">)</span>
+<span style="color: #cea2ca;">true</span>
+&gt; id <span style="color: #d24b83;">Bool 2</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">let's try something that won't work</span>
+type error: expecting type <span style="color: #d24b83;">Bool</span>, but got type &#8484;.
+</pre>
+</div>
+
+<p>
+While quite useful, this can quickly get annoying: clearly, the type of "hello"
+is <code>String</code>, so it seems somewhat pointless to write <code>id String "hello"</code>.
+Fortunately, Glyph has a feature called implicit arguments, which is a way
+of telling it to 'figure out' a specific input. Implicit arguments are denoted by
+curly-braces (<code>{}</code>), so write:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-glyph">&gt; id <span style="color: #807f96;">{</span><span style="color: #d24b83;">A</span> : &#119984;<span style="color: #807f96;">}</span> <span style="color: #807f96;">(</span>x : <span style="color: #d24b83;">A</span><span style="color: #807f96;">)</span> &#8796; x 
+</pre>
+</div>
+
+<p>
+With this new definition for <code>x</code>, the following all typecheck nicely.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-glyph">&gt; id <span style="color: #cea2ca;">2</span>
+<span style="color: #cea2ca;">2</span>
+&gt; id <span style="color: #7CF083;">"hello"</span>
+hello
+&gt; id <span style="color: #cea2ca;">true</span>
+<span style="color: #cea2ca;">true</span>
+</pre>
+</div>
+</div>
+</div>
+</div>
+
+
+<div id="outline-container-org3998d55" class="outline-2">
+<h2 id="org3998d55">Array Manipulation</h2>
+<div class="outline-text-2" id="text-org3998d55">
+<p>
+One of the main uses for polymorphism is so to build functions which work for
+containers like the <code>Array</code>. Recall that an <code>Array</code> is a sequence of values,
+written <code>⦗1 2 3⦘</code> or <code>⦗"alice" "bob" "charlie"⦘</code>. Further, recall that elements
+in an array have to have the same type, so <code>⦗1 2 3⦘</code> has type <code>Array ℤ</code>, and
+<code>⦗"alice" "bob" "charlie"⦘</code> has type <code>Array String</code>.
+</p>
+
+<p>
+Consider a function which joints two arrays together - <code>append</code>. Any to arrays
+can be joined so long as they have the same type. We could give it a type like
+<code>Array ℤ → Array ℤ → Array ℤ</code> or <code>Array String → Array String → Array String</code>,
+but this is needlessly restrictive: why can't we join an array of fractions? an
+array of Booleans? Instead, we make use of polymorphism, and take an implicit
+type A, yielding <code>{A} → Array A → Array A → Array A</code>.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-glyph">&gt; append <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span>
+<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span>
+</pre>
+</div>
+
+<p>
+Append can also be written as an operator <code>⋅</code> (code <code>;*</code> or <code>:dot</code>).
+</p>
+
+<div class="org-src-container">
+<pre class="src src-glyph">&gt; <span style="color: #807f96;">&#10647;</span><span style="color: #7CF083;">"apple"</span> <span style="color: #7CF083;">"banana"</span><span style="color: #807f96;">&#10648;</span> &#8901; <span style="color: #807f96;">&#10647;</span><span style="color: #7CF083;">"cherry"</span><span style="color: #807f96;">&#10648;</span>
+<span style="color: #807f96;">&#10647;</span><span style="color: #7CF083;">"apple"</span> <span style="color: #7CF083;">"banana"</span> <span style="color: #7CF083;">"cherry"</span><span style="color: #807f96;">&#10648;</span>
+</pre>
+</div>
+
+<p>
+The array type supports many operations beyond just <code>append</code>, and this tutorial
+couldn't hope to cover all of them. Instead, I'll cover three fundamental
+functions which come in handy most regularly - <code>map</code>, <code>filter</code> and <code>fold</code>. 
+</p>
+
+<p>
+We'll start with <code>map</code>, which will apply a function to each element of an
+array. To demonstrate, consider the two below uses of <code>map</code>, the first of which
+adds 1 to each element of an array, and the second of which reverses each word
+in an array:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-glyph">&gt; add1 x &#8796; x + <span style="color: #cea2ca;">1</span>
+&gt; map add1 <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
+<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span><span style="color: #807f96;">&#10648;</span>
+
+&gt; map reverse <span style="color: #807f96;">&#10647;</span><span style="color: #7CF083;">"the"</span> <span style="color: #7CF083;">"quick"</span> <span style="color: #7CF083;">"brown"</span> <span style="color: #7CF083;">"fox"</span><span style="color: #807f96;">&#10648;</span>
+<span style="color: #807f96;">&#10647;</span><span style="color: #7CF083;">"eht"</span> <span style="color: #7CF083;">"kciuq"</span> <span style="color: #7CF083;">"nworb"</span> <span style="color: #7CF083;">"xof"</span><span style="color: #807f96;">&#10648;</span>
+</pre>
+</div>
+</div>
+
+<div id="outline-container-orgca0e69e" class="outline-3">
+<h3 id="orgca0e69e">Map</h3>
+<div class="outline-text-3" id="text-orgca0e69e">
+<p>
+<code>map</code> can also output an array with a different type to the one it takes as
+input. The below code converts from an array of integers to an array of
+booleans:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-glyph">&gt; map even? <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span><span style="color: #807f96;">&#10648;</span>
+<span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">false</span> <span style="color: #cea2ca;">true</span> <span style="color: #cea2ca;">false</span> <span style="color: #cea2ca;">true</span><span style="color: #807f96;">&#10648;</span>
+</pre>
+</div>
+
+<p>
+This means that the <code>map</code> function relies on <i>two</i> type parameters:
+</p>
+<ul class="org-ul">
+<li><code>A</code>, which is the type of the input to the function, and also type of
+elements of the input array</li>
+<li><code>B</code>, which is the type of the output of the function, and also the type of
+elements of the output array.</li>
+</ul>
+
+<div class="org-src-container">
+<pre class="src src-glyph">map : <span style="color: #807f96;">{</span><span style="color: #d24b83;">A</span> : &#119984;<span style="color: #807f96;">}</span> &#8594; <span style="color: #807f96;">{</span><span style="color: #d24b83;">B</span> : &#119984;<span style="color: #807f96;">}</span> &#8594; <span style="color: #807f96;">(</span><span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">B</span><span style="color: #807f96;">)</span> &#8594; <span style="color: #d24b83;">Array A</span> &#8594; <span style="color: #d24b83;">Array B</span>
+</pre>
+</div>
+
+<p>
+You'll notice that the two implicit types, A and B, take up a good percentage of
+the types 'size'. It takes up 17 of the 46 characters, but we could probably
+convey the same information by chopping that part out entirely: the type
+</p>
+
+<div class="org-src-container">
+<pre class="src src-glyph">map : <span style="color: #807f96;">(</span><span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">B</span><span style="color: #807f96;">)</span> &#8594; <span style="color: #d24b83;">Array A</span> &#8594; <span style="color: #d24b83;">Array B</span>
+</pre>
+</div>
+
+<p>
+Is still clear in its' meaning. For this reason, there is a 'shortcut' syntax
+for implicit arguments. This syntax is relatively simple: simply place all
+implicit parameters within curly-braces (no annotation required), and precede it
+with a ∀ symbol. The codes for this symbol are <code>:for-all</code> and <code>;!A</code>. This gives
+us the more compact type:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-glyph">map : &#8704; <span style="color: #807f96;">{</span><span style="color: #d24b83;">A B</span><span style="color: #807f96;">}</span> &#8594; <span style="color: #807f96;">(</span><span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">B</span><span style="color: #807f96;">)</span> &#8594; <span style="color: #d24b83;">Array A</span> &#8594; <span style="color: #d24b83;">Array B</span>
+</pre>
+</div>
+
+<p>
+Using ∀ can be particularly useful when a function has many type parameters.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org29f9e15" class="outline-3">
+<h3 id="org29f9e15">Filter</h3>
+<div class="outline-text-3" id="text-org29f9e15">
+<p>
+The filter function is used to remove elements from an array based on some
+criterion. To demonstrate, consider the following use of filter to keep only
+the even elements of an array:
+</p>
+
+<pre class="example">
+&gt; even? n ≜ n mod 2 = 0 
+&gt; filter even? ⦗0 1 2 3 4 5 6 7 8 9 10⦘
+⦗0 2 4 6 8 10⦘
+</pre>
+
+<p>
+More generally, filter takes two inputs
+</p>
+<ul class="org-ul">
+<li>A function, of type A → Bool</li>
+<li>An array whose elements have type A</li>
+</ul>
+
+<p>
+Filter's output is a new array which contains only those elements for which the
+function returns <code>true</code>.
+</p>
+</div>
+</div>
+
+
+<div id="outline-container-org5abdf41" class="outline-3">
+<h3 id="org5abdf41">Fold</h3>
+<div class="outline-text-3" id="text-org5abdf41">
+<div class="org-src-container">
+<pre class="src src-glyph">&gt; foldl _+_ <span style="color: #cea2ca;">0</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
+<span style="color: #cea2ca;">6</span>
+</pre>
+</div>
+
+<div class="org-src-container">
+<pre class="src src-glyph">&gt; <span style="color: #807f96;">(</span>+ / <span style="color: #cea2ca;">0</span><span style="color: #807f96;">)</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
+</pre>
+</div>
+
+<div class="org-src-container">
+<pre class="src src-glyph">foldl : &#8704; <span style="color: #807f96;">{</span><span style="color: #d24b83;">A B</span><span style="color: #807f96;">}</span> &#8594; <span style="color: #807f96;">(</span><span style="color: #d24b83;">B</span> &#8594; <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">B</span><span style="color: #807f96;">)</span> &#8594; <span style="color: #d24b83;">Array A</span> &#8594; <span style="color: #d24b83;">B</span> &#8594; <span style="color: #d24b83;">B</span>
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>
