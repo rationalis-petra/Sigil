@@ -28,7 +28,7 @@ module Glyph.Abstract.Environment (
 
 
 import Prelude hiding (head, lookup)
-import Control.Monad.Except (MonadError, throwError)
+import Control.Monad.Except (MonadError, ExceptT, throwError, lift)
 import Control.Monad.State (State, runState, get, modify)
   
 import Data.Text (Text)
@@ -97,6 +97,9 @@ instance MonadGen Gen where
     id <- Gen get
     Gen (modify (+ 1))
     pure id
+
+instance MonadGen m => MonadGen (ExceptT e m) where
+  fresh_id = lift fresh_id
 
 run_gen :: Gen a -> a
 run_gen = fst . flip runState 0 . ungen 

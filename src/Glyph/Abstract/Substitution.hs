@@ -104,7 +104,7 @@ instance (Ord n, Binding b,
     Uni χ n -> Uni χ n
     Var _ var ->
       if Set.member var shadow then
-        term 
+        term
       else
         fromMaybe term (lookup var sub)
     Prd χ bind ty ->

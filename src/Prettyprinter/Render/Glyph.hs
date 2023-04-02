@@ -1,4 +1,5 @@
 module Prettyprinter.Render.Glyph (GlyphStyle,
+                                   GlyphDoc,
                                    Colour,
                                    putDoc,
                                    putDocLn,
@@ -20,6 +21,7 @@ module Prettyprinter.Render.Glyph (GlyphStyle,
 import Prettyprinter
 import qualified Prettyprinter.Render.Terminal as PPTerm
 
+
 {-------------------------- GLYPH PRETTY PRINTER STYLE -------------------------}
 {- This Module defines the GlyphStyle type. This style is used throughout      -}
 {- Glyph in Prettyprinter docs. While not representative of a specific         -}
@@ -29,6 +31,7 @@ import qualified Prettyprinter.Render.Terminal as PPTerm
 
 
 newtype GlyphStyle = GlyphStyle PPTerm.AnsiStyle
+type GlyphDoc = Doc GlyphStyle
 
 putDoc :: Doc GlyphStyle -> IO ()  
 putDoc doc = PPTerm.putDoc (reAnnotate (\(GlyphStyle s) -> s) doc)

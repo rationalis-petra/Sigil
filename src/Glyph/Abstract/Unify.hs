@@ -87,7 +87,7 @@ import Glyph.Abstract.Substitution
 
 class Unifiable a where
   solve :: (MonadError (Doc ann) m, MonadGen m) => Formula a -> m (Substitution a)
-  --solve_isolated :: Env a -> Formula a -> Either (Doc ann) (Substitution a)
+  -- solve_isolated :: Env a -> Formula a -> Either (Doc ann) (Substitution a)
 
 data SingleConstraint a
   = a :≗: a -- Claim of Unifiability of two terms
@@ -246,7 +246,7 @@ instance Monoid (FlatFormula a) where
 
 
 instance (Pretty (Coreχ χ), Eq (Coreχ χ)) => Unifiable (Core AnnBind Name χ) where
-  solve :: forall ann m χ. (Pretty (Coreχ χ), MonadError (Doc ann) m, MonadGen m, Eq (Coreχ χ)) =>
+  solve :: forall ann m χ. (MonadError (Doc ann) m, MonadGen m, Eq (Coreχ χ), Pretty (Coreχ χ)) =>
            Formula' χ -> m (Substitution' χ)
   solve = fmap fst . (\v -> uni_while (v^.binds) mempty (v^.constraints)) . flatten where
 
@@ -260,7 +260,8 @@ instance (Pretty (Coreχ χ), Eq (Coreχ χ)) => Unifiable (Core AnnBind Name χ
               search_in [] _ = finish Nothing
               search_in (next:rest) resolved = 
                 f quant_vars next $ \case
-                -- TODO: take into account update to UnifyResult
+                  -- search through single constriants until we find one that
+                  -- updates the formula
                   Just (new_fctx, sub', next) ->
                     let
                       formula  = FlatFormula new_fctx (reverse resolved <> next <> rest)
@@ -327,7 +328,7 @@ instance (Pretty (Coreχ χ), Eq (Coreχ χ)) => Unifiable (Core AnnBind Name χ
 {-------------------------------------------------------------------------------}
 
 
-unify_eq :: forall m ann χ. (MonadError (Doc ann) m, MonadGen m, Eq (Coreχ χ)) =>
+unify_eq :: forall m ann χ. (MonadError (Doc ann) m, MonadGen m, Eq (Coreχ χ), Pretty (Coreχ χ)) =>
   Binds' χ -> Core AnnBind Name χ -> Core AnnBind Name χ -> m (UnifyResult' χ)
 unify_eq quant_vars a b = case (a, b) of 
   (Coreχ χ, Coreχ χ') ->
@@ -351,9 +352,13 @@ unify_eq quant_vars a b = case (a, b) of
   -- (Prd _ (AnnBind (n, a)) b, Prd _ (AnnBind (n', a')) b') -> 
   --   pure $ Just (add_bind Forall a, [(a :≗: a'), (b :≗: b')], id)
 
+  -- TODO: this is not in Caledon!!! do we have a case prd-prd or prd-any or any-prd??? 
+  (Prd _ (AnnBind (n, ty)) body, Prd _ (AnnBind (n', ty')) body') -> 
+    pure $ Just (add_bind Forall n ty quant_vars, mempty, [(ty :≗: ty'), (body :≗: subst (n' ↦ mkvar n) body')])
+
   -- Case Lam-Lam
   (Abs _ (AnnBind (n, ty)) body, Abs _ (AnnBind (n', ty')) body') -> 
-    pure $ Just (add_bind Forall n ty quant_vars, mempty, [(ty :≗: ty'), (body :≗: subst (n ↦ mkvar n') body')])
+    pure $ Just (add_bind Forall n ty quant_vars, mempty, [(ty :≗: ty'), (body :≗: subst (n' ↦ mkvar n) body')])
 
   -- Case Lam-Any (both left and right variants)
   (s, Abs _ (AnnBind (n, ty)) body) -> 
@@ -366,7 +371,7 @@ unify_eq quant_vars a b = case (a, b) of
   (s, s') -> do
     (var, terms) <- case (unwind s) of
       Just v -> pure v
-      _ -> throwError "ran out of unify terms"
+      _ -> throwError $ "unwinding failed:" <+> pretty s
     bind <- var ! quant_vars
     if (bind^.elem_quant) == Exists then do
       let ty = bind^.elem_type

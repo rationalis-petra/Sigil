@@ -11,6 +11,8 @@ import TestFramework
 import Spec.Glyph.Abstract.Syntax
 import Spec.Glyph.Abstract.NameResolution
 import Spec.Glyph.Abstract.Term
+import Spec.Glyph.Abstract.Substitution
+import Spec.Glyph.Abstract.Unify
 import Spec.Glyph.Parse
 
 data Verbosity = Errors | Groups | Verbose
@@ -41,6 +43,8 @@ tests =
   , resolve_spec
   , syntax_spec
   , term_spec
+  , subst_spec
+  , unify_spec
   ]
 
 runall :: [TestGroup] -> Config -> IO ()

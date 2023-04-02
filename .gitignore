@@ -1,4 +1,5 @@
 .stack-work/
 todo.org
 stack.yaml.lock
+glyph.cabal
 *~
