@@ -1,16 +1,16 @@
 module Glyph.Abstract.Syntax
-  (Core(..),
-   Module(..),
-   ModuleDef(..),
-   ImportDef(..),
-   IndType(..),
+  ( Core(..)
+  , Module(..)
+  , Definition(..)
+  , ImportDef(..)
+  , IndType(..)
    --Clause(..),
-   Coreχ,
-   Varχ,
-   Uniχ,
-   Prdχ,
-   Absχ,
-   Appχ) where
+  , Coreχ
+  , Varχ
+  , Uniχ
+  , Prdχ
+  , Absχ
+  , Appχ ) where
 
 
 {----------------------------------- SYNTAX ------------------------------------}
@@ -89,7 +89,7 @@ data Module b v χ
   = Module { _module_name :: [Text]
            , _module_exports :: [Text]
            , _module_imports :: [ImportDef]
-           , _module_defs :: [(b v (Core b v χ), ModuleDef b v χ)]
+           , _module_defs :: [(b v (Core b v χ), Definition b v χ)]
            } 
 
 data ImportDef
@@ -101,11 +101,12 @@ data ImportDef
 
 data IndType = Inductive | Coinductive  
 
-data ModuleDef b v χ
-  = SigDef IndType (b v (Core b v χ)) [(b v (Core b v χ))]
-  | SctDef (b v (Core b v χ)) [(b v (Core b v χ))]
-  | IndDef (b v (Core b v χ)) [(b v (Core b v χ))]
-  | CoiDef (b v (Core b v χ)) [(b v (Core b v χ))]
+data Definition b n χ
+  = Mutual [(b n (Core b n χ), Core b n χ)]
+  | SigDef IndType (b n (Core b n χ)) [(b n (Core b n χ))]
+  | SctDef (b n (Core b n χ)) [(b n (Core b n χ))]
+  | IndDef (b n (Core b n χ)) [(b n (Core b n χ))]
+  | CoiDef (b n (Core b n χ)) [(b n (Core b n χ))]
 
 
 {--------------------------------- EQ INSTANCE ---------------------------------}

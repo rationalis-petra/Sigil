@@ -13,6 +13,7 @@ import Spec.Glyph.Abstract.NameResolution
 import Spec.Glyph.Abstract.Term
 import Spec.Glyph.Abstract.Substitution
 import Spec.Glyph.Abstract.Unify
+import Spec.Glyph.Abstract.Typecheck
 import Spec.Glyph.Parse
 
 data Verbosity = Errors | Groups | Verbose
@@ -45,6 +46,7 @@ tests =
   , term_spec
   , subst_spec
   , unify_spec
+  , type_spec
   ]
 
 runall :: [TestGroup] -> Config -> IO ()
@@ -55,13 +57,12 @@ runall group config = do
     mapM_ putDocLn $ map (indent 2) errors
   where
     rungroup :: Int -> TestGroup-> IO [Doc GlyphStyle]
-    rungroup nesting (TestGroup name children) = do
-      when (verbosity config >= Groups) $
-        putDocLn $ indent (nesting * 2) $ pretty name
-      case children of
-        Left subgruops -> join <$> mapM (rungroup (nesting + 1)) subgruops
-        
-        Right tests -> runtests (nesting + 1) tests
+    rungroup nesting (TestGroup name children)  = do
+      when (verbosity config >= Groups)
+        (putDocLn $ indent (nesting * 2) $ pretty name)
+      case children of  
+          Left subgruops -> join <$> mapM (rungroup (nesting + 1)) subgruops
+          Right tests -> runtests (nesting + 1) tests
     
     runtests :: Int -> [Test] -> IO [Doc GlyphStyle]
     runtests nesting tests = join <$> mapM runtest tests where

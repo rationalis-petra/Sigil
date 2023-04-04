@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Glyph.Abstract.Term
-  (Term(..)) where
+  ( Term(..) ) where
 
 import Prelude hiding (head, lookup)
 import Control.Monad.Except (MonadError, throwError)

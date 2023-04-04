@@ -1,8 +1,6 @@
-module Backtrack (Backtrack, run_backtrack) where
-
-import Control.Applicative
-import Control.Monad
-import Control.Monad.Except (MonadError, throwError, catchError)
+module Backtrack
+  ( Backtrack
+  , run_backtrack ) where
 
 
 {------------------------------ BACKTRACKING MONAD -----------------------------}
@@ -19,10 +17,22 @@ import Control.Monad.Except (MonadError, throwError, catchError)
 {-------------------------------------------------------------------------------}
 
 
+import Control.Applicative
+import Control.Monad
+import Control.Monad.Except (MonadError, throwError, catchError)
+
+
+{------------------------------ BACKTRACKING MONAD -----------------------------}
+
+
 data Backtrack e a  
   = Backtrack e a :<|>: Backtrack e a
   | Fail e
   | Success a
+
+
+{---------------------------------- INSTANCES ----------------------------------}
+
 
 instance Functor (Backtrack e) where
   fmap f b = case b of 
@@ -58,6 +68,10 @@ instance MonadError e (Backtrack e) where
     Left s -> catch s
     Right a -> Success a
  
+
+{----------------------------------- RUNNING -----------------------------------}
+
+  
 run_backtrack :: Backtrack e a -> Either e a 
 run_backtrack m = search m
   where

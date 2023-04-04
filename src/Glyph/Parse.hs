@@ -1,37 +1,38 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module Glyph.Parse (Range,
-              Parsed,
-              PrecedenceNode,
-              PrecedenceGraph,
-              Operator(..),
-              Associativity(..),
-              Fixity(..),
-              fixity,
-              name_parts,
-              mixfix,
-              core,
-              runParser) where
+module Glyph.Parse
+  ( Range
+  , Parsed
+  , Precedences(..)
+  , PrecedenceNode
+  , PrecedenceGraph
+  , Operator(..)
+  , Associativity(..)
+  , Fixity(..)
+  , fixity
+  , name_parts
+  , mixfix
+  , core
+  , runParser ) where
 
 {------------------------------------ PARSER -----------------------------------}
 {- The Parsing algorithm contains two distinct parts: the 'primary grammar'    -}
 {- and a mixfix subgrammar. These two parts are expressed in two different     -}
 {- parsers.                                                                    -}
 {-                                                                             -}
-{-                                                                             -}
-{-                                                                             -}
-{-                                                                             -}
 {-------------------------------------------------------------------------------}
 
 
 import Prelude hiding (head, last, tail)
 import Control.Lens
+import Data.Foldable (foldl')
 import qualified Data.Vector as Vector
 import Data.Vector (Vector, head, last, tail)
 import qualified Data.Text as Text
 import Data.Text (Text, pack)
 import qualified Data.Set as Set
 import Data.Set (Set)
-import Data.Void (Void)
+import qualified Data.Map as Map
+-- import Data.Map (Map)
 
 import qualified Text.Megaparsec as Megaparsec
 import Text.Megaparsec hiding (runParser)
@@ -41,40 +42,14 @@ import Topograph
 
 import Glyph.Abstract.Syntax
 import Glyph.Abstract.Environment (OptBind(..))
+import Glyph.Decorations.Range
+import Glyph.Concrete.Parsed
+
+
+{--------------------------------- PARSER TYPE ---------------------------------}
 
 
 type Parser = Parsec Text Text
-
-type RawCore = Core OptBind Text Parsed
-
-newtype Range = Range (SourcePos, SourcePos)
-  deriving (Eq, Show, Ord)
-  
--- TODO: improve ranges
-instance Semigroup Range where
-  (Range (s, e)) <> (Range (s', e')) = Range (start s s', end e e')
-    where 
-      start (SourcePos p l c) (SourcePos _ l' c') = SourcePos p (min l l') (min c c')
-      end (SourcePos _ l c) (SourcePos p' l' c') = SourcePos p' (max l l') (max c c')
-
-instance Monoid Range where
-  mempty = Range (initialPos [], initialPos [])
-
-data Parsed
-type instance Coreχ Parsed = Void
-type instance Varχ Parsed = Range
-type instance Uniχ Parsed = Range
-type instance Prdχ Parsed = Range
-type instance Absχ Parsed = Range
-type instance Appχ Parsed = Range
-
-range :: Core b n Parsed -> Range
-range (Coreχ _) = mempty
-range (Uni r _) = r
-range (Var r _) = r
-range (Prd r _ _) = r
-range (Abs r _ _) = r
-range (App r _ _) = r
 
 
 {------------------------------ MIXFIX DATA TYPES ------------------------------}
@@ -98,6 +73,7 @@ range (App r _ _) = r
 {- + [1] : https://www.cse.chalmers.se/~nad/publications/                      -}
 {-         danielsson-norell-mixfix.pdf                                        -}
 {-                                                                             -}      
+{-                                                                             -}      
 {-------------------------------------------------------------------------------}      
 
 
@@ -114,20 +90,25 @@ type PrecedenceNode = (Set Operator)
 
 type PrecedenceGraph i = G PrecedenceNode i
 
+data Precedences = Precedences
+  { _prec_fixed :: Map.Map PrecedenceNode (Set PrecedenceNode)
+  , _prec_closed :: PrecedenceNode
+  }
+
 data Telescope χ = Tel (Core OptBind Text χ) [Core OptBind Text χ]
 
 $(makeLenses ''Operator)
+$(makeLenses ''Precedences)
 
 
 {--------------------------------- CORE PARSER ---------------------------------}
 {- The core parser first looks for the head of an expression (λ, let, etc.)    -}
 {- before handing it off to the mixfix parser.                                 -}
-{-                                                                             -}
 {-------------------------------------------------------------------------------}      
 
 
-core :: PrecedenceGraph i -> Parser RawCore
-core graph = choice [plam, pexpr]
+core :: Precedences -> Parser RawCore
+core precs = choice [plam, pexpr]
   where
     plam :: Parser RawCore
     plam = do
@@ -143,21 +124,58 @@ core graph = choice [plam, pexpr]
       _ <- symbol "λ"
       tel <- args
 
-      -- Currently, symbols introduced in a lambda are not added to the
-      -- parse-graph, so λ [_+_] (2 + 3) wouldn't work
-      body <- core graph
+      body <- core (update_precs tel precs)
       pure $ unscope tel body
 
-    pexpr :: Parser (RawCore)
-    pexpr = (mixfix graph)
+    pexpr :: Parser RawCore
+    pexpr = run_precs precs mixfix
 
+run_precs :: Precedences -> (forall i. PrecedenceGraph i -> Parser a) -> Parser a
+run_precs precs f =
+  let 
+    graph = Map.insert (precs^.prec_closed) Set.empty $
+      fmap (Set.insert (precs^.prec_closed)) (precs^.prec_fixed)
+
+  in case runG graph (f . closure) of
+    Right m -> m
+    Left _ -> fail "cycle in precedence graph"
+
+update_precs :: [Text] -> Precedences -> Precedences
+update_precs args g = foldl' add_prec g (map to_node args) 
+  where 
+    to_node arg
+  -- TODO: currently, '_' is treated as infix!!
+      | is_infix arg   = Left $ Operator (Infix LeftAssociative) (to_parts arg)
+      | is_prefix arg  = Left $ Operator Prefix (to_parts arg)
+      | is_postfix arg = Left $ Operator Postfix (to_parts arg)
+      | otherwise      = Right $ Operator Closed (to_parts arg)
+
+    is_infix arg = case (uncons arg, unsnoc arg) of 
+      (Just ('_', _), Just (_, '_')) -> True
+      _ -> False
+
+    is_prefix arg = case uncons arg of   
+      Just ('_', _) -> True
+      _ -> False
+
+    is_postfix arg = case unsnoc arg of    
+      Just (_, '_') -> True
+      _ -> False
+
+    to_parts :: Text -> Vector Text
+    to_parts = Vector.fromList . filter (not . Text.null) . Text.splitOn "_" 
+
+    add_prec precs prec = case prec of
+      Left fix -> (prec_fixed %~ Map.insert (Set.singleton fix) Set.empty) precs
+      Right close -> (prec_closed %~ Set.insert close) precs
+  
  
 {----------------------------- MIXFIX PARSER PHASE -----------------------------}
-
--- this operator denotes parallel choice, and is defined in the 'helper
--- function' section, below the main mixfix parser
+{-                                                                             -}
+{- this operator denotes parallel choice, and is defined in the 'helper        -}
+{- function' section, below the main mixfix parser                             -}
 infixl 3 <||>
-
+{-                                                                             -}
 {- There is currently a bug in the parser: with the below graph, the & and  =  -}
 {- operators do not parse correctly, e.g. true = false parses as true.         -}
 {- However, the + and - operators do parse correctly. This seems to be related -}
@@ -221,7 +239,7 @@ mixfix G {..} = expr
       [ do start <- getSourcePos
            args <- betweenM (fmap symbol $ op^.name_parts) expr
            end <- getSourcePos
-           pure $ Tel (Var (Range (start, end)) (opName op)) args
+           pure $ Tel (Var (Range $ Just (start, end)) (opName op)) args
       , inner ops ]
 
     -- Helper Functions: graph tools
@@ -303,7 +321,3 @@ runParser :: Parser a -> Text -> Text -> Either Text a
 runParser p file input = case Megaparsec.runParser p (Text.unpack file) input of
   Left err -> Left $ Text.pack $ show $ err
   Right val -> Right val
-
-
-
-  

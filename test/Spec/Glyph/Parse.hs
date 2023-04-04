@@ -17,14 +17,24 @@ import Glyph.Abstract.Syntax
 import Glyph.Abstract.Environment
 
 
-ops :: Map PrecedenceNode (Set PrecedenceNode)
-ops = Map.fromList
-  [ (node_and,   Set.singleton node_eq)
-  , (node_eq,    Set.fromList  [node_arith, node_fact])
-  , (node_arith, Set.singleton node_close)
-  , (node_fact,  Set.singleton node_close)
-  , (node_if,    Set.singleton node_close)
-  , (node_close, Set.empty) ]
+ops :: [Map PrecedenceNode (Set PrecedenceNode)]
+ops =
+  [ Map.fromList
+    [ (node_and,   Set.singleton node_eq)
+    , (node_eq,    Set.fromList  [node_arith, node_fact])
+    , (node_arith, Set.singleton node_close)
+    , (node_fact,  Set.singleton node_close)
+    , (node_if,    Set.singleton node_close)
+    , (node_close, Set.empty)
+    ]
+  , Map.fromList
+    [ (node_and,   Set.singleton node_eq)
+    , (node_eq,    Set.fromList  [node_arith, node_fact])
+    , (node_arith, Set.empty)
+    , (node_fact,  Set.empty)
+    , (node_if,    Set.empty)
+    ]
+  ]
 
   where 
     node_and   = Set.singleton and_op
@@ -46,31 +56,29 @@ ops = Map.fromList
     paren_op = Operator Closed $ Vec.fromList ["(", ")"]
 
 
-  
+precs :: Precedences
+precs = Precedences (ops !! 1) $ Set.fromList
+  [ Operator Closed $ Vec.singleton "true"
+  , Operator Closed $ Vec.singleton "false"
+  , Operator Closed $ Vec.fromList ["(", ")"]
+  ]
 
 parse_spec :: TestGroup
-parse_spec =
-  case runG ops (go . closure) of
-    Left _ -> TestGroup "parsing" $ Right
-      [Test "parsing" $ Just ("parsing test-suite failed to run as there was a cycle in the precedence graph")]
+parse_spec = TestGroup "parsing" $ Left
+  [ parse_mixfix (ops !! 0)
+  , parse_expr precs
+  ]
+      
+parse_mixfix :: Map PrecedenceNode (Set PrecedenceNode) -> TestGroup
+parse_mixfix graph = TestGroup "mixfix" $ Right $
+  case runG graph (parse_mixfix' . closure) of
+    Left _ -> 
+      [ Test "group-failed" $ Just ("parsing test-suite failed to run as there was a cycle in the precedence graph") ]
     Right tests -> tests
-  where
-    go :: PrecedenceGraph i -> TestGroup
-    go graph = TestGroup "parsing" $ Left
-      [ parse_mixfix graph
-      , parse_expr graph ]
-
 
 -- parsing of mixfix operations 
-parse_mixfix :: PrecedenceGraph i -> TestGroup
-parse_mixfix graph =
-  -- tests to add
-  -- Backtracking / garden path
-    -- operators which have shared name parts, ex. if_then_ and if_then_else_
-    -- names with similar beginnings, e.g. 'in' and 'inner' 
-  -- test for features as they are added. 
-  
-  TestGroup "mixfix" $ Right
+parse_mixfix' :: PrecedenceGraph i -> [Test]
+parse_mixfix' graph =
     -- Simple tests
     [ mixfix_test "lit-true" "true" (var "true")
     , mixfix_test "lit-false" "false" (var "false")
@@ -102,7 +110,6 @@ parse_mixfix graph =
 
     -- Combining Operations (precedence tests)
     , mixfix_test "paren-binop" "(true + false)" (var "(_)" ⋅ (var "_+_" ⋅ var "true"  ⋅ var "false" ))
-
     ]
 
   where
@@ -118,11 +125,22 @@ parse_mixfix graph =
               "expected:" <+> annotate (fg_colour (dull white)) (pretty out)
         Left msg -> Test name $ Just $ pretty msg
 
-parse_expr :: PrecedenceGraph i -> TestGroup
+parse_expr :: Precedences -> TestGroup
 parse_expr graph =
   TestGroup "expr" $ Right
     [ expr_test "univar-lambda" "λ [x] true" (abs [("x")] (var "true"))
     , expr_test "bivar-lambda" "λ [x y] false" (abs ["x", "y"] (var "false"))
+
+    , expr_test "closed-lambda"
+      "λ [x] x"
+      (abs [("x")] (var "x"))
+    , expr_test "infix-lambda"
+      "λ [_x_] true x true"
+      (abs ["_x_"] (var "_x_" ⋅ var "true" ⋅ var "true"))
+    , expr_test "infix-closed_lambda"
+      "λ [_x_ th fo] th x fo"
+      (abs ["_x_", "th", "fo"] (var "_x_" ⋅ var "th" ⋅ var "fo"))
+
     ]
 
   where

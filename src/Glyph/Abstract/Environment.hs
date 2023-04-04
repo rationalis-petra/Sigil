@@ -1,23 +1,23 @@
-module Glyph.Abstract.Environment (
+module Glyph.Abstract.Environment
   -- Name Types
-  UniqueName,
-  QualName,
-  Name(..),
+  ( UniqueName
+  , QualName
+  , Name(..)
 
   -- Binding
-  Binding(..),
-  OptBind(..),
-  AnnBind(..),
+  , Binding(..)
+  , OptBind(..)
+  , AnnBind(..)
 
   -- Environment
-  Environment(..),
+  , Environment(..)
 
   -- Fresh Variable Generation
-  MonadGen(..),
-  fresh_var,
-  freshen,
-  Gen,
-  run_gen) where
+  , MonadGen(..)
+  , fresh_var
+  ,freshen
+  , Gen
+  , run_gen ) where
 
 
 {--------------------------------- ENVIRONMENT ---------------------------------}

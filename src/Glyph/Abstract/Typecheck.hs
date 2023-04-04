@@ -33,6 +33,7 @@ instance (Pretty (Coreχ χ), Eq (Coreχ χ)) => Checkable Name (Core AnnBind Na
   --            e (Core AnnBind Name χ) -> (Core AnnBind Name χ) -> m (Core AnnBind Name χ)
   infer env term = case term of
     Var _ n -> lookup_err n env
+    Uni χ j -> pure $ Uni χ (j + 1)
     App _ l r -> do
       (AnnBind (n, arg_ty), ret_ty) <- infer env l >>= check_prod 
       check env r arg_ty

@@ -1,9 +1,9 @@
 {-# LANGUAGE ScopedTypeVariables, InstanceSigs #-}
 module Glyph.Abstract.Unify
-  (Formula(..),
-   SingleConstraint(..),
-   Quant(..),
-   Unifiable(..)) where
+  ( Formula(..)
+  , SingleConstraint(..)
+  , Quant(..)
+  , Unifiable(..) ) where
 
 
 {--------------------------------- UNIFICATION ---------------------------------}

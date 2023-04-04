@@ -1,25 +1,23 @@
-module Prettyprinter.Render.Glyph (GlyphStyle,
-                                   GlyphDoc,
-                                   Colour,
-                                   putDoc,
-                                   putDocLn,
-                                   bold,
-                                   italicized,
-                                   underlined,
-                                   fg_colour,
-                                   bg_colour,
-                                   black,
-                                   red,
-                                   green,
-                                   yellow,
-                                   blue,
-                                   magenta,
-                                   cyan,
-                                   white,
-                                   dull) where
-
-import Prettyprinter
-import qualified Prettyprinter.Render.Terminal as PPTerm
+module Prettyprinter.Render.Glyph
+  ( GlyphStyle
+  , GlyphDoc
+  , Colour
+  , putDoc
+  , putDocLn
+  , bold
+  , italicized
+  , underlined
+  , fg_colour
+  , bg_colour
+  , black
+  , red
+  , green
+  , yellow
+  , blue
+  , magenta
+  , cyan
+  , white
+  , dull ) where
 
 
 {-------------------------- GLYPH PRETTY PRINTER STYLE -------------------------}
@@ -30,14 +28,32 @@ import qualified Prettyprinter.Render.Terminal as PPTerm
 {-------------------------------------------------------------------------------}
 
 
+import Prettyprinter
+import qualified Prettyprinter.Render.Terminal as PPTerm
+
+
+{------------------------------------ TYPES ------------------------------------}
+
+
 newtype GlyphStyle = GlyphStyle PPTerm.AnsiStyle
 type GlyphDoc = Doc GlyphStyle
+
+type Colour = (Vividness, PPTerm.Color)
+data Vividness = Normal | Dull
+
+
+{---------------------------------- RENDERING ----------------------------------}
+
 
 putDoc :: Doc GlyphStyle -> IO ()  
 putDoc doc = PPTerm.putDoc (reAnnotate (\(GlyphStyle s) -> s) doc)
 
 putDocLn :: Doc GlyphStyle -> IO ()  
 putDocLn doc = putDoc doc >> putStrLn ""
+
+
+{-------------------------------- CREATE STYLES --------------------------------}
+
 
 bold :: GlyphStyle  
 bold = GlyphStyle PPTerm.bold
@@ -48,21 +64,17 @@ italicized = GlyphStyle PPTerm.italicized
 underlined :: GlyphStyle  
 underlined = GlyphStyle PPTerm.underlined
 
-type Colour = (Vividness, PPTerm.Color)
-
-data Vividness = Normal | Dull
-
 fg_colour :: Colour -> GlyphStyle
 fg_colour (v, c) = GlyphStyle $ case v of 
   Normal -> PPTerm.color c
   Dull -> PPTerm.colorDull c
-
 
 bg_colour :: Colour -> GlyphStyle
 bg_colour (v, c) = GlyphStyle $ case v of 
   Normal -> PPTerm.bgColor c
   Dull -> PPTerm.bgColorDull c
 
+{----------------------------------- COLOURS -----------------------------------}
 
 black   :: Colour
 black   = (Normal, PPTerm.Black)

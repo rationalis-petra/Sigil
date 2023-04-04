@@ -1,9 +1,9 @@
-module Glyph.Abstract.Substitution (
-  Substitution,
-  Subst(..),
-  subst,
-  (↦),
-  Regen(..)) where
+module Glyph.Abstract.Substitution
+  ( Substitution
+  , Subst(..)
+  , subst
+  , (↦)
+  , Regen(..) ) where
 
 
 {-------------------------------- SUBSTITUTION ---------------------------------}
