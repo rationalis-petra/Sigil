@@ -1,6 +1,7 @@
 module Glyph.Concrete.Parsed
   ( Parsed
   , RawCore
+  , RawDefinition
   , range ) where
 
 
@@ -8,7 +9,7 @@ import Data.Text
 
 import Glyph.Abstract.Environment
 import Glyph.Abstract.Syntax
-import Glyph.Decorations.Range
+import Glyph.Concrete.Decorations.Range
 
 
 data Parsed
@@ -20,6 +21,8 @@ type instance Absχ Parsed = Range
 type instance Appχ Parsed = Range
 
 type RawCore = Core OptBind Text Parsed
+
+type RawDefinition = Definition OptBind Text Parsed
   
 range :: Core b n Parsed -> Range
 range (Coreχ _) = mempty

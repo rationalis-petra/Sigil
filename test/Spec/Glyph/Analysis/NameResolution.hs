@@ -1,4 +1,4 @@
-module Spec.Glyph.Abstract.NameResolution (resolve_spec) where
+module Spec.Glyph.Analysis.NameResolution (resolve_spec) where
 
 import Prelude hiding (putStrLn)
 import Data.Text (Text)
@@ -9,7 +9,7 @@ import Prettyprinter.Render.Glyph
 import TestFramework
 import Glyph.Abstract.Environment
 import Glyph.Abstract.Syntax
-import Glyph.Abstract.NameResolution
+import Glyph.Analysis.NameResolution
 
 import Spec.Glyph.Abstract.CoreUD
 

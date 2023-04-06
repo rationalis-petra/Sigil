@@ -1,11 +1,8 @@
 module Glyph.Abstract
-  ( module Glyph.Abstract.Environment
-  , module Glyph.Abstract.NameResolution
-  , module Glyph.Abstract.Substitution
-  , module Glyph.Abstract.Typecheck
-  , module Glyph.Abstract.Syntax
-  , module Glyph.Abstract.Unify
-  , module Glyph.Abstract.Term ) where
+  ( module Glyph.Abstract.Syntax
+  , module Glyph.Abstract.Environment
+  --, module Glyph.Abstract.Constraints
+  ) where
 
 
 {---------------------------------- ABSTRACT -----------------------------------}
@@ -20,10 +17,6 @@ module Glyph.Abstract
 {-------------------------------------------------------------------------------}
 
 
-import Glyph.Abstract.Environment
-import Glyph.Abstract.NameResolution
-import Glyph.Abstract.Substitution
-import Glyph.Abstract.Typecheck
 import Glyph.Abstract.Syntax
-import Glyph.Abstract.Unify
-import Glyph.Abstract.Term
+import Glyph.Abstract.Environment
+--import Glyph.Abstract.Constraints

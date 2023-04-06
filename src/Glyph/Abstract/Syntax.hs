@@ -24,7 +24,8 @@ module Glyph.Abstract.Syntax
 
 import Prelude hiding (lookup, length, head)
 
-import Data.Text
+import Data.Foldable
+import Data.Text hiding (zipWith)
 
 import Prettyprinter
 
@@ -100,21 +101,30 @@ data ImportDef
   
 
 data IndType = Inductive | Coinductive  
+  deriving (Eq, Ord, Show)
 
 data Definition b n χ
   = Mutual [(b n (Core b n χ), Core b n χ)]
   | SigDef IndType (b n (Core b n χ)) [(b n (Core b n χ))]
-  | SctDef (b n (Core b n χ)) [(b n (Core b n χ))]
-  | IndDef (b n (Core b n χ)) [(b n (Core b n χ))]
-  | CoiDef (b n (Core b n χ)) [(b n (Core b n χ))]
+  | IndDef IndType (b n (Core b n χ)) [(b n (Core b n χ))]
+  -- | SctDef (b n (Core b n χ)) [(b n (Core b n χ))]
 
 
 {--------------------------------- EQ INSTANCE ---------------------------------}
 {- The Equal type class instance performs an equality check directly on the    -}
-{- names - this means that an Eq instance is only α equality if the name type  -}
-{- is a Debruijn index.                                                        -}
+{- names - this means that an Eq instance is not α equality!                   -}
+{- Use the Term typeclass for α-equality                                       -}
 {-------------------------------------------------------------------------------}
 
+
+instance (Eq (b v (Core b v χ)), Eq v, Eq (Coreχ χ)) => Eq (Definition b v χ) where
+  v1 == v2 = case (v1, v2) of 
+    (Mutual defs, Mutual defs') -> defs == defs'
+    (SigDef itype bind fields, SigDef itype' bind' fields') ->
+      itype == itype' && bind == bind' && fields == fields'
+    (IndDef itype bind terms, IndDef itype' bind' terms') ->
+      itype == itype' && bind == bind' && terms == terms'
+    (_, _) -> False
 
 instance (Eq (b v (Core b v χ)), Eq v, Eq (Coreχ χ)) => Eq (Core b v χ) where
   v1 == v2 = case (v1, v2) of 
@@ -134,13 +144,24 @@ instance (Eq (b v (Core b v χ)), Eq v, Eq (Coreχ χ)) => Eq (Core b v χ) wher
 {-     Instances for printing syntax trees to via the Prettyprinter library    -}
 {-------------------------------------------------------------------------------}
 
+
+instance (Pretty (b v (Core b v χ)), Pretty v, Pretty (Coreχ χ)) => Pretty (Definition b v χ) where
+  pretty d = case d of
+    (Mutual defs)  -> fold (fmap (pretty . fst) defs) <+> fold (fmap (pretty . snd) defs)
+    (SigDef _ _ _) -> "Signature"
+    (IndDef _ _ _) -> "Co/Inductive type def"
+
 instance (Pretty (b v (Core b v χ)), Pretty v, Pretty (Coreχ χ)) => Pretty (Core b v χ) where
   pretty c = case c of  
     Coreχ v -> pretty v
     Uni _ n -> "𝒰" <> pretty n
     Var _ name -> pretty name
  
-    Prd _ bind b -> ("(" <> pretty bind <> " ) → ") <+> pretty b
+    Prd _ _ _ -> align $ sep $ zipWith (<+>) ("" : repeat "→") (telescope c)
+      where
+        telescope (Prd _ bind e) = pretty bind : telescope e
+        telescope b = [pretty b]
+  
     Abs _ bind e ->
       let (args, body) = telescope e
     
@@ -152,5 +173,5 @@ instance (Pretty (b v (Core b v χ)), Pretty v, Pretty (Coreχ χ)) => Pretty (C
           pretty_args bind [] = pretty bind
           pretty_args v (x : xs) = pretty_args v [] <+> pretty_args x xs
       in
-        ("λ [" <> pretty_args bind args <> "]") <+> pretty body
+        ("λ [" <> pretty_args bind args <> "]") <+> nest 2 (pretty body)
     App _ l r -> pretty l <+> pretty r

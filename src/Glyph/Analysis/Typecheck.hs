@@ -1,4 +1,4 @@
-module Glyph.Abstract.Typecheck
+module Glyph.Analysis.Typecheck
   ( Checkable(..) ) where
 
 
@@ -20,7 +20,7 @@ import Prettyprinter.Render.Glyph
 
 import Glyph.Abstract.Environment  
 import Glyph.Abstract.Syntax  
-import Glyph.Abstract.Substitution  
+import Glyph.Interpret.Substitution  
 
   
 class Checkable n a | a -> n where 

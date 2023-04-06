@@ -1,4 +1,4 @@
-module Glyph.Decorations.Range
+module Glyph.Concrete.Decorations.Range
   ( Range(..) ) where
 
 

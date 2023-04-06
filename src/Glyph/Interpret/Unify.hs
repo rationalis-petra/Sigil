@@ -1,5 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables, InstanceSigs #-}
-module Glyph.Abstract.Unify
+module Glyph.Interpret.Unify
   ( Formula(..)
   , SingleConstraint(..)
   , Quant(..)
@@ -66,10 +66,9 @@ import qualified Data.List as List
 import Prettyprinter
 
 import Glyph.Abstract.Syntax
---import Glyph.Abstract.Term
 import Glyph.Abstract.Environment
-import Glyph.Abstract.Substitution
-
+import Glyph.Interpret.Substitution
+--import Glyph.Interpret.Term
   
 {------------------------------ TYPE DEFINITIONS -------------------------------}
 {- The types here are for the most part direct translations of types mentioned -}

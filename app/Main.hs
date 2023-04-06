@@ -7,12 +7,9 @@ import Data.Text (pack)
 
 import Options.Applicative
 
-data Backends = Native | JVM | Javascript | WASM
-  deriving (Show, Read, Eq)
+import Interactive  
 
-data InteractiveOpts = InteractiveOpts
-  { ifile :: String
-  }
+data Backends = Native | JVM | Javascript | WASM
   deriving (Show, Read, Eq)
 
 interactive_opts :: Parser InteractiveOpts
@@ -20,6 +17,7 @@ interactive_opts = InteractiveOpts
   <$> strOption
     ( long "file"
     <> short 'f'
+    <> value ""
     <> help "Specify what file to run (if any)" )
 
 data CompileOpts = CompileOpts
@@ -70,4 +68,6 @@ glyph_opts = subparser $
 main :: IO ()
 main = do
   command <- execParser (info glyph_opts idm)
-  putStrLn $ pack $ show command
+  case command of 
+    InteractiveCommand c -> interactive c
+    _ -> putStrLn $ pack $ show command

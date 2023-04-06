@@ -12,6 +12,7 @@ module Glyph.Parse
   , name_parts
   , mixfix
   , core
+  , def
   , runParser ) where
 
 {------------------------------------ PARSER -----------------------------------}
@@ -32,7 +33,6 @@ import Data.Text (Text, pack)
 import qualified Data.Set as Set
 import Data.Set (Set)
 import qualified Data.Map as Map
--- import Data.Map (Map)
 
 import qualified Text.Megaparsec as Megaparsec
 import Text.Megaparsec hiding (runParser)
@@ -42,7 +42,7 @@ import Topograph
 
 import Glyph.Abstract.Syntax
 import Glyph.Abstract.Environment (OptBind(..))
-import Glyph.Decorations.Range
+import Glyph.Concrete.Decorations.Range
 import Glyph.Concrete.Parsed
 
 
@@ -100,6 +100,29 @@ data Telescope χ = Tel (Core OptBind Text χ) [Core OptBind Text χ]
 $(makeLenses ''Operator)
 $(makeLenses ''Precedences)
 
+  
+{--------------------------------- CORE PARSER ---------------------------------}
+{- The core parser first looks for the head of an expression (λ, let, etc.)    -}
+{- before handing it off to the mixfix parser.                                 -}
+{-------------------------------------------------------------------------------}      
+
+
+def :: Precedences -> Parser RawDefinition
+def precs = choice [mutual]
+  where 
+    mutual :: Parser RawDefinition
+    mutual = do
+      args <- many1 anyvar
+      _ <- symbol "≜"
+      val <- core (update_precs args precs)
+
+      let tofn [] v = v
+          tofn (x:xs) v = Abs mempty (OptBind $ Left x) (tofn xs v)
+
+      case args of 
+        [] -> error "impossible!"
+        (x:xs) -> pure $ Mutual [(OptBind $ Left x, tofn xs val)]
+
 
 {--------------------------------- CORE PARSER ---------------------------------}
 {- The core parser first looks for the head of an expression (λ, let, etc.)    -}
@@ -154,12 +177,12 @@ update_precs args g = foldl' add_prec g (map to_node args)
       (Just ('_', _), Just (_, '_')) -> True
       _ -> False
 
-    is_prefix arg = case uncons arg of   
-      Just ('_', _) -> True
+    is_prefix arg = case unsnoc arg of   
+      Just (_, '_') -> True
       _ -> False
 
-    is_postfix arg = case unsnoc arg of    
-      Just (_, '_') -> True
+    is_postfix arg = case uncons arg of    
+      Just ('_', _) -> True
       _ -> False
 
     to_parts :: Text -> Vector Text
@@ -307,6 +330,7 @@ anyvar = lexeme $ pack <$> (many1 (satisfy symchar))
     symchar ')'  = False
     symchar '['  = False
     symchar ']'  = False
+    symchar '≜'  = False
     symchar ' '  = False
     symchar '\n' = False
     symchar '\r' = False

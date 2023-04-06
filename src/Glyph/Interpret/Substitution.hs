@@ -1,4 +1,4 @@
-module Glyph.Abstract.Substitution
+module Glyph.Interpret.Substitution
   ( Substitution
   , Subst(..)
   , subst

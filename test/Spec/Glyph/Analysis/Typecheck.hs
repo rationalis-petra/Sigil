@@ -1,4 +1,4 @@
-module Spec.Glyph.Abstract.Typecheck (type_spec) where
+module Spec.Glyph.Analysis.Typecheck (type_spec) where
 
 import Control.Monad.Except hiding (void)
 import Data.Text (Text)
@@ -10,7 +10,7 @@ import Prettyprinter.Render.Glyph
 
 import Glyph.Abstract.Environment
 import Glyph.Abstract.Syntax
-import Glyph.Abstract.Typecheck
+import Glyph.Analysis.Typecheck
 
 import TestFramework
 import Spec.Glyph.Abstract.CoreUD  

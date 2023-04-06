@@ -9,12 +9,9 @@ import Options.Applicative
 
 import TestFramework
 import Spec.Glyph.Abstract.Syntax
-import Spec.Glyph.Abstract.NameResolution
-import Spec.Glyph.Abstract.Term
-import Spec.Glyph.Abstract.Substitution
-import Spec.Glyph.Abstract.Unify
-import Spec.Glyph.Abstract.Typecheck
 import Spec.Glyph.Parse
+import Spec.Glyph.Interpret
+import Spec.Glyph.Analysis
 
 data Verbosity = Errors | Groups | Verbose
   deriving (Read, Show, Eq, Ord)
@@ -40,13 +37,10 @@ config = Config
 
 tests :: [TestGroup]
 tests = 
-  [ parse_spec
-  , resolve_spec
-  , syntax_spec
-  , term_spec
-  , subst_spec
-  , unify_spec
-  , type_spec
+  [ syntax_spec
+  , parse_spec
+  , interpret_spec
+  , analysis_spec
   ]
 
 runall :: [TestGroup] -> Config -> IO ()

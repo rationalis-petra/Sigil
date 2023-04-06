@@ -1,4 +1,4 @@
-module Spec.Glyph.Abstract.Unify (unify_spec) where
+module Spec.Glyph.Interpret.Unify (unify_spec) where
 
 import Control.Monad.Except hiding (void)
 import Data.Text (Text)
@@ -9,7 +9,7 @@ import Prettyprinter.Render.Glyph
 import Glyph.Abstract.Syntax
 import Glyph.Abstract.Environment
 --import Glyph.Abstract.Substitution
-import Glyph.Abstract.Unify
+import Glyph.Interpret.Unify
 
 import TestFramework
 import Spec.Glyph.Abstract.CoreUD  

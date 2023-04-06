@@ -1,4 +1,4 @@
-module Spec.Glyph.Abstract.Substitution (subst_spec) where
+module Spec.Glyph.Interpret.Substitution (subst_spec) where
 
 import Data.Text (Text)
 import Data.Set (fromList)
@@ -8,7 +8,7 @@ import Prettyprinter
 
 import Glyph.Abstract.Environment
 import Glyph.Abstract.Syntax
-import Glyph.Abstract.Substitution
+import Glyph.Interpret.Substitution
 
 import TestFramework
 import Spec.Glyph.Abstract.CoreUD  

@@ -1,5 +1,6 @@
 module Spec.Glyph.Parse (parse_spec) where
 
+import Prelude hiding (abs)
 import Data.Text (Text)
 import qualified Data.Map as Map
 import Data.Map (Map)
@@ -67,6 +68,7 @@ parse_spec :: TestGroup
 parse_spec = TestGroup "parsing" $ Left
   [ parse_mixfix (ops !! 0)
   , parse_expr precs
+  , parse_def precs
   ]
       
 parse_mixfix :: Map PrecedenceNode (Set PrecedenceNode) -> TestGroup
@@ -127,7 +129,7 @@ parse_mixfix' graph =
 
 parse_expr :: Precedences -> TestGroup
 parse_expr graph =
-  TestGroup "expr" $ Right
+  TestGroup "expression" $ Right
     [ expr_test "univar-lambda" "λ [x] true" (abs [("x")] (var "true"))
     , expr_test "bivar-lambda" "λ [x y] false" (abs ["x", "y"] (var "false"))
 
@@ -140,13 +142,17 @@ parse_expr graph =
     , expr_test "infix-closed_lambda"
       "λ [_x_ th fo] th x fo"
       (abs ["_x_", "th", "fo"] (var "_x_" ⋅ var "th" ⋅ var "fo"))
-
+    , expr_test "prefix-lambda"
+      "λ [x_] x true"
+      (abs ["x_"] (var "x_" ⋅ var "true"))
+    , expr_test "postfix-lambda"
+      "λ [_x] true x"
+      (abs ["_x"] (var "_x" ⋅ var "true"))
     ]
-
   where
     expr_test :: Text -> Text -> Core OptBind Text Parsed -> Test
     expr_test name text out =  
-      case runParser (core graph) "test" text of  
+      case runParser (core graph) name text of  
         Right val ->
           if val == out then
             Test name Nothing
@@ -155,12 +161,44 @@ parse_expr graph =
         Left msg -> Test name $ Just $ pretty msg
 
 
-    abs :: [Text] -> Core OptBind Text Parsed -> Core OptBind Text Parsed
-    abs = flip $ foldr (\var body -> Abs mempty (OptBind $ Left var) body)
-
+parse_def :: Precedences -> TestGroup
+parse_def precs = 
+  TestGroup "definition" $ Right
+    [ def_test "literal"
+      "x ≜ true"
+      (vdef "x" (var "true"))
+    , def_test "recursive"
+      "x ≜ x"
+      (vdef "x" (var "x"))
+    , def_test "parameter"
+      "id y ≜ y"
+      (vdef "id" (abs ["y"] (var "y")))
+    , def_test "infix-param"
+      "twice _*_ y ≜ y * y"
+      (vdef "twice" (abs ["_*_", "y"] (var "_*_" ⋅ var "y" ⋅ var "y")))
+    , def_test "posfix-param"
+      "post-app x _~ ≜ x ~"
+      (vdef "post-app" (abs ["x", "_~"] (var "_~" ⋅ var "x")))
+    ]
+  where
+    def_test :: Text -> Text -> Definition OptBind Text Parsed -> Test
+    def_test name text out =  
+      case runParser (def precs) name text of  
+        Right val ->
+          if val == out then
+            Test name Nothing
+          else
+            Test name $ Just $ "got: " <> pretty val <+> "expected" <+> pretty out
+        Left msg -> Test name $ Just $ pretty msg
 
 (⋅) :: Core OptBind Text Parsed -> Core OptBind Text Parsed -> Core OptBind Text Parsed
 (⋅) = App mempty
 
 var :: Text -> Core b Text Parsed  
 var = Var mempty
+
+abs :: [Text] -> Core OptBind Text Parsed -> Core OptBind Text Parsed
+abs = flip $ foldr (\var body -> Abs mempty (OptBind $ Left var) body)
+
+vdef :: Text -> Core OptBind Text Parsed -> Definition OptBind Text Parsed
+vdef name val = Mutual [(OptBind $ Left name, val)]

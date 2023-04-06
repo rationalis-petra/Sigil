@@ -1,8 +1,8 @@
-module Glyph.Agent.Agent
+module Glyph.Interpret.Agent
   ( Task(..)
   , TaskDesc(..)
   , World(..)
-  , TaskInfo(..)) where
+  , TaskInfo(..) ) where
 
 -- import Control.Lens
 

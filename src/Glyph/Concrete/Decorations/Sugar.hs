@@ -1,5 +1,7 @@
-module Glyph.Decorations.Sugar
-  ( Sugar(..) ) where
+module Glyph.Concrete.Decorations.Sugar
+  ( Sugar(..)
+  , Letχ
+  , Whereχ ) where
 
 {------------------------------------ SUGAR ------------------------------------}
 {- This module contains the 'syntactic sugar' extension to                     -}
@@ -16,5 +18,5 @@ data Sugar b n χ
   | Where (Whereχ χ) [b n (Core b n χ)]
 
 
-type family Letχ  
-type family Whereχ  
+type family Letχ χ
+type family Whereχ χ

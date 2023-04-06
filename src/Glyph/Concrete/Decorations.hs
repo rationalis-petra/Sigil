@@ -1,4 +1,4 @@
-module Glyph.Decorations () where
+module Glyph.Concrete.Decorations () where
 
 {---------------------------------- CONCRETE -----------------------------------}
 {- The Concrete module stands in contrast to the Abstract module - while       -}
@@ -25,7 +25,4 @@ module Glyph.Decorations () where
 {- Use type classes to encapsulate                                             -}
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
-
-
-
 

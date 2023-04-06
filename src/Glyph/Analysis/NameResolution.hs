@@ -1,4 +1,4 @@
-module Glyph.Abstract.NameResolution (resolve) where
+module Glyph.Analysis.NameResolution (resolve) where
 
 import Prelude hiding (lookup)
 import Data.Map (Map, lookup, insert, empty)

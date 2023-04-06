@@ -1,7 +1,13 @@
-module Glyph.Agent
-  ( module Glyph.Agent.Agent ) where
+module Glyph.Interpret
+  ( module Glyph.Interpret.Agent ) where
 
-{------------------------------------ AGENT ------------------------------------}
+{--------------------------------- INTERPRETER ---------------------------------}
+{-                                                                             -}
+{-                                                                             -}
+{-                                                                             -}
+{-                                                                             -}
+{-                                                                             -}
+{-                                                                             -}
 {- The Agent System is used by all main modes of interaction (server, compiler,-}
 {- interpreter). The Agent system essentially manages the contexts in which    -}
 {- other modules (parser, type checking etc.) operate, i.e. loaded libraries   -}
@@ -13,4 +19,4 @@ module Glyph.Agent
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
-import Glyph.Agent.Agent
+import Glyph.Interpret.Agent
