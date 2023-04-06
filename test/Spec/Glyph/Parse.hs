@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Spec.Glyph.Parse (parse_spec) where
 
 import Prelude hiding (abs)
@@ -16,7 +17,12 @@ import TestFramework
 import Glyph.Parse
 import Glyph.Abstract.Syntax
 import Glyph.Abstract.Environment
+import Glyph.Abstract.AlphaEq
+import Glyph.Concrete.Parsed
 
+instance AlphaEq Text () where
+  αequal _ _ _ = True
+  
 
 ops :: [Map PrecedenceNode (Set PrecedenceNode)]
 ops =
@@ -115,11 +121,11 @@ parse_mixfix' graph =
     ]
 
   where
-    mixfix_test :: Text -> Text -> Core OptBind Text Parsed -> Test
+    mixfix_test :: Text -> Text -> RawCore -> Test
     mixfix_test name text out =  
       case runParser (mixfix graph) name text of  
         Right val ->
-          if val == out then
+          if αeq val out then
             Test name Nothing
           else
             Test name $ Just $
@@ -154,7 +160,7 @@ parse_expr graph =
     expr_test name text out =  
       case runParser (core graph) name text of  
         Right val ->
-          if val == out then
+          if αeq val out then
             Test name Nothing
           else
             Test name $ Just $ "got: " <> pretty val <+> "expected" <+> pretty out
@@ -185,7 +191,7 @@ parse_def precs =
     def_test name text out =  
       case runParser (def precs) name text of  
         Right val ->
-          if val == out then
+          if αeq val out then
             Test name Nothing
           else
             Test name $ Just $ "got: " <> pretty val <+> "expected" <+> pretty out

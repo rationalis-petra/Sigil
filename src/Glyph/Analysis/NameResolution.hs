@@ -7,6 +7,9 @@ import Data.Text (Text)
 import Glyph.Abstract.Syntax
 import Glyph.Abstract.Environment hiding (Environment(..)) 
 
+import Glyph.Concrete.Parsed
+import Glyph.Concrete.Resolved
+
 
 {------------------------------- ID GENERATION ---------------------------------}
 {-                                                                             -}
@@ -14,10 +17,9 @@ import Glyph.Abstract.Environment hiding (Environment(..))
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
-
-resolve :: MonadGen m => Core OptBind Text χ -> m (Core OptBind Name χ)
+resolve :: MonadGen m => RawCore -> m ResolvedCore
 resolve core = resolve_id' empty core where
-  resolve_id' :: MonadGen m => Map Text Integer -> Core OptBind Text χ -> m (Core OptBind Name χ)
+  resolve_id' :: MonadGen m => Map Text Integer -> RawCore -> m ResolvedCore
   resolve_id' vars term = case term of 
     Coreχ χ -> pure $ Coreχ χ
     Uni χ n -> pure $ Uni χ n

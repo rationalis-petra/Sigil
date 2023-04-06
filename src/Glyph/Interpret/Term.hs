@@ -9,6 +9,7 @@ import Prettyprinter
 
 import Glyph.Abstract.Syntax
 import Glyph.Abstract.Environment
+import Glyph.Abstract.AlphaEq
   
 
 {------------------------------ THE TERM CLASSES -------------------------------}
@@ -81,14 +82,14 @@ data Normal e χ = Normal (Sem e χ) (Sem e χ)
 
 
 -- TODO: now we use IDs for names, need to ensure we do capture-avoiding substitution!!
-instance (Eq (Core AnnBind Name χ), Pretty (Core AnnBind Name χ)) => Term (Core AnnBind Name χ) where
+instance (AlphaEq Name (Core AnnBind Name χ), Pretty (Core AnnBind Name χ)) => Term (Core AnnBind Name χ) where
   normalize env ty term =
     read_nf =<< (Normal <$> ty' <*> term')
     where
       ty' = eval ty =<< env_eval env
       term' = eval term =<< env_eval env
 
-  equiv env ty x y = (==) <$> normalize env ty x <*> normalize env ty y
+  equiv env ty x y = (αeq) <$> normalize env ty x <*> normalize env ty y
 
 
 read_nf :: forall e χ m ann. (Pretty (Core AnnBind Name χ), MonadError (Doc ann) m, Environment Name e) =>

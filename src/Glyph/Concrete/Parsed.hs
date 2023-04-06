@@ -13,7 +13,7 @@ import Glyph.Concrete.Decorations.Range
 
 
 data Parsed
-type instance Coreχ Parsed = ()
+type instance Coreχ OptBind Text Parsed = ()
 type instance Varχ Parsed = Range
 type instance Uniχ Parsed = Range
 type instance Prdχ Parsed = Range

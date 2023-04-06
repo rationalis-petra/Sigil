@@ -59,6 +59,7 @@ default-extensions:
 - RecordWildCards
 - LambdaCase
 - GeneralizedNewtypeDeriving
+- ConstraintKinds
 
 
 library:

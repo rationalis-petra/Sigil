@@ -8,11 +8,11 @@ import Prettyprinter.Render.Glyph
 
 import Glyph.Abstract.Syntax
 import Glyph.Abstract.Environment
---import Glyph.Abstract.Substitution
+import Glyph.Concrete.Typed
 import Glyph.Interpret.Unify
 
 import TestFramework
-import Spec.Glyph.Abstract.CoreUD  
+
 
 unify_spec :: TestGroup
 unify_spec = TestGroup "unify" $ Right unify_tests
@@ -59,7 +59,7 @@ unify_tests =
   ]
 
   where 
-    eq_test :: Text -> Core AnnBind Name UD -> Core AnnBind Name UD -> Bool -> Test
+    eq_test :: Text -> TypedCore -> TypedCore -> Bool -> Test
     eq_test name l r b = 
       Test name $ case runUnifyM $ solve (Conj [l :≗: r]) of 
         Right _ | b == True -> Nothing
@@ -67,9 +67,9 @@ unify_tests =
         Left e  | b == False -> Nothing
                 | otherwise -> Just $ "unify failed - message:" <+> e
 
-    can_solve_test :: Text -> Formula (Core AnnBind Name UD) -> Bool -> Test
+    can_solve_test :: Text -> Formula TypedCore -> Bool -> Test
     can_solve_test name formula b =
-      Test name $ case runUnifyM$ solve formula of 
+      Test name $ case runUnifyM $ solve formula of 
         Right _ | b == True -> Nothing
                 | otherwise -> Just "unify-eq succeded when expecting fail"
         Left e  | b == False -> Nothing
@@ -87,20 +87,20 @@ unify_tests =
 -- var :: n -> Core b n UD
 -- var = Var void
 
-𝓊 :: Int -> Core b n UD
-𝓊 = Uni void
+𝓊 :: Int -> TypedCore
+𝓊 = Uni ()
 
-(⇒) :: [(n, Core AnnBind n UD)] -> Core AnnBind n UD -> Core AnnBind n UD
-args ⇒ body = foldr (\var body -> Abs void (AnnBind var) body) body args
+(⇒) :: [(Name, TypedCore)] -> TypedCore -> TypedCore
+args ⇒ body = foldr (\var body -> Abs () (AnnBind var) body) body args
 
-(→) :: [(n, Core AnnBind n UD)] -> Core AnnBind n UD -> Core AnnBind n UD
-args → body = foldr (\var body -> Prd void (AnnBind var) body) body args
+(→) :: [(Name, TypedCore)] -> TypedCore -> TypedCore
+args → body = foldr (\var body -> Prd () (AnnBind var) body) body args
 
 -- (⋅) :: Core b n UD -> Core b n UD -> Core b n UD
 -- (⋅) = App void
 
-idv :: Integer -> Text -> Core AnnBind Name UD
-idv n t = Var void $ Name $ Right (n, t)
+idv :: Integer -> Text -> TypedCore
+idv n t = Var () $ Name $ Right (n, t)
 
 idn :: Integer -> Text -> Name
 idn n t = Name $ Right (n, t)

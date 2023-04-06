@@ -5,6 +5,7 @@ module Glyph.Abstract.Syntax
   , ImportDef(..)
   , IndType(..)
    --Clause(..),
+  , Forallχ
   , Coreχ
   , Varχ
   , Uniχ
@@ -24,6 +25,7 @@ module Glyph.Abstract.Syntax
 
 import Prelude hiding (lookup, length, head)
 
+import Data.Kind
 import Data.Foldable
 import Data.Text hiding (zipWith)
 
@@ -52,14 +54,14 @@ import Prettyprinter
 {-------------------------------------------------------------------------------}
 
 
-data Core b v χ
-  = Coreχ (Coreχ χ)
+data Core b n χ
+  = Coreχ (Coreχ b n χ)
   -- The Core Calculus, based on Martin Löf
   | Uni (Uniχ χ) Int 
-  | Var (Varχ χ) v
-  | Prd (Prdχ χ) (b v (Core b v χ)) (Core b v χ)
-  | Abs (Absχ χ) (b v (Core b v χ)) (Core b v χ)
-  | App (Appχ χ) (Core b v χ) (Core b v χ)
+  | Var (Varχ χ) n
+  | Prd (Prdχ χ) (b n (Core b n χ)) (Core b n χ)
+  | Abs (Absχ χ) (b n (Core b n χ)) (Core b n χ)
+  | App (Appχ χ) (Core b n χ) (Core b n χ)
 
   -- Type Families - with name and uid
   -- | Fam Text Integer [Core n χ]
@@ -73,18 +75,41 @@ data Core b v χ
   -- | Sig [(b (Core b v χ), Core b v χ)]
 
 
-type family Coreχ χ
+-- Type Families
+
+type family Coreχ (b :: Type -> Type -> Type) n χ
 type family Varχ χ
 type family Uniχ χ
 type family Prdχ χ
 type family Absχ χ
 type family Appχ χ
 
+type Forall (φ :: Type -> Constraint) b n χ
+  = ( φ n
+    , φ (b n (Core b n χ))
+    , φ (Coreχ b n χ)
+    , φ (Uniχ χ)
+    , φ (Varχ χ)
+    , φ (Prdχ χ)
+    , φ (Absχ χ)
+    , φ (Appχ χ)
+    )
+
+type Forallχ (φ :: Type -> Constraint) χ
+  = ( φ (Uniχ χ)
+    , φ (Varχ χ)
+    , φ (Prdχ χ)
+    , φ (Absχ χ)
+    , φ (Appχ χ)
+    )
+
+
 {---------------------------------- MODULE TYPE ----------------------------------}
 {-                                                                               -}
 {-                                                                               -}
 {-                                                                               -}
 {---------------------------------------------------------------------------------}
+
 
 data Module b v χ  
   = Module { _module_name :: [Text]
@@ -117,7 +142,8 @@ data Definition b n χ
 {-------------------------------------------------------------------------------}
 
 
-instance (Eq (b v (Core b v χ)), Eq v, Eq (Coreχ χ)) => Eq (Definition b v χ) where
+instance (Forall Eq b n χ) --Eq (b n (Core b n χ)), Eq n, Forallχ Eq χ, Eq (Coreχ b n χ))
+          => Eq (Definition b n χ) where
   v1 == v2 = case (v1, v2) of 
     (Mutual defs, Mutual defs') -> defs == defs'
     (SigDef itype bind fields, SigDef itype' bind' fields') ->
@@ -126,17 +152,21 @@ instance (Eq (b v (Core b v χ)), Eq v, Eq (Coreχ χ)) => Eq (Definition b v χ
       itype == itype' && bind == bind' && terms == terms'
     (_, _) -> False
 
-instance (Eq (b v (Core b v χ)), Eq v, Eq (Coreχ χ)) => Eq (Core b v χ) where
+instance Forall Eq b n χ --(Eq (b n (Core b n χ)), Eq n, Forallχ Eq χ, Eq (Coreχ b n χ))
+         => Eq (Core b n χ) where
   v1 == v2 = case (v1, v2) of 
-    (Coreχ r, Coreχ r') -> r == r'
-    (Uni _ n, Uni _ n') -> n == n'
-    (Var _ n, Var _ n') -> n == n'
-    (Prd _ x t, Prd _ x' t') ->
-      x == x' && t == t'
-    (Abs _ x e, Abs _ x' e') ->
-      x == x' && e == e'
-    (App _ l r, App _ l' r') ->
-      l == l' && r == r'
+    (Coreχ r, Coreχ r') ->
+      r == r'
+    (Uni χ n, Uni χ' n') ->
+      χ == χ' && n == n'
+    (Var χ n, Var χ' n') ->
+      χ == χ' && n == n' 
+    (Prd χ x t, Prd χ' x' t') ->
+      χ == χ' && x == x' && t == t' 
+    (Abs χ x e, Abs χ' x' e') ->
+      χ == χ' && x == x' && e == e'  
+    (App χ l r, App χ' l' r') ->
+      χ == χ' && l == l' && r == r'
     (_, _) -> False
 
 
@@ -145,13 +175,14 @@ instance (Eq (b v (Core b v χ)), Eq v, Eq (Coreχ χ)) => Eq (Core b v χ) wher
 {-------------------------------------------------------------------------------}
 
 
-instance (Pretty (b v (Core b v χ)), Pretty v, Pretty (Coreχ χ)) => Pretty (Definition b v χ) where
+instance (Pretty (b n (Core b n χ)), Pretty n, Pretty (Coreχ b n χ)) => Pretty (Definition b n χ) where
   pretty d = case d of
     (Mutual defs)  -> fold (fmap (pretty . fst) defs) <+> fold (fmap (pretty . snd) defs)
     (SigDef _ _ _) -> "Signature"
     (IndDef _ _ _) -> "Co/Inductive type def"
 
-instance (Pretty (b v (Core b v χ)), Pretty v, Pretty (Coreχ χ)) => Pretty (Core b v χ) where
+
+instance (Pretty (b n (Core b n χ)), Pretty n, Pretty (Coreχ b n χ)) => Pretty (Core b n χ) where
   pretty c = case c of  
     Coreχ v -> pretty v
     Uni _ n -> "𝒰" <> pretty n

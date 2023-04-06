@@ -4,14 +4,13 @@ import Data.Text (Text)
 import Data.Set (fromList)
 
 import Prettyprinter
---import Prettyprinter.Render.Glyph
 
 import Glyph.Abstract.Environment
 import Glyph.Abstract.Syntax
+import Glyph.Concrete.Typed
 import Glyph.Interpret.Substitution
 
 import TestFramework
-import Spec.Glyph.Abstract.CoreUD  
 
 subst_spec :: TestGroup
 subst_spec = TestGroup "substitution" $ Left [fv_group, subst_group]
@@ -39,7 +38,7 @@ subst_tests =
   ]
 
   where 
-    subst_test :: Text -> Substitution (Core AnnBind Name UD) -> Core AnnBind Name UD -> Core AnnBind Name UD -> Test
+    subst_test :: Text -> Substitution TypedCore -> TypedCore -> TypedCore -> Test
     subst_test name sub term expected = Test name $
       let result = subst sub term  in
         if result == expected then
@@ -65,7 +64,7 @@ fv_tests =
   ]
 
   where 
-    fv_test :: Text -> [Name] -> Core AnnBind Name UD -> Test
+    fv_test :: Text -> [Name] -> TypedCore -> Test
     fv_test name names term 
       | (free_vars term) == (fromList names) = Test name Nothing
       | otherwise = Test name $ Just "free-vars test failed"
@@ -73,11 +72,11 @@ fv_tests =
 -- var :: n -> Core b n UD
 -- var = Var void
 
-𝓊 :: Int -> Core b n UD
-𝓊 = Uni void
+𝓊 :: Int -> TypedCore
+𝓊 = Uni ()
 
-(⇒) :: [(n, Core AnnBind n UD)] -> Core AnnBind n UD -> Core AnnBind n UD
-args ⇒ body = foldr (\var body -> Abs void (AnnBind var) body) body args
+(⇒) :: [(Name, TypedCore)] -> TypedCore -> TypedCore
+args ⇒ body = foldr (\var body -> Abs () (AnnBind var) body) body args
 
 -- (→) :: [(n, Core AnnBind n UD)] -> Core AnnBind n UD -> Core AnnBind n UD
 -- args → body = foldr (\var body -> Prd void (AnnBind var) body) body args
@@ -85,8 +84,8 @@ args ⇒ body = foldr (\var body -> Abs void (AnnBind var) body) body args
 -- (⋅) :: Core b n UD -> Core b n UD -> Core b n UD
 -- (⋅) = App void
 
-idv :: Integer -> Text -> Core AnnBind Name UD
-idv n t = Var void $ Name $ Right (n, t)
+idv :: Integer -> Text -> TypedCore
+idv n t = Var () $ Name $ Right (n, t)
 
 idn :: Integer -> Text -> Name
 idn n t = Name $ Right (n, t)

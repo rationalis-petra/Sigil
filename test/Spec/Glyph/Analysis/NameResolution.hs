@@ -9,14 +9,15 @@ import Prettyprinter.Render.Glyph
 import TestFramework
 import Glyph.Abstract.Environment
 import Glyph.Abstract.Syntax
+import Glyph.Concrete.Parsed
+import Glyph.Concrete.Resolved
 import Glyph.Analysis.NameResolution
 
-import Spec.Glyph.Abstract.CoreUD
 
 resolve_spec :: TestGroup
 resolve_spec = TestGroup "name-resolution" $ Right tests
 
-res_test :: Text -> Core OptBind Text UD -> Core OptBind Name UD -> Test
+res_test :: Text -> RawCore -> ResolvedCore -> Test
 res_test name val result = Test name err where
   err =
     if run_gen (resolve val) /= result then
@@ -24,7 +25,7 @@ res_test name val result = Test name err where
     else
       Nothing
 
-  print_bad :: Core OptBind Text UD -> Core OptBind Name UD -> Doc GlyphStyle
+  print_bad :: RawCore -> ResolvedCore -> Doc GlyphStyle
   print_bad l r = pretty l <+> "is does not resolve to " <+> pretty r
 
 tests :: [Test]
@@ -40,34 +41,33 @@ tests =
   , res_test "prd-bound-ty-var" ([("y", 𝓊 0)] -→ (var "y")) ([(idn 0 "y", 𝓊 0)] -→ (idv 0 "y"))
   ]
   where
-    var :: n -> Core b n UD
-    var = Var void
+    var :: Forallχ Monoid χ => n -> Core b n χ
+    var = Var mempty
 
-    𝓊 :: Int -> Core b n UD
-    𝓊 = Uni void
+    𝓊 :: Forallχ Monoid χ => Int -> Core b n χ
+    𝓊 = Uni mempty
 
-    (⇒) :: [n] -> Core OptBind n UD -> Core OptBind n UD
-    args ⇒ body = foldr (\var body -> Abs void (OptBind $ Left var) body) body args
+    (⇒) :: Forallχ Monoid χ => [n] -> Core OptBind n χ -> Core OptBind n χ
+    args ⇒ body = foldr (\var body -> Abs mempty (OptBind $ Left var) body) body args
 
-    (=⇒) :: [(n, Core OptBind n UD)] -> Core OptBind n UD -> Core OptBind n UD
-    args =⇒ body = foldr (\var body -> Abs void (OptBind $ Right var) body) body args
+    (=⇒) :: Forallχ Monoid χ => [(n, Core OptBind n χ)] -> Core OptBind n χ -> Core OptBind n χ
+    args =⇒ body = foldr (\var body -> Abs mempty (OptBind $ Right var) body) body args
 
-    (→) :: [n] -> Core OptBind n UD -> Core OptBind n UD
-    args → body = foldr (\var body -> Prd void (OptBind $ Left var) body) body args
+    (→) :: Forallχ Monoid χ => [n] -> Core OptBind n χ -> Core OptBind n χ
+    args → body = foldr (\var body -> Prd mempty (OptBind $ Left var) body) body args
 
-    (-→) :: [(n, Core OptBind n UD)] -> Core OptBind n UD -> Core OptBind n UD
-    args -→ body = foldr (\var body -> Prd void (OptBind $ Right var) body) body args
+    (-→) :: Forallχ Monoid χ => [(n, Core OptBind n χ)] -> Core OptBind n χ -> Core OptBind n χ
+    args -→ body = foldr (\var body -> Prd mempty (OptBind $ Right var) body) body args
 
-    (⋅) :: Core b n UD -> Core b n UD -> Core b n UD
-    (⋅) = App void
+    (⋅) :: Forallχ Monoid χ => Core b n χ -> Core b n χ -> Core b n χ
+    (⋅) = App mempty
 
-    idv :: Integer -> Text -> Core OptBind Name UD
-    idv n t = Var void $ Name $ Right (n, t)
+    idv :: Forallχ Monoid χ => Integer -> Text -> Core OptBind Name χ
+    idv n t = Var mempty $ Name $ Right (n, t)
 
     idn :: Integer -> Text -> Name
     idn n t = Name $ Right (n, t)
 
-    qvar :: Text -> Core OptBind Name UD
-    qvar v = Var void $ Name $ Left [v]
+    qvar :: Forallχ Monoid χ => Text -> Core OptBind Name χ
+    qvar v = Var mempty $ Name $ Left [v]
   
-

@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Spec.Glyph.Interpret.Term (term_spec) where
 
 import Control.Monad.Except hiding (void)
@@ -10,10 +11,14 @@ import Prettyprinter.Render.Glyph
 
 import Glyph.Abstract.Environment
 import Glyph.Abstract.Syntax
+import Glyph.Abstract.AlphaEq
+import Glyph.Concrete.Typed
 import Glyph.Interpret.Term
 
 import TestFramework
-import Spec.Glyph.Abstract.CoreUD  
+
+instance AlphaEq Name () where
+  αequal _ _ _ = True
 
 term_spec :: TestGroup
 term_spec = TestGroup "term" $ Left [norm_spec, eq_spec]
@@ -29,7 +34,7 @@ type NormM a = Except (Doc GlyphStyle) a
 runNormM :: NormM a -> Either (Doc GlyphStyle) a
 runNormM = runExcept
 
-default_env :: Map Integer (Core AnnBind Name UD)
+default_env :: Map Integer TypedCore
 default_env = Map.empty
 
 eq_tests :: [Test]     
@@ -54,10 +59,16 @@ eq_tests =
     ([(idn 0 "A", 𝓊 0), (idn 2 "x", idv 0 "A")] ⇒ (idv 2 "x"))
     ([(idn 0 "A", 𝓊 0), (idn 3 "y", idv 0 "A")] ⇒ (idv 3 "y"))  
     True
+
+  , eq_test "id-2αrenamed-eq"
+    ([(idn 0 "A", 𝓊 0), (idn 1 "x", idv 0 "A")] → (idv 0 "A"))
+    ([(idn 0 "A", 𝓊 0), (idn 2 "x", idv 0 "A")] ⇒ (idv 2 "x"))
+    ([(idn 0 "A", 𝓊 0), (idn 3 "y", idv 0 "A")] ⇒ (idv 3 "y"))  
+    True
   ]
 
   where 
-    eq_test :: Text -> Core AnnBind Name UD -> Core AnnBind Name UD -> Core AnnBind Name UD -> Bool -> Test
+    eq_test :: Text -> TypedCore -> TypedCore -> TypedCore -> Bool -> Test
     eq_test name ty l r expected = 
       Test name $ case runNormM $ equiv default_env ty l r of 
         Right b | b == expected -> Nothing
@@ -76,7 +87,7 @@ norm_tests =
   ]
   
   where
-    norm_test :: Text -> Core AnnBind Name UD -> Core AnnBind Name UD -> Core AnnBind Name UD -> Test
+    norm_test :: Text -> TypedCore -> TypedCore -> TypedCore -> Test
     norm_test name ty a expected = 
       Test name $ case runNormM $ normalize default_env ty a of 
         Right result | result == expected -> Nothing
@@ -86,20 +97,20 @@ norm_tests =
 -- var :: n -> Core b n UD
 -- var = Var void
 
-𝓊 :: Int -> Core b n UD
-𝓊 = Uni void
+𝓊 :: Int -> TypedCore
+𝓊 = Uni ()
 
-(⇒) :: [(n, Core AnnBind n UD)] -> Core AnnBind n UD -> Core AnnBind n UD
-args ⇒ body = foldr (\var body -> Abs void (AnnBind var) body) body args
+(⇒) :: [(Name, TypedCore)] -> TypedCore -> TypedCore
+args ⇒ body = foldr (\var body -> Abs () (AnnBind var) body) body args
 
-(→) :: [(n, Core AnnBind n UD)] -> Core AnnBind n UD -> Core AnnBind n UD
-args → body = foldr (\var body -> Prd void (AnnBind var) body) body args
+(→) :: [(Name, TypedCore)] -> TypedCore -> TypedCore
+args → body = foldr (\var body -> Prd () (AnnBind var) body) body args
 
-(⋅) :: Core b n UD -> Core b n UD -> Core b n UD
-(⋅) = App void
+(⋅) :: TypedCore -> TypedCore -> TypedCore
+(⋅) = App ()
 
-idv :: Integer -> Text -> Core AnnBind Name UD
-idv n t = Var void $ Name $ Right (n, t)
+idv :: Integer -> Text -> TypedCore
+idv n t = Var () $ Name $ Right (n, t)
 
 idn :: Integer -> Text -> Name
 idn n t = Name $ Right (n, t)

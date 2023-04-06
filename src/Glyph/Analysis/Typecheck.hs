@@ -21,6 +21,7 @@ import Prettyprinter.Render.Glyph
 import Glyph.Abstract.Environment  
 import Glyph.Abstract.Syntax  
 import Glyph.Interpret.Substitution  
+import Glyph.Concrete.Typed  
 
   
 class Checkable n a | a -> n where 
@@ -28,9 +29,7 @@ class Checkable n a | a -> n where
 
   check :: (Environment n e, MonadError GlyphDoc m) => e a -> a -> a -> m ()
 
-instance (Pretty (Coreχ χ), Eq (Coreχ χ)) => Checkable Name (Core AnnBind Name χ) where 
-  -- infer :: (Environment Name e, MonadError GlyphDoc m,) =>
-  --            e (Core AnnBind Name χ) -> (Core AnnBind Name χ) -> m (Core AnnBind Name χ)
+instance Checkable Name TypedCore where 
   infer env term = case term of
     Var _ n -> lookup_err n env
     Uni χ j -> pure $ Uni χ (j + 1)
@@ -41,7 +40,7 @@ instance (Pretty (Coreχ χ), Eq (Coreχ χ)) => Checkable Name (Core AnnBind Na
   
     Abs _ (AnnBind (n, a)) body -> do
       ret_ty <- infer (insert n a env) body
-      pure $ Prd undefined (AnnBind (n, a)) ret_ty
+      pure $ Prd () (AnnBind (n, a)) ret_ty
     _ -> throwError $ "infer not implemented for term:" <+> pretty term
       
   
@@ -52,9 +51,6 @@ instance (Pretty (Coreχ χ), Eq (Coreχ χ)) => Checkable Name (Core AnnBind Na
   
   -- Note: types are expected to be in normal form
   -- Note: environment is expected to contain types of terms!!
-  
-  -- check :: (Environment Name e, MonadError GlyphDoc m, Pretty (Coreχ χ), Eq (Coreχ χ)) =>
-  --   e (Core AnnBind Name χ) -> (Core AnnBind Name χ)-> (Core AnnBind Name χ) -> m ()
   check env term ty = case (term, ty) of
     (Uni _ j, Uni _ k) 
       | j < k -> pure ()
@@ -76,7 +72,7 @@ instance (Pretty (Coreχ χ), Eq (Coreχ χ)) => Checkable Name (Core AnnBind Na
 
 
 -- TODO: replace with check_sub!!
-check_eq :: (MonadError GlyphDoc m, Pretty (Coreχ χ), Eq (Coreχ χ)) => (Core AnnBind Name χ) -> (Core AnnBind Name χ) -> m ()
+check_eq :: (MonadError GlyphDoc m) => TypedCore -> TypedCore -> m ()
 check_eq ty ty'
   -- TODO: replace with αβη-equality
   | ty == ty' = pure ()
