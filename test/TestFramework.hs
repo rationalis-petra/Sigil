@@ -14,6 +14,13 @@ module TestFramework (
 {- tests, and leaves being individual tests. Each node has a string identifier -}
 {- but leaves do not. Tests can optionally provide a Doc (prettyprinter) error -}
 {- message.                                                                    -}
+{-                                                                             -}
+{- This test module is still a work in progress, with plas to add the          -}
+{- following features:                                                         -}
+{- • Dependencies: If one test assumed functions tested by another module work -}
+{-   properly, then this can be explicitly defined.                            -}
+{- • Run tests in parallel (particularly as the test-suite grows)              -}
+{-                                                                             -}
 {-------------------------------------------------------------------------------}
 
 import Data.Text

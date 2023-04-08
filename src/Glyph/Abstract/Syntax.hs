@@ -123,7 +123,6 @@ data ImportDef
   | ImportAll [Text] Text
   | ImportSet [Text] [Text]
   | ImportExcept [Text] [Text]
-  
 
 data IndType = Inductive | Coinductive  
   deriving (Eq, Ord, Show)

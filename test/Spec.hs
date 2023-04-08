@@ -8,7 +8,7 @@ import Prettyprinter.Render.Glyph
 import Options.Applicative
 
 import TestFramework
-import Spec.Glyph.Abstract.Syntax
+import Spec.Glyph.Abstract
 import Spec.Glyph.Parse
 import Spec.Glyph.Interpret
 import Spec.Glyph.Analysis
@@ -37,7 +37,7 @@ config = Config
 
 tests :: [TestGroup]
 tests = 
-  [ syntax_spec
+  [ abstract_spec
   , parse_spec
   , interpret_spec
   , analysis_spec

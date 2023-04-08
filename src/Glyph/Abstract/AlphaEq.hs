@@ -9,8 +9,10 @@ module Glyph.Abstract.AlphaEq
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
+import Control.Lens
 import qualified Data.Map as Map
 import Data.Map (Map)
+import Data.Foldable (foldl')
 
 import Glyph.Abstract.Syntax
 import Glyph.Abstract.Environment
@@ -23,9 +25,20 @@ class AlphaEq n a | a -> n where
 αeq = αequal (Map.empty, Map.empty)
 
 -- (Ord n, AlphaEq n (b n (Core b n χ)))
-instance AlphaEq n (Definition b n χ) where
-  αequal _ v1 v2 = case (v1, v2) of 
-    (Mutual _, Mutual _) -> True
+instance (Ord n, Binding b, AlphaEq n (Core b n χ), AlphaEq n (b n (Core b n χ))) => AlphaEq n (Definition b n χ) where
+  αequal rename v1 v2 = case (v1, v2) of 
+    (Mutual defs, Mutual defs') -> is_eq . gather_rename rename $ (zip defs defs')
+      where 
+        is_eq (rename, defs) = foldl' (&&) True $ map (uncurry $ αequal rename) defs
+
+        gather_rename rename [] = (rename, [])
+        gather_rename rename (((b, v), (b', v')) : xs) = 
+          (_2 %~ (:) (v, v')) $ gather_rename rename' xs
+          where rename' =
+                  ( Map.insert (name b) (name b') (fst rename)
+                  , Map.insert (name b') (name b) (snd rename) )
+          
+      --foldl' (\ren ((b1,v1), (b2, v2)) -> case  ) rename (zip defs defs')
     -- (SigDef itype bind fields, SigDef itype' bind' fields') ->
     --   itype == itype' && bind == bind' && fields == fields'
     -- (IndDef itype bind terms, IndDef itype' bind' terms') ->
