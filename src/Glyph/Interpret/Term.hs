@@ -3,6 +3,7 @@ module Glyph.Interpret.Term
   ( Term(..) ) where
 
 import Prelude hiding (head, lookup)
+import Data.Maybe
 import Control.Monad.Except (MonadError, throwError)
 
 import Prettyprinter
@@ -51,17 +52,17 @@ class Pretty a => Term a where
 {-------------------------------------------------------------------------------}
 
 
-data Sem e χ
+data Sem e b χ
   = SUni (Uniχ χ) Int
-  | SPrd (Prdχ χ) Name (Sem e χ) (Sem e χ)
-  | SAbs Name (Core AnnBind Name χ) (e (Sem e χ))
-  | Neutral (Sem e χ) (Neutral e χ)
+  | SPrd (Prdχ χ) Name (Sem e b χ) (Sem e b χ)
+  | SAbs Name (Core b Name χ) (e (Sem e b χ))
+  | Neutral (Sem e b χ) (Neutral e b χ)
 
-data Neutral e χ
+data Neutral e b χ
   = NeuVar (Varχ χ) Name
-  | NeuApp (Appχ χ) (Neutral e χ) (Normal e χ)
+  | NeuApp (Appχ χ) (Neutral e b χ) (Normal e b χ)
 
-data Normal e χ = Normal (Sem e χ) (Sem e χ)
+data Normal e b χ = Normal (Sem e b χ) (Sem e b χ)
 
 
 {-------------------------------- TERM INSTANCE --------------------------------}
@@ -78,6 +79,7 @@ data Normal e χ = Normal (Sem e χ) (Sem e χ)
 {- • read_nf takes a term in normal form, and reads it back into a Core term.  -}
 {-   this is type-directed because all normal terms have an accompanying type. -}
 {- • read_ne takes a term in netural form, and reads it back into a Core term. -}
+{-                                                                             -}
 {-------------------------------------------------------------------------------}
 
 
@@ -92,65 +94,70 @@ instance (AlphaEq Name (Core AnnBind Name χ), Pretty (Core AnnBind Name χ)) =>
   equiv env ty x y = (αeq) <$> normalize env ty x <*> normalize env ty y
 
 
-read_nf :: forall e χ m ann. (Pretty (Core AnnBind Name χ), MonadError (Doc ann) m, Environment Name e) =>
-  Normal e χ -> m (Core AnnBind Name χ)
+read_nf :: forall e χ m b ann. (Binding b, Pretty (Core b Name χ), MonadError (Doc ann) m, Environment Name e) =>
+  Normal e b χ -> m (Core b Name χ)
 read_nf (Normal ty val) = case (ty, val) of 
   (SPrd _ name a b, f) -> do
-    let neua :: Sem e χ 
+    let neua :: Sem e b χ 
         neua = Neutral a $ NeuVar undefined name
     
         lvl = uni_level a
     a' <- read_nf $ Normal (SUni undefined lvl) a
     f' <- read_nf =<< (Normal <$> (b `app'` neua) <*> (f `app'` neua))
     -- TODO: we can probably derive the χ-decoration from f somehow...
-    pure $ Abs undefined (AnnBind (name, a')) f'
+    pure $ Abs undefined (bind name a') f'
   (SUni _ _, SUni χ i) -> pure $ Uni χ i
   (SUni χ₁ k, SPrd χ₂ name a b) -> do
     a' <- (read_nf $ Normal (SUni χ₁ k) a)
     b' <- (read_nf $ Normal (SPrd χ₂ name a (SUni undefined k)) b)
-    pure $ Prd χ₂ (AnnBind (name, a')) b'
+    pure $ Prd χ₂ (bind name a') b'
         
   (_, Neutral _ e) -> read_ne e 
   (_, _) -> throwError ("bad read_nf: " <+> pretty val <> " : " <+> pretty ty)
 
-read_ne :: (Pretty (Core AnnBind Name χ), MonadError (Doc ann) m, Environment Name e) => Neutral e χ -> m (Core AnnBind Name χ)
+read_ne :: (Binding b, Pretty (Core b Name χ), MonadError (Doc ann) m, Environment Name e) => Neutral e b χ -> m (Core b Name χ)
 read_ne neu = case neu of 
   NeuVar χ name -> pure $ Var χ name
   NeuApp χ l r -> App χ <$> (read_ne l) <*> (read_nf r) 
 
-eval :: (Pretty (Core AnnBind Name χ), MonadError (Doc ann) m, Environment Name e) => Core AnnBind Name χ -> e (Sem e χ) -> m (Sem e χ)
+eval :: (Binding b, Pretty (Core b Name χ), MonadError (Doc ann) m, Environment Name e) => Core b Name χ -> e (Sem e b χ) -> m (Sem e b χ)
 eval term env = case term of
   Coreχ _ -> throwError "cannot eval Coreχ terms" 
   Uni χ n -> pure $ SUni χ n
-  Prd χ (AnnBind (name, a)) b -> do
+  Prd χ bnd b -> do
+    nm <- fromMaybe (throwError "Prd must bind a name") (fmap pure $ name bnd)
+    a <- fromMaybe (throwError "Prd must bind a type") (fmap pure $ tipe bnd)
     a' <- eval a env
-    pure $ SPrd χ name a' $ SAbs name b env
+    pure $ SPrd χ nm a' $ SAbs nm b env
   Var _ name -> lookup_err name env
-  Abs _ (AnnBind (name, _)) body -> pure $ SAbs name body env
+  Abs _ bnd body -> do
+    nme <- fromMaybe (throwError "Abs must bind a name") (fmap pure $ name bnd)
+    pure $ SAbs nme body env
   App χ l r -> do
     l' <- (eval l env)
     r' <- (eval r env)
     app χ l' r'
 
-app' :: (Pretty (Core AnnBind Name χ), MonadError (Doc ann) m, Environment Name e) =>  Sem e χ -> Sem e χ -> m (Sem e χ)
+app' :: (Binding b, Pretty (Core b Name χ), MonadError (Doc ann) m, Environment Name e) =>  Sem e b χ -> Sem e b χ -> m (Sem e b χ)
 app' = app undefined
 
-app :: (Pretty (Core AnnBind Name χ), MonadError (Doc ann) m, Environment Name e) => Appχ χ -> Sem e χ -> Sem e χ -> m (Sem e χ)
+app :: (Binding b, Pretty (Core b Name χ), MonadError (Doc ann) m, Environment Name e) => Appχ χ -> Sem e b χ -> Sem e b χ -> m (Sem e b χ)
 app _ (SAbs name body env) val = eval body (insert name val env)
 app χ (Neutral (SPrd _ _ a b) neu) v =
   Neutral <$> (b `app'` v) <*> pure (NeuApp χ neu (Normal a v))
 app _ _ _ = throwError "bad args to app"
 
-env_eval :: (Pretty (Core AnnBind Name χ), MonadError (Doc ann) m, Environment Name e) => e (Core AnnBind Name χ) -> m (e (Sem e χ))
+env_eval :: (Binding b, Pretty (Core b Name χ), MonadError (Doc ann) m, Environment Name e) => e (Core b Name χ) -> m (e (Sem e b χ))
 env_eval = eval_helper eval
 
 -- TODO: fix this function - it is wrong!
-uni_level :: (Sem e χ) -> Int
+uni_level :: (Sem e b χ) -> Int
 uni_level sem = case sem of 
   SUni _ n -> n + 1
   SPrd _ _ l r -> max (uni_level l) (uni_level r)
   SAbs _ _ _ -> 0 -- note: predicative vs impredicative!!
   Neutral _ _ -> 0 -- TODO: this is probably wrong!!!
+
 
 {-------------------------------- MISC INSTANCES -------------------------------}
 {-                                                                             -}
@@ -158,18 +165,19 @@ uni_level sem = case sem of
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
-instance Pretty (Core AnnBind Name χ) => Pretty (Sem e χ) where
+
+instance Pretty (Core b Name χ) => Pretty (Sem e b χ) where
   pretty sem = case sem of 
     SUni _ n -> "𝒰" <> pretty n
     SPrd _ n a b -> pretty n <> " : " <> pretty a <+> "→" <+> pretty b
     SAbs n body _ -> "λ (" <> pretty n <> ")" <+> pretty body
     Neutral _ n -> pretty n
   
-instance Pretty (Core AnnBind Name χ) => Pretty (Neutral e χ) where
+instance Pretty (Core b Name χ) => Pretty (Neutral e b χ) where
   pretty neu = case neu of
     NeuVar _ n -> pretty n
     NeuApp _ l r -> pretty l <+> pretty r
 
-instance Pretty (Core AnnBind Name χ) => Pretty (Normal e χ) where
+instance Pretty (Core b Name χ) => Pretty (Normal e b χ) where
   pretty (Normal _ val) = pretty val
 

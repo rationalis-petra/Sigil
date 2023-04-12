@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
 module Spec.Glyph.Interpret.Term (term_spec) where
 
 import Control.Monad.Except hiding (void)
@@ -11,14 +10,10 @@ import Prettyprinter.Render.Glyph
 
 import Glyph.Abstract.Environment
 import Glyph.Abstract.Syntax
-import Glyph.Abstract.AlphaEq
 import Glyph.Concrete.Typed
 import Glyph.Interpret.Term
 
 import TestFramework
-
-instance AlphaEq Name () where
-  αequal _ _ _ = True
 
 term_spec :: TestGroup
 term_spec = TestGroup "term" $ Left [norm_spec, eq_spec]

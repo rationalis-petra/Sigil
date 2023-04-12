@@ -6,17 +6,24 @@ module Interactive
 import Prelude hiding (getLine, putStr)
 
 import Control.Monad (unless)
+import Control.Monad.Except (Except, runExcept)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Data.Text
 import Data.Text.IO
-
 import System.IO hiding (getLine, putStr)
+
+import Text.Megaparsec hiding (runParser)
 import Prettyprinter
 import Prettyprinter.Render.Glyph
 
-import Glyph.Concrete.Parsed
+import Glyph.Abstract.Environment
 import Glyph.Parse  
+import Glyph.Parse.Mixfix
+import Glyph.Analysis.NameResolution
+import Glyph.Analysis.Typecheck
+import Glyph.Interpret.Term
+import Glyph.Concrete.Typed
 
 
 data InteractiveOpts = InteractiveOpts
@@ -38,7 +45,9 @@ interactive = loop default_env
       line <- getLine
       unless (should_quit line) $ do
         case eval_line line of
-          Right val -> putDocLn $ pretty val
+          Right (val, ty) -> do
+            putDocLn $ "final value:" <+> nest 2 (pretty val)
+            putDocLn $ "type" <+> nest 2 (pretty ty)
           Left err -> putDocLn err
         loop () opts
     
@@ -46,7 +55,13 @@ interactive = loop default_env
     should_quit ":q" = True
     should_quit _ = False
     
-    eval_line :: Text -> Either GlyphDoc RawCore
-    eval_line line = case runParser (core (Precedences Map.empty Set.empty)) "console-in" line of 
-      Right val -> Right val
-      Left err -> Left $ pretty err
+    eval_line :: Text -> Either GlyphDoc (TypedCore, TypedCore)
+    eval_line line = runExcept $ meval line
+
+    meval :: Text -> Except GlyphDoc (TypedCore, TypedCore)
+    meval line = do
+      parsed <- parseToErr (core (Precedences Map.empty Set.empty) <* eof) "console-in" line 
+      let resolved = run_gen $ resolve parsed
+      (term, ty) <- infer (Map.empty :: Map.Map Integer (TypedCore, TypedCore)) resolved
+      norm <- normalize (Map.empty :: Map.Map Integer TypedCore) ty term
+      pure $ (norm, ty) 

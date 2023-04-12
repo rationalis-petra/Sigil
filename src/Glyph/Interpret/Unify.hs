@@ -583,10 +583,10 @@ unify_eq quant_vars a b = case (a, b) of
 
           perm = do
             (iyt,y) <- zip abindings terms
-            (i',_) <- filter (\(_,y') -> y == y') $ zip (fmap name bbindings) terms' 
+            (i',_) <- filter (\(_,y') -> y == y') $ zip (fmap aname bbindings) terms' 
             pure (iyt,i')
 
-          l = untelescope (abindings, wind (new_var, fmap (mkvar . name . fst) perm))
+          l = untelescope (abindings, wind (new_var, fmap (mkvar . aname . fst) perm))
           l' = untelescope (bbindings, wind (new_var, fmap (mkvar . snd) perm))
 
           newty = untelescope_type (map fst perm, get_base n ty) 
@@ -624,11 +624,11 @@ unify_eq quant_vars a b = case (a, b) of
       --   xₘ (∪_1:A₁) → … (uₙ:Aₙ) → [(xₘ₋₁ u₁ … uₙ/v₁) … (x₁ u₁ … uₙ/vₘ)]B
       xₘₛ <- forM bₘₛ $ \_ -> do
         x <- fresh_var "@xm"
-        pure $ (x, wind (x, map (mkvar . name) aₙₛ))
+        pure $ (x, wind (x, map (mkvar . aname) aₙₛ))
 
       let to_l_term term = case term of
               Prd _ bind body -> Abs () bind $ to_l_term body
-              _ -> foldr app (action $ fmap name aₙₛ) $ map snd xₘₛ
+              _ -> foldr app (action $ fmap aname aₙₛ) $ map snd xₘₛ
           -- The term L, which we will substitute for x
           l = to_l_term ty
 
@@ -641,7 +641,7 @@ unify_eq quant_vars a b = case (a, b) of
           subst_bty sub term l = case (term,l) of 
             (Prd _ b ty, (x, xi):xmr) ->
               (:) (x, vbuild $ subst sub (snd $ unann b))
-                <$> (subst_bty (insert (name b) xi sub) ty xmr)
+                <$> (subst_bty (insert (aname b) xi sub) ty xmr)
             (_, []) -> pure []
             _ -> throwError "_ is not well typed for _ on _"
 
@@ -937,3 +937,6 @@ app :: TypedCore -> TypedCore -> TypedCore
 app val arg = case val of 
   Abs _ (AnnBind (n, _)) e -> subst ((n ↦ arg) :: Substitution') e
   _ -> App () val arg 
+
+aname :: AnnBind n b -> n
+aname (AnnBind (n, _)) = n

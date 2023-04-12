@@ -53,31 +53,61 @@ type QualName = [Text]
 newtype Name = Name (Either QualName UniqueName)
   deriving (Eq, Ord)
 
+
+
+{------------------------------ BIND ABSTRACTION -------------------------------}
+{- There are 3 variants of binding we can have:                                -}
+{- + Name but no type, e.g. λ [x] x                                            -}
+{- + Type but no name, e.g. ℤ → ℤ                                              -}
+{- + Both Name and type, e.g. λ [x:ℤ] (x + 1) or (A:𝒰) → A → A                 -}
+{- Specific binding types may encompass any subset of these three, and the     -}
+{- typeclass abstraction should account for any possible subset.               -}
+{- Hence, name and type return maybes, and the only way to construct a binding -}
+{- requires both a name and a type.                                            -}
+{-------------------------------------------------------------------------------}
+
+class Binding b where 
+  name :: b n a -> Maybe n
+  tipe :: b n a -> Maybe a
+  bind :: n -> a -> b n a
+
+{----------------------------- CONCRETE BINDINGS -------------------------------}
 -- Bindings: 
--- An optionally annotated binding
-newtype OptBind n ty = OptBind (Either n (n, ty))
-  deriving Eq
+-- TODO: add bindings with optionally no name!
 
 -- An annotated binding
 newtype AnnBind n ty = AnnBind { unann :: (n, ty) }
   deriving Eq
 
-{------------------------------ BIND ABSTRACTION -------------------------------}
-{-                                                                             -}
-{-------------------------------------------------------------------------------}
+-- Binding instance for AnnBind
+instance Functor (AnnBind n) where
+  fmap f (AnnBind (n, ty)) = AnnBind (n, f ty)
 
-class Binding b where 
-  name :: b n a -> n
-  bind :: n -> a -> b n a
+instance Foldable (AnnBind n) where
+  foldr f z (AnnBind (_, ty)) = f ty z
+  foldl f z (AnnBind (_, ty)) = f z ty
+
+instance Traversable (AnnBind n) where
+  traverse f (AnnBind (n, ty)) = (\r -> AnnBind (n, r)) <$> f ty
 
 instance Binding AnnBind where   
-  name (AnnBind (n, _)) = n
-
+  name (AnnBind (n, _)) = Just n
+  tipe (AnnBind (_, ty)) = Just ty
   bind n ty = AnnBind (n, ty)
 
+-- An optionally annotated binding
+newtype OptBind n ty = OptBind (Either n (n, ty))
+  deriving Eq
+instance Functor (OptBind n) where
+  fmap _ (OptBind (Left   n)) = OptBind (Left   n)
+  fmap f (OptBind (Right (n, ty))) = OptBind (Right (n, f ty))
+
 instance Binding OptBind where   
-  name (OptBind (Left   n)) = n
-  name (OptBind (Right (n, _))) = n
+  name (OptBind (Left   n)) = Just n
+  name (OptBind (Right (n, _))) = Just n
+
+  tipe (OptBind (Right (_, ty))) = Just ty
+  tipe _ = Nothing
 
   bind n ty = OptBind $ Right (n, ty)
 

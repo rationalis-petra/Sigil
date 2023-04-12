@@ -21,7 +21,7 @@ resolve :: MonadGen m => RawCore -> m ResolvedCore
 resolve core = resolve_id' empty core where
   resolve_id' :: MonadGen m => Map Text Integer -> RawCore -> m ResolvedCore
   resolve_id' vars term = case term of 
-    Coreχ χ -> pure $ Coreχ χ
+    Coreχ PUnit -> pure $ Coreχ ()
     Uni χ n -> pure $ Uni χ n
     Var χ name -> case lookup name vars of
       Just n -> pure $ Var χ $ Name $ Right $ (n, name)

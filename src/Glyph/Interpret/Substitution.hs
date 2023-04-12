@@ -110,21 +110,21 @@ instance (Ord n, Binding b,
     Prd χ bind ty ->
       Prd χ (substitute shadow sub bind) (substitute shadow' sub ty)
       where
-        shadow' = Set.insert (name bind) shadow
+        shadow' = maybe shadow (\n -> Set.insert n shadow) (name bind)
     Abs χ bind body ->
       Abs χ (substitute shadow sub bind) (substitute shadow' sub body)
       where
-        shadow' = Set.insert (name bind) shadow
+        shadow' = maybe shadow (\n -> Set.insert n shadow) (name bind)
     App χ l r -> App χ (substitute shadow sub l) (substitute shadow sub r)
 
   free_vars term = case term of 
     Coreχ _ -> Set.empty
     Uni _ _ -> Set.empty
     Var _ var -> Set.singleton var
-    Prd _ bind ty -> 
-      Set.union (free_vars bind) (Set.delete (name bind) (free_vars ty))
-    Abs _ bind body ->
-      Set.union (free_vars bind) (Set.delete (name bind) (free_vars body))
+    Prd _ bind ty -> let fvt = free_vars ty in
+      Set.union (free_vars bind) (maybe fvt (\n -> Set.delete n fvt) (name bind))
+    Abs _ bind body -> let fvb = free_vars body in
+      Set.union (free_vars bind) (maybe fvb (\n -> Set.delete n fvb) (name bind))
     App _ l r -> Set.union (free_vars l) (free_vars r)
 
 

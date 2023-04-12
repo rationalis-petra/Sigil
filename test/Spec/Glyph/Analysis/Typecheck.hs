@@ -15,6 +15,8 @@ import Glyph.Analysis.Typecheck
 
 import TestFramework
 
+-- TODO: check typed output!
+
 
 type_spec :: TestGroup
 type_spec = TestGroup "typing" $ Left [check_spec, infer_spec]
@@ -30,7 +32,7 @@ type CheckM a = Except (Doc GlyphStyle) a
 runCheckM :: CheckM a -> Either (Doc GlyphStyle) a
 runCheckM = runExcept
 
-default_env :: Map Integer TypedCore
+default_env :: Map Integer (TypedCore, TypedCore)
 default_env = Map.empty
 
 check_tests :: [Test]     
@@ -58,7 +60,7 @@ check_tests =
     check_test :: Text -> TypedCore -> TypedCore -> Bool -> Test
     check_test name term ty succ = 
       Test name $ case runCheckM $ check default_env term ty of 
-        Right ()
+        Right _
           | succ -> Nothing
           | otherwise -> Just "checker passed, expected to fail"
         Left e
@@ -76,7 +78,7 @@ infer_tests =
     infer_test :: Text -> TypedCore -> TypedCore -> Test
     infer_test name term ty = 
       Test name $ case runCheckM $ infer default_env term of 
-        Right ty' | ty == ty' -> Nothing
+        Right (_, ty') | ty == ty' -> Nothing
                   | otherwise -> Just "type inference produced the wrong type!"
         Left e -> Just $ "inference err:" <+> e
 

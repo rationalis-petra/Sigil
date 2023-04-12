@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
 module Spec.Glyph.Parse (parse_spec) where
 
 import Prelude hiding (abs)
@@ -15,14 +14,12 @@ import Topograph
 
 import TestFramework
 import Glyph.Parse
+import Glyph.Parse.Mixfix
 import Glyph.Abstract.Syntax
 import Glyph.Abstract.Environment
 import Glyph.Abstract.AlphaEq
 import Glyph.Concrete.Parsed
 
-instance AlphaEq Text () where
-  αequal _ _ _ = True
-  
 
 ops :: [Map PrecedenceNode (Set PrecedenceNode)]
 ops =
@@ -123,7 +120,7 @@ parse_mixfix' graph =
   where
     mixfix_test :: Text -> Text -> RawCore -> Test
     mixfix_test name text out =  
-      case runParser (mixfix graph) name text of  
+      case runParser (mixfix (fail "no core") graph) name text of  
         Right val ->
           if αeq val out then
             Test name Nothing
@@ -138,6 +135,8 @@ parse_expr graph =
   TestGroup "expression" $ Right
     [ expr_test "univar-lambda" "λ [x] true" (abs [("x")] (var "true"))
     , expr_test "bivar-lambda" "λ [x y] false" (abs ["x", "y"] (var "false"))
+
+    , expr_test "simple-close-prefix" "true true" (var "true" ⋅ var "true")
 
     , expr_test "closed-lambda"
       "λ [x] x"
@@ -154,6 +153,13 @@ parse_expr graph =
     , expr_test "postfix-lambda"
       "λ [_x] true x"
       (abs ["_x"] (var "_x" ⋅ var "true"))
+
+    , expr_test "lambda-app"
+      "(λ [x_] x true) true"
+      ((abs ["x_"] (var "x_" ⋅ var "true")) ⋅ var "true")
+    , expr_test "lambda-app"
+      "(λ [x_] x true) (λ [x_] x true)"
+      ((abs ["x_"] (var "x_" ⋅ var "true")) ⋅ (abs ["x_"] (var "x_" ⋅ var "true")))
     ]
   where
     expr_test :: Text -> Text -> Core OptBind Text Parsed -> Test

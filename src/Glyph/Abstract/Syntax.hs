@@ -4,7 +4,7 @@ module Glyph.Abstract.Syntax
   , Definition(..)
   , ImportDef(..)
   , IndType(..)
-   --Clause(..),
+  -- , Clause(..)
   , Forallχ
   , Coreχ
   , Varχ
@@ -23,11 +23,11 @@ module Glyph.Abstract.Syntax
 {-------------------------------------------------------------------------------}
 
 
-import Prelude hiding (lookup, length, head)
+import Prelude hiding (lookup, length)
 
 import Data.Kind
 import Data.Foldable
-import Data.Text hiding (zipWith)
+import Data.Text hiding (zipWith, foldl', tail, head)
 
 import Prettyprinter
 
@@ -187,8 +187,10 @@ instance (Pretty (b n (Core b n χ)), Pretty n, Pretty (Coreχ b n χ)) => Prett
     Uni _ n -> "𝒰" <> pretty n
     Var _ name -> pretty name
  
-    Prd _ _ _ -> align $ sep $ zipWith (<+>) ("" : repeat "→") (telescope c)
+    Prd _ _ _ -> align $ sep $ head tel : zipWith (<+>) (repeat "→") (tail tel)
       where
+        tel = telescope c
+        
         telescope (Prd _ bind e) = pretty bind : telescope e
         telescope b = [pretty b]
   
@@ -203,5 +205,15 @@ instance (Pretty (b n (Core b n χ)), Pretty n, Pretty (Coreχ b n χ)) => Prett
           pretty_args bind [] = pretty bind
           pretty_args v (x : xs) = pretty_args v [] <+> pretty_args x xs
       in
-        ("λ [" <> pretty_args bind args <> "]") <+> nest 2 (pretty body)
-    App _ l r -> pretty l <+> pretty r
+        ("λ [" <> pretty_args bind args <> "]") <+> nest 2 (bracket body)
+    -- telescoping
+    App χ l r -> sep $ fmap bracket $ unwind (App χ l r)
+    where 
+      bracket v = if iscore v then pretty v else "(" <> pretty v <> ")"
+      
+      iscore (Uni _ _) = True
+      iscore (Var _ _) = True
+      iscore _ = False
+
+      unwind (App _ l r) = unwind l <> [r]
+      unwind t = [t]

@@ -55,8 +55,8 @@ args ⇒ body = foldr (\var body -> Abs void (OptBind $ Left var) body) body arg
 (→) :: [Name] -> CoreUD -> CoreUD
 args → body = foldr (\var body -> Prd void (OptBind $ Left var) body) body args
 
--- -- (⋅) :: Core b n UD -> Core b n UD -> Core b n UD
--- -- (⋅) = App void
+-- (⋅) :: Core b n UD -> Core b n UD -> Core b n UD
+-- (⋅) = App void
 
 idv :: Integer -> Text -> CoreUD
 idv n t = Var void $ Name $ Right (n, t)
