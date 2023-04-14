@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Glyph.Parse
   ( Range
   , Parsed
@@ -19,13 +20,14 @@ import Prelude hiding (head, last, tail)
 import Control.Monad.Except (MonadError, throwError)
 import qualified Data.Text as Text
 import Data.Text (Text)
+import Data.Maybe (catMaybes, maybeToList)
 
 import qualified Text.Megaparsec as Megaparsec
 import Text.Megaparsec hiding (runParser)
 import Prettyprinter
 
 import Glyph.Abstract.Syntax
-import Glyph.Abstract.Environment (OptBind(..))
+import Glyph.Abstract.Environment (OptBind(..), name)
 import Glyph.Concrete.Decorations.Range
 import Glyph.Concrete.Parsed
 
@@ -63,11 +65,11 @@ def precs = choice [mutual]
       val <- core (update_precs args precs)
 
       let tofn [] v = v
-          tofn (x:xs) v = Abs mempty (OptBind $ Left x) (tofn xs v)
+          tofn (x:xs) v = Abs mempty (OptBind (Just x, Nothing)) (tofn xs v)
 
       case args of 
         [] -> error "impossible!"
-        (x:xs) -> pure $ Mutual [(OptBind $ Left x, tofn xs val)]
+        (x:xs) -> pure $ Mutual [(OptBind (Just x, Nothing), tofn xs val)]
 
 
 {--------------------------------- CORE PARSER ---------------------------------}
@@ -78,24 +80,48 @@ def precs = choice [mutual]
 
 
 core :: Precedences -> Parser RawCore
-core precs = choice [plam, pexpr]
+core precs = choice' [plam, pprod, pexpr, puniv]
   where
+    -- TODO: puniv needs to be integrated into pexpr!
+    puniv :: Parser RawCore
+    puniv = const (Uni mempty 0) <$> symbol "𝒰"
+
     plam :: Parser RawCore
     plam = do
-      let unscope :: [Text] -> RawCore -> RawCore
-          unscope = flip $ foldr (\v rest -> Abs mempty (OptBind $ Left v) rest)
+      let unscope :: [OptBind Text RawCore] -> RawCore -> RawCore
+          unscope = flip $ foldr (Abs mempty)
 
-          args :: Parser [Text]
-          args = between (symbol "[") (symbol "]") (many1 arg)  
+          args :: Parser [OptBind Text RawCore]
+          args = between (symbol "[") (symbol "]") (many1 (tyarg <||> arg))
 
-          arg :: Parser Text
-          arg = anyvar
+          tyarg :: Parser (OptBind Text RawCore)
+          tyarg = between (symbol "(") (symbol ")") $
+                    (\n t -> OptBind (Just n, Just t)) <$> anyvar <*> (symbol ":" *> (core precs))
+
+          arg :: Parser (OptBind Text RawCore)
+          arg = flip (curry OptBind) Nothing . Just  <$> anyvar
 
       _ <- symbol "λ"
       tel <- args
-
-      body <- core (update_precs tel precs)
+      -- TODO: update precs per argument!!
+      body <- core (update_precs (catMaybes $ map name tel) precs)
       pure $ unscope tel body
+
+    pprod :: Parser RawCore
+    pprod = do
+        arg <- parg <* (symbol "→")
+        bdy <- core (update_precs (maybeToList $ name arg) precs)
+        pure $ Prd mempty arg bdy
+      where
+        parg :: Parser (OptBind Text RawCore)
+        parg = annarg <||> ty_only
+
+        annarg :: Parser (OptBind Text RawCore)
+        annarg = between (symbol "(") (symbol ")") $
+          (\n t -> OptBind (Just n, Just t)) <$> anyvar <*> (symbol ":" *> (core precs))
+
+        ty_only :: Parser (OptBind Text RawCore)
+        ty_only = (\t -> OptBind (Nothing, Just t)) <$> choice' [puniv, plam, pexpr]
 
     pexpr :: Parser RawCore
     pexpr = run_precs precs (mixfix no_mixfix)
@@ -116,5 +142,8 @@ runParser p file input = case Megaparsec.runParser p (Text.unpack file) input of
 
 parseToErr :: (MonadError (Doc ann) m) => Parser a -> Text -> Text -> m a
 parseToErr p file input = case Megaparsec.runParser p (Text.unpack file) input of
-  Left err -> throwError $ pretty $ show err
+  Left err -> throwError $ pretty $ errorBundlePretty err
   Right val -> pure val
+
+instance ShowErrorComponent Text where 
+  showErrorComponent = Text.unpack

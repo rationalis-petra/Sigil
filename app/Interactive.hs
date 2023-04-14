@@ -6,8 +6,7 @@ module Interactive
 import Prelude hiding (getLine, putStr)
 
 import Control.Monad (unless)
-import Control.Monad.Except (Except, runExcept)
-import qualified Data.Set as Set
+import Control.Monad.Except (ExceptT, runExceptT)
 import qualified Data.Map as Map
 import Data.Text
 import Data.Text.IO
@@ -56,12 +55,12 @@ interactive = loop default_env
     should_quit _ = False
     
     eval_line :: Text -> Either GlyphDoc (TypedCore, TypedCore)
-    eval_line line = runExcept $ meval line
+    eval_line line = run_gen $ runExceptT $ meval line
 
-    meval :: Text -> Except GlyphDoc (TypedCore, TypedCore)
+    meval :: Text -> ExceptT GlyphDoc Gen (TypedCore, TypedCore)
     meval line = do
-      parsed <- parseToErr (core (Precedences Map.empty Set.empty) <* eof) "console-in" line 
-      let resolved = run_gen $ resolve parsed
+      parsed <- parseToErr (core (Precedences Map.empty "infixl" "prefix" "postfix" "closed") <* eof) "console-in" line 
+      resolved <- resolve parsed
       (term, ty) <- infer (Map.empty :: Map.Map Integer (TypedCore, TypedCore)) resolved
       norm <- normalize (Map.empty :: Map.Map Integer TypedCore) ty term
       pure $ (norm, ty) 

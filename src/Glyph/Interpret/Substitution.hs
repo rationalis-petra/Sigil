@@ -80,21 +80,22 @@ instance (Ord n, Subst n s a) => Subst n s [a] where
   free_vars = foldl' Set.union Set.empty . fmap free_vars  
 
 instance (Ord n, Subst n s a) => Subst n s (OptBind n a) where
-  substitute shadow sub bind = case bind of
-    OptBind (Left _) -> bind
-    OptBind (Right (n, a)) ->
-      OptBind $ Right (n, (substitute (Set.insert n shadow) sub a))
+  substitute shadow sub (OptBind (n, ty)) = substitute shadow' sub (OptBind (n, ty'))
+    where
+      shadow' = maybe shadow (flip Set.insert shadow) n
+      ty' = fmap (substitute shadow' sub) ty 
 
-  free_vars bind = case bind of 
-    OptBind (Left _) -> Set.empty
-    OptBind (Right (n, a)) -> Set.delete n $ free_vars a
+  free_vars (OptBind (n, ty)) =
+    maybe id Set.delete n $ fromMaybe Set.empty (free_vars <$> ty)
   
 instance (Ord n, Subst n s a) => Subst n s (AnnBind n a) where
-  substitute shadow sub (AnnBind (n, a)) =
-    AnnBind (n, substitute (Set.insert n shadow) sub a)
+  substitute shadow sub (AnnBind (n, a)) = AnnBind (n, substitute shadow'  sub a)
+    where
+      -- shadow' = maybe shadow (flip Set.insert shadow) n
+      shadow' = Set.insert n shadow
 
-  free_vars (AnnBind (n, a)) =
-    Set.delete n $ free_vars a
+  free_vars (AnnBind (n, a)) = Set.delete n $ free_vars a
+    --maybe id Set.delete n $ free_vars a
 
 instance (Ord n, Binding b,
           Subst n (Core b n χ) (b n (Core b n χ)))
@@ -130,14 +131,11 @@ instance (Ord n, Binding b,
 
 instance Regen (Core OptBind Name χ) where 
   regen = go (Substitution Map.empty) where
-    freshen_bind (OptBind (Left n)) sub = do
-      n' <- freshen n
-      pure (insert n n' sub, OptBind $ Left n')
-    freshen_bind (OptBind (Right (n, ty))) sub = do
-      n' <- freshen n
-      let sub' = insert n n' sub
-      ty' <- go sub ty
-      pure (sub', OptBind $ Right (n', ty'))
+    freshen_bind (OptBind (n, ty)) sub = do
+      n' <- mapM freshen n
+      let sub' = maybe sub (flip (uncurry insert) sub) ((,) <$> n <*> n')
+      ty' <- mapM (go sub) ty
+      pure (sub', OptBind (n', ty'))
 
     go sub term = case term of 
       Coreχ χ -> pure $ Coreχ χ 
@@ -160,6 +158,10 @@ instance Regen (Core AnnBind Name χ) where
       let sub' = insert n n' sub
       ty' <- go sub' ty
       pure (sub', AnnBind (n', ty'))
+      -- n' <- mapM freshen n
+      -- let sub' = maybe sub (flip (uncurry insert) sub) ((,) <$> n <*> n')
+      -- ty' <- go sub' ty
+      -- pure (sub', AnnBind (n', ty'))
 
     go sub term = case term of 
       Coreχ χ -> pure $ Coreχ χ 

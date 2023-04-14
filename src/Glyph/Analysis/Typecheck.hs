@@ -14,6 +14,7 @@ module Glyph.Analysis.Typecheck
 import Control.Monad.Except (MonadError, throwError)
 -- import qualified Data.Map as Map
 -- import Data.Map (Map)  
+-- import qualified Data.Text as Text
 
 import Prettyprinter
 import Prettyprinter.Render.Glyph
@@ -28,8 +29,8 @@ import Glyph.Concrete.Typed
 
   
 class Checkable n a t | a -> n t where 
-  infer :: (Environment n e, MonadError GlyphDoc m) => e (t,t) -> a -> m (t, t)
-  check :: (Environment n e, MonadError GlyphDoc m) => e (t,t) -> a -> t -> m t
+  infer :: (Environment n e, MonadError GlyphDoc m, MonadGen m) => e (t,t) -> a -> m (t, t)
+  check :: (Environment n e, MonadError GlyphDoc m, MonadGen m) => e (t,t) -> a -> t -> m t
 
 instance Checkable Name TypedCore TypedCore where 
   infer env term = case term of
@@ -90,7 +91,7 @@ instance Checkable Name ResolvedCore TypedCore where
       rnorm <- norm env arg_ty r'
       pure $ (App () l' r', subst (n ↦ rnorm) ret_ty)
   
-    Abs _ (OptBind (Right (n, a))) body -> do
+    Abs _ (OptBind (Just n, Just a)) body -> do
       (a', aty) <- infer env a
       a_norm <- norm env aty a'
       (body', ret_ty) <- infer (insert n (Var mempty n, a_norm) env) body
@@ -111,18 +112,18 @@ instance Checkable Name ResolvedCore TypedCore where
       | otherwise -> throwError "universe-level check failed"
   
     -- TODO: generalize to more bindings; notably untyped bindings!!
-    (Abs _ (OptBind (Right (n, a))) body, Prd _ (AnnBind (_,a')) ret_ty) -> do
+    (Abs _ (OptBind (Just n, Just a)) body, Prd _ (AnnBind (_,a')) ret_ty) -> do
       (a_typd, a_ty) <- infer env a
       a_normal <- norm env a_ty a_typd
       check_eq a_normal a'
       body' <- check (insert n (Var mempty n, a_normal) env) body ret_ty
       pure $ Abs () (AnnBind (n, a_normal)) body'
-    (Abs _ (OptBind (Left n)) body, Prd _ (AnnBind (_,a')) ret_ty) -> do
+    (Abs _ (OptBind (Just n, Nothing)) body, Prd _ (AnnBind (_,a')) ret_ty) -> do
       body' <- check (insert n (Var mempty n, a') env) body ret_ty
       pure $ Abs () (AnnBind (n, a')) body'
     (Abs _ _ _, _) -> throwError $ "expected λ-term to have Π-type, got" <+> pretty ty
   
-    (Prd _ (OptBind (Right (n, a))) b, _) -> do
+    (Prd _ (OptBind (Just n, Just a)) b, _) -> do
       -- TODO: normalization??
       a' <- check env a ty
       b' <- check (insert n (Var mempty n, a') env) b ty
@@ -138,6 +139,12 @@ instance Checkable Name ResolvedCore TypedCore where
 norm :: (MonadError (Doc ann) m, Environment Name e) =>
               e (TypedCore, TypedCore) -> TypedCore -> TypedCore -> m TypedCore
 norm = normalize . fmap fst
+
+-- fresh_name :: MonadGen m => m Name
+-- fresh_name = fresh_id >>= \id -> pure $ Name $ Right (id, "*" <> Text.pack (show id))
+
+-- freshen :: MonadGen m => Maybe Name -> m Name
+-- freshen = maybe fresh_name pure
 
 -- TODO: replace with check_sub!!
 check_eq :: (MonadError GlyphDoc m, AlphaEq n a, Pretty a) => a -> a -> m ()

@@ -55,7 +55,7 @@ idn n t = Name $ Right (n, t)
 (⋅) = App void
 
 (⇒) :: [Name] -> CoreUD -> CoreUD
-args ⇒ body = foldr (\var body -> Abs void (OptBind $ Left var) body) body args
+args ⇒ body = foldr (\var body -> Abs void (OptBind (Just var, Nothing)) body) body args
 
 (→) :: [Name] -> CoreUD -> CoreUD
-args → body = foldr (\var body -> Prd void (OptBind $ Left var) body) body args
+args → body = foldr (\var body -> Prd void (OptBind (Just var, Nothing)) body) body args

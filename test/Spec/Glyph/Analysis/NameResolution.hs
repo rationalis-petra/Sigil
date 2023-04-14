@@ -2,6 +2,7 @@ module Spec.Glyph.Analysis.NameResolution (resolve_spec) where
 
 import Prelude hiding (putStrLn)
 import Data.Text (Text)
+import Data.Bifunctor
 
 import Prettyprinter
 import Prettyprinter.Render.Glyph
@@ -48,16 +49,16 @@ tests =
     𝓊 = Uni mempty
 
     (⇒) :: Forallχ Monoid χ => [n] -> Core OptBind n χ -> Core OptBind n χ
-    args ⇒ body = foldr (\var body -> Abs mempty (OptBind $ Left var) body) body args
+    args ⇒ body = foldr (\var body -> Abs mempty (OptBind (Just var, Nothing)) body) body args
 
     (=⇒) :: Forallχ Monoid χ => [(n, Core OptBind n χ)] -> Core OptBind n χ -> Core OptBind n χ
-    args =⇒ body = foldr (\var body -> Abs mempty (OptBind $ Right var) body) body args
+    args =⇒ body = foldr (\b body -> Abs mempty (OptBind $ bimap Just Just b) body) body args
 
     (→) :: Forallχ Monoid χ => [n] -> Core OptBind n χ -> Core OptBind n χ
-    args → body = foldr (\var body -> Prd mempty (OptBind $ Left var) body) body args
+    args → body = foldr (\var body -> Prd mempty (OptBind (Just var, Nothing)) body) body args
 
     (-→) :: Forallχ Monoid χ => [(n, Core OptBind n χ)] -> Core OptBind n χ -> Core OptBind n χ
-    args -→ body = foldr (\var body -> Prd mempty (OptBind $ Right var) body) body args
+    args -→ body = foldr (\b body -> Prd mempty (OptBind $ bimap Just Just b) body) body args
 
     (⋅) :: Forallχ Monoid χ => Core b n χ -> Core b n χ -> Core b n χ
     (⋅) = App mempty

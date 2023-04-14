@@ -50,10 +50,10 @@ alphaeq_tests =
 𝓊 = Uni void
 
 (⇒) :: [Name] -> CoreUD -> CoreUD
-args ⇒ body = foldr (\var body -> Abs void (OptBind $ Left var) body) body args
+args ⇒ body = foldr (\var body -> Abs void (OptBind (Just var, Nothing)) body) body args
 
 (→) :: [Name] -> CoreUD -> CoreUD
-args → body = foldr (\var body -> Prd void (OptBind $ Left var) body) body args
+args → body = foldr (\var body -> Prd void (OptBind (Just var, Nothing)) body) body args
 
 -- (⋅) :: Core b n UD -> Core b n UD -> Core b n UD
 -- (⋅) = App void
@@ -65,4 +65,4 @@ idn :: Integer -> Text -> Name
 idn n t = Name $ Right (n, t)
 
 (≜) :: Name -> CoreUD -> DefinitionUD
-n ≜ val = Mutual [(OptBind $ Left n, val)]
+n ≜ val = Mutual [(OptBind (Just n, Nothing), val)]

@@ -27,10 +27,10 @@ check_spec = TestGroup "type-checking" $ Right check_tests
 infer_spec :: TestGroup
 infer_spec = TestGroup "type-inference" $ Right infer_tests
 
-type CheckM a = Except (Doc GlyphStyle) a
+type CheckM a = ExceptT (Doc GlyphStyle) Gen a
 
 runCheckM :: CheckM a -> Either (Doc GlyphStyle) a
-runCheckM = runExcept
+runCheckM = run_gen . runExceptT 
 
 default_env :: Map Integer (TypedCore, TypedCore)
 default_env = Map.empty

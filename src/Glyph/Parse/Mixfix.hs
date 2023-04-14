@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Glyph.Parse.Mixfix
   ( Precedences(..)
-  , PrecedenceNode
+  , PrecedenceNode(..)
   , PrecedenceGraph
   , Operator(..)
   , Associativity(..)
@@ -12,10 +12,24 @@ module Glyph.Parse.Mixfix
   , run_precs
   , update_precs
 
-  -- lenses
-  , prec_closed
-  , prec_fixed
+  -- Lenses
+  , successors
+  , 
   ) where
+
+
+{----------------------------- MIXFIX PARSER PHASE -----------------------------}
+{- The mixfix parser works as follows:                                         -}      
+{- • Users can create named precedence groups, e.g. 'generic-sum'              -}      
+{- • Users can then specify precedence, e.g 'generic-sum' → 'generic product   -}      
+{- • Users can insert any element into a precedence graph, e.g.                -}      
+{-   • (infixr _⋅_ 'generic-product')                                          -}      
+{-   • (prefix ±_ 'tight-prefix')                                              -}      
+{-                                                                             -}      
+{- Each category (infix(l/r/n), prefix, postfix) has a default precedence      -}      
+{- group.                                                                      -}      
+{-                                                                             -}      
+{-------------------------------------------------------------------------------}      
 
 
 import Control.Lens
@@ -27,6 +41,7 @@ import Data.Text (Text)
 import qualified Data.Set as Set
 import Data.Set (Set)
 import qualified Data.Map as Map
+import Data.Map (Map)
 
 import Text.Megaparsec
 import Topograph
@@ -38,7 +53,46 @@ import Glyph.Concrete.Parsed
 import Glyph.Parse.Combinator
 import Glyph.Parse.Lexer
 
+
 {------------------------------ MIXFIX DATA TYPES ------------------------------}
+{-                                                                             -}      
+{-                                                                             -}      
+{-------------------------------------------------------------------------------}      
+
+
+data Associativity = LeftAssociative | RightAssociative | NonAssociative
+  deriving (Eq, Ord, Show)
+  
+data Fixity = Closed | Prefix | Postfix | Infix Associativity 
+  deriving (Eq, Ord, Show)
+
+data Operator = Operator
+  { _fixity :: Fixity
+  , _name_parts :: Vector Text
+  }
+  deriving (Eq, Ord, Show)
+
+data PrecedenceNode = PrecedenceNode
+  { _prec_ops :: Set Operator
+  , _successors :: Set Text
+  }
+
+data Precedences = Precedences
+  { _prec_nodes :: Map.Map Text PrecedenceNode
+  , _default_infix :: Text
+  , _default_prefix :: Text
+  , _default_postfix :: Text
+  , _default_closed :: Text
+  }
+
+data Telescope χ = Tel (Core OptBind Text χ) [Core OptBind Text χ]
+
+$(makeLenses ''Operator)
+$(makeLenses ''PrecedenceNode)
+$(makeLenses ''Precedences)
+
+
+{----------------------------- MIXFIX PARSER PHASE -----------------------------}
 {- The parsing of mixifx operators is particularly finicky, and this           -} 
 {- implementation is based on the paper Parsing Mixfix Operators [1].          -}
 {-                                                                             -}
@@ -62,43 +116,12 @@ import Glyph.Parse.Lexer
 {-                                                                             -}
 {- + [1] : https://www.cse.chalmers.se/~nad/publications/                      -}
 {-         danielsson-norell-mixfix.pdf                                        -}
-{-                                                                             -}      
-{-                                                                             -}      
-{-------------------------------------------------------------------------------}      
-
-  
-
-
-data Associativity = LeftAssociative | RightAssociative | NonAssociative
-  deriving (Eq, Ord, Show)
-  
-data Fixity = Closed | Prefix | Postfix | Infix Associativity 
-  deriving (Eq, Ord, Show)
-
-data Operator = Operator { _fixity :: Fixity, _name_parts :: Vector Text }
-  deriving (Eq, Ord, Show)
-
-type PrecedenceNode = (Set Operator)
-
-type PrecedenceGraph i = G PrecedenceNode i
-
-data Precedences = Precedences
-  { _prec_fixed :: Map.Map PrecedenceNode (Set PrecedenceNode)
-  , _prec_closed :: PrecedenceNode
-  }
-
-data Telescope χ = Tel (Core OptBind Text χ) [Core OptBind Text χ]
-
-$(makeLenses ''Operator)
-$(makeLenses ''Precedences)
-
-
-{----------------------------- MIXFIX PARSER PHASE -----------------------------}
 {-                                                                             -}
 {-                                                                             -}
 {-                                                                             -}
 {-------------------------------------------------------------------------------}      
 
+type PrecedenceGraph i = G (Set Operator) i
 
 mixfix :: forall i. Parser RawCore -> PrecedenceGraph i -> Parser RawCore
 mixfix core (G {..}) = expr
@@ -188,24 +211,34 @@ opName (Operator {..}) = case _fixity of
 {-------------------------------------------------------------------------------}
   
 run_precs :: Precedences -> (forall i. PrecedenceGraph i -> Parser a) -> Parser a
-run_precs precs f =
-  let 
-    graph = Map.insert (precs^.prec_closed) Set.empty $
-      fmap (Set.insert (precs^.prec_closed)) (precs^.prec_fixed)
-
-  in case runG graph (f . closure) of
+run_precs precs f = case construct_graph (precs^.prec_nodes) of
+  Right graph -> case runG graph (f . closure) of
     Right m -> m
     Left _ -> fail "cycle in precedence graph"
+  Left e -> fail $ show e
+
+  where
+    construct_graph :: Map Text PrecedenceNode -> Either Text (Map (Set Operator) (Set (Set Operator)))
+    construct_graph nodes = foldl' add_node (pure Map.empty) nodes
+      where
+        add_node :: Either Text (Map (Set Operator) (Set (Set Operator))) -> PrecedenceNode -> Either Text (Map (Set Operator) (Set (Set Operator)))
+        add_node m (PrecedenceNode {_prec_ops=p, _successors=sucs}) = do
+          graph <- m
+          sucs' <- mapM (\s -> case nodes^.at s of
+                       Just pnode -> Right (pnode^.prec_ops)
+                       Nothing -> Left ("can't find " <> s)) (Set.toList sucs)
+          pure $ (at p ?~ (Set.fromList sucs')) graph
+
 
 update_precs :: [Text] -> Precedences -> Precedences
-update_precs args g = foldl' add_prec g (map to_node args) 
+update_precs args g = foldl' add_op g (map to_node args) 
   where 
     to_node arg
   -- TODO: currently, '_' is treated as infix!!
-      | is_infix arg   = Left $ Operator (Infix LeftAssociative) (to_parts arg)
-      | is_prefix arg  = Left $ Operator Prefix (to_parts arg)
-      | is_postfix arg = Left $ Operator Postfix (to_parts arg)
-      | otherwise      = Right $ Operator Closed (to_parts arg)
+      | is_infix arg   = Operator (Infix LeftAssociative) (to_parts arg)
+      | is_prefix arg  = Operator Prefix (to_parts arg)
+      | is_postfix arg = Operator Postfix (to_parts arg)
+      | otherwise      = Operator Closed (to_parts arg)
 
     is_infix arg = case (uncons arg, unsnoc arg) of 
       (Just ('_', _), Just (_, '_')) -> True
@@ -222,8 +255,16 @@ update_precs args g = foldl' add_prec g (map to_node args)
     to_parts :: Text -> Vector Text
     to_parts = Vector.fromList . filter (not . Text.null) . Text.splitOn "_" 
 
-    add_prec precs prec = case prec of
-      Left fix -> (prec_fixed %~ Map.insert (Set.singleton fix) Set.empty) precs
-      Right close -> (prec_closed %~ Set.insert close) precs
+    add_op precs op = case op of
+      (Operator (Infix _) _) -> add_to_node (precs^.default_infix)   op precs
+      (Operator Prefix    _) -> add_to_node (precs^.default_prefix)  op precs
+      (Operator Postfix   _) -> add_to_node (precs^.default_postfix) op precs
+      (Operator Closed    _) -> add_to_node (precs^.default_closed)  op precs
   
- 
+    add_to_node :: Text -> Operator -> Precedences -> Precedences
+    add_to_node name op = prec_nodes.(at name) %~ (Just . maybe (single op) (insert op))
+      where 
+        single op = PrecedenceNode (Set.singleton op) Set.empty
+        insert op = prec_ops %~ Set.insert op
+
+    

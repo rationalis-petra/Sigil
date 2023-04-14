@@ -90,26 +90,22 @@ instance Foldable (AnnBind n) where
 instance Traversable (AnnBind n) where
   traverse f (AnnBind (n, ty)) = (\r -> AnnBind (n, r)) <$> f ty
 
-instance Binding AnnBind where   
+instance Binding AnnBind where
   name (AnnBind (n, _)) = Just n
   tipe (AnnBind (_, ty)) = Just ty
   bind n ty = AnnBind (n, ty)
 
 -- An optionally annotated binding
-newtype OptBind n ty = OptBind (Either n (n, ty))
+newtype OptBind n ty = OptBind { unOpt :: (Maybe n, Maybe ty) }
   deriving Eq
+
 instance Functor (OptBind n) where
-  fmap _ (OptBind (Left   n)) = OptBind (Left   n)
-  fmap f (OptBind (Right (n, ty))) = OptBind (Right (n, f ty))
+  fmap f (OptBind (n, ty)) = OptBind (n, fmap f ty)
 
 instance Binding OptBind where   
-  name (OptBind (Left   n)) = Just n
-  name (OptBind (Right (n, _))) = Just n
-
-  tipe (OptBind (Right (_, ty))) = Just ty
-  tipe _ = Nothing
-
-  bind n ty = OptBind $ Right (n, ty)
+  name (OptBind (n, _)) = n
+  tipe (OptBind (_, ty)) = ty
+  bind n ty = OptBind $ (Just n, Just ty)
 
 {--------------------------------- GENERATION ----------------------------------}
 {-                                                                             -}
@@ -185,8 +181,10 @@ instance Environment Name (Map Integer) where
 
 instance (Pretty n, Pretty ty) => Pretty (OptBind n ty) where
   pretty bind = case bind of  
-    OptBind (Left n) -> pretty n
-    OptBind (Right (n, ty)) -> pretty n <> ":" <> pretty ty
+    OptBind (Just n, Nothing) -> pretty n
+    OptBind (Just n, Just ty) -> pretty n <> ":" <> pretty ty
+    OptBind (Nothing, Nothing) -> "_"
+    OptBind (Nothing, Just ty) -> "_:" <> pretty ty
 
 instance (Pretty n, Pretty ty) => Pretty (AnnBind n ty) where
   pretty bind = case bind of
