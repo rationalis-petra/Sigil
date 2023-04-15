@@ -2,6 +2,8 @@ module Glyph.Parse.Combinator
   ( Parser
   , betweenM
   , many1
+  , thread
+  , thread1
   , choice'
   , (<||>)
   ) where
@@ -39,6 +41,12 @@ betweenM vec p = case length vec of
 -- Parse many of an element (min 1) 
 many1 :: Parser a -> Parser [a]
 many1 p = (:) <$> p <*> many p 
+
+thread :: (a -> Parser a) -> a -> Parser a   
+thread p val = (p val >>= thread p) <||> pure val
+
+thread1 :: (a -> Parser a) -> a -> Parser a   
+thread1 p val = (p val >>= thread p)
 
 -- choice with backtracking
 choice' :: [Parser a] -> Parser a

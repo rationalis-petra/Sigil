@@ -72,6 +72,11 @@ infer_tests :: [Test]
 infer_tests =
   [ -- 𝒰 : 𝒰1
     infer_test "𝒰0-𝒰1" (𝓊 0) (𝓊 1)
+
+  , infer_test "simple-lam" ([(idn 0 "A", 𝓊 0)] ⇒ idv 0 "A") ([(idn 0 "A", 𝓊 0)] → 𝓊 0)
+  , infer_test "dep-lam"
+    ([(idn 0 "A", 𝓊 0), (idn 1 "x", idv 0 "A")] ⇒ idv 1 "x")
+    ([(idn 0 "A", 𝓊 0), (idn 1 "x", idv 0 "A")] → idv 0 "A")
   ]
   
   where

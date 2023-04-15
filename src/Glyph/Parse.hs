@@ -20,7 +20,7 @@ import Prelude hiding (head, last, tail)
 import Control.Monad.Except (MonadError, throwError)
 import qualified Data.Text as Text
 import Data.Text (Text)
-import Data.Maybe (catMaybes, maybeToList)
+import Data.Maybe (maybeToList)
 
 import qualified Text.Megaparsec as Megaparsec
 import Text.Megaparsec hiding (runParser)
@@ -91,21 +91,25 @@ core precs = choice' [plam, pprod, pexpr, puniv]
       let unscope :: [OptBind Text RawCore] -> RawCore -> RawCore
           unscope = flip $ foldr (Abs mempty)
 
-          args :: Parser [OptBind Text RawCore]
-          args = between (symbol "[") (symbol "]") (many1 (tyarg <||> arg))
+          args :: Parser (Precedences, [OptBind Text RawCore])
+          args = between (symbol "[") (symbol "]")
+                 (thread1 (\(precs, args) ->
+                             fmap (\a -> (update_precs (maybeToList $ name a) precs, a:args))
+                                  (tyarg precs <||> arg))
+                          (precs, []))
 
-          tyarg :: Parser (OptBind Text RawCore)
-          tyarg = between (symbol "(") (symbol ")") $
+          tyarg :: Precedences -> Parser (OptBind Text RawCore)
+          tyarg precs = between (symbol "(") (symbol ")") $
                     (\n t -> OptBind (Just n, Just t)) <$> anyvar <*> (symbol ":" *> (core precs))
 
           arg :: Parser (OptBind Text RawCore)
           arg = flip (curry OptBind) Nothing . Just  <$> anyvar
 
       _ <- symbol "λ"
-      tel <- args
+      (precs', tel) <- args
       -- TODO: update precs per argument!!
-      body <- core (update_precs (catMaybes $ map name tel) precs)
-      pure $ unscope tel body
+      body <- core precs'
+      pure $ unscope (reverse tel) body
 
     pprod :: Parser RawCore
     pprod = do
@@ -135,9 +139,9 @@ core precs = choice' [plam, pprod, pexpr, puniv]
 {------------------------------ RUNNING A PARSER -------------------------------}
 
 
-runParser :: Parser a -> Text -> Text -> Either Text a
+runParser :: Parser a -> Text -> Text -> Either (Doc ann) a
 runParser p file input = case Megaparsec.runParser p (Text.unpack file) input of
-  Left err -> Left $ Text.pack $ show $ err
+  Left err -> Left $ pretty $ errorBundlePretty err
   Right val -> Right val
 
 parseToErr :: (MonadError (Doc ann) m) => Parser a -> Text -> Text -> m a

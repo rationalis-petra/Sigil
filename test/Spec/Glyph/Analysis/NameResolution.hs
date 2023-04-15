@@ -36,7 +36,10 @@ tests =
   , res_test "free-bound-mixed" (["y"] ⇒ (var "x")) ([idn 0 "y"] ⇒ (qvar "x"))
   , res_test "2-bound-var" (["y", "x"] ⇒ (var "y" ⋅ var "x")) ([idn 0 "y", idn 1 "x"] ⇒ (idv 0 "y" ⋅ idv 1 "x"))
 
-  , res_test "abs-bound-ty-var" ([("y", 𝓊 0)] =⇒ (var "y")) ([(idn 0 "y", 𝓊 0)] =⇒ (idv 0 "y"))
+  , res_test "lam-bound-ty-var" ([("y", 𝓊 0)] =⇒ (var "y")) ([(idn 0 "y", 𝓊 0)] =⇒ (idv 0 "y"))
+  , res_test "lam-dep-fn"
+    ([("y", 𝓊 0), ("x", var "y")] =⇒ (var "x"))
+    ([(idn 0 "y", 𝓊 0), (idn 1 "x", idv 0 "y")] =⇒ (idv 1 "x"))
 
   , res_test "prd-bound-var" (["y"] → (var "y")) ([idn 0 "y"] → (idv 0 "y"))
   , res_test "prd-bound-ty-var" ([("y", 𝓊 0)] -→ (var "y")) ([(idn 0 "y", 𝓊 0)] -→ (idv 0 "y"))

@@ -148,7 +148,7 @@ parse_mixfix' graph =
             Test name $ Just $
               "got:" <+> annotate (fg_colour (dull white)) (pretty val) <+>
               "expected:" <+> annotate (fg_colour (dull white)) (pretty out)
-        Left msg -> Test name $ Just $ pretty msg
+        Left msg -> Test name $ Just msg
 
 parse_expr :: Precedences -> TestGroup
 parse_expr graph =
@@ -186,6 +186,9 @@ parse_expr graph =
     , expr_test "lam-many"
       "λ [(A : 𝒰) (B : 𝒰)] A"
       (lam [("A", 𝓊 0), ("B", 𝓊 0)] (var "A"))
+    , expr_test "lam-dep"
+      "λ [(A : 𝒰) (x : A)] x"
+      (lam [("A", 𝓊 0), ("x", var "A")] (var "x"))
 
     , expr_test "prd-ann"
       "(A : 𝒰) → A"
@@ -203,7 +206,7 @@ parse_expr graph =
             Test name Nothing
           else
             Test name $ Just $ "got:" <+> "(" <> pretty val <>")" <+> "expected" <+> "(" <> pretty out <> ")"
-        Left msg -> Test name $ Just $ pretty msg
+        Left msg -> Test name $ Just msg
 
 
 parse_def :: Precedences -> TestGroup
@@ -234,7 +237,7 @@ parse_def precs =
             Test name Nothing
           else
             Test name $ Just $ "got: " <> pretty val <+> "expected" <+> pretty out
-        Left msg -> Test name $ Just $ pretty msg
+        Left msg -> Test name $ Just msg
 
 
 𝓊 :: Int -> Core b Text Parsed  
