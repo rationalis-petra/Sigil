@@ -2,8 +2,6 @@ module Spec.Glyph.Analysis.Typecheck (type_spec) where
 
 import Control.Monad.Except hiding (void)
 import Data.Text (Text)
-import qualified Data.Map as Map
-import Data.Map (Map)
 
 import Prettyprinter
 import Prettyprinter.Render.Glyph
@@ -32,8 +30,8 @@ type CheckM a = ExceptT (Doc GlyphStyle) Gen a
 runCheckM :: CheckM a -> Either (Doc GlyphStyle) a
 runCheckM = run_gen . runExceptT 
 
-default_env :: Map Integer (TypedCore, TypedCore)
-default_env = Map.empty
+default_env :: Env (Maybe TypedCore, TypedCore)
+default_env = env_empty
 
 check_tests :: [Test]     
 check_tests = 
@@ -74,17 +72,31 @@ infer_tests =
     infer_test "𝒰0-𝒰1" (𝓊 0) (𝓊 1)
 
   , infer_test "simple-lam" ([(idn 0 "A", 𝓊 0)] ⇒ idv 0 "A") ([(idn 0 "A", 𝓊 0)] → 𝓊 0)
+
+  , infer_test "multi-lam-1"
+    ([(idn 0 "A", 𝓊 0), (idn 1 "B", 𝓊 0)] ⇒ idv 1 "B")
+    ([(idn 0 "A", 𝓊 0), (idn 1 "B", 𝓊 0)] → 𝓊 0)
+
+  , infer_test "multi-lam-2"
+    ([(idn 0 "A", 𝓊 0), (idn 1 "B", 𝓊 0)] ⇒ idv 0 "A")
+    ([(idn 0 "A", 𝓊 0), (idn 1 "B", 𝓊 0)] → 𝓊 0)
+
   , infer_test "dep-lam"
     ([(idn 0 "A", 𝓊 0), (idn 1 "x", idv 0 "A")] ⇒ idv 1 "x")
     ([(idn 0 "A", 𝓊 0), (idn 1 "x", idv 0 "A")] → idv 0 "A")
+
+  , infer_test "prd-cum"
+    ([(idn 0 "A", 𝓊 0)] → idv 0 "A")
+    (𝓊 1)
   ]
   
   where
     infer_test :: Text -> TypedCore -> TypedCore -> Test
     infer_test name term ty = 
       Test name $ case runCheckM $ infer default_env term of 
-        Right (_, ty') | ty == ty' -> Nothing
-                  | otherwise -> Just "type inference produced the wrong type!"
+        Right (_, ty')
+          | ty == ty' -> Nothing
+          | otherwise -> Just $ "expected type:" <+> pretty ty <+> "got" <+> pretty ty'
         Left e -> Just $ "inference err:" <+> e
 
 -- var :: n -> Core b n UD

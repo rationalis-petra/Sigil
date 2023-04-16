@@ -195,7 +195,7 @@ parse_expr graph =
       (pi [("A", 𝓊 0)] (var "A"))
     , expr_test "prd-noann"
       "𝒰 → 𝒰"
-      ([𝓊 0] → (𝓊 0))
+      ([𝓊 0] → 𝓊 0)
     ]
   where
     expr_test :: Text -> Text -> Core OptBind Text Parsed -> Test

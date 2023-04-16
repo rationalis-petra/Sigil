@@ -2,8 +2,6 @@ module Spec.Glyph.Interpret.Term (term_spec) where
 
 import Control.Monad.Except hiding (void)
 import Data.Text (Text)
-import qualified Data.Map as Map
-import Data.Map (Map)
 
 import Prettyprinter
 import Prettyprinter.Render.Glyph
@@ -29,8 +27,8 @@ type NormM a = Except (Doc GlyphStyle) a
 runNormM :: NormM a -> Either (Doc GlyphStyle) a
 runNormM = runExcept
 
-default_env :: Map Integer TypedCore
-default_env = Map.empty
+default_env :: Env (Maybe TypedCore, TypedCore)
+default_env = env_empty
 
 eq_tests :: [Test]     
 eq_tests = 

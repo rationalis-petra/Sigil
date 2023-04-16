@@ -11,6 +11,7 @@ module Glyph.Abstract.Environment
 
   -- Environment
   , Environment(..)
+  , Env
 
   -- Fresh Variable Generation
   , MonadGen(..)
@@ -28,9 +29,12 @@ module Glyph.Abstract.Environment
 
 
 import Prelude hiding (head, lookup)
+import Control.Lens
 import Control.Monad.Except (MonadError, ExceptT, throwError, lift)
 import Control.Monad.State (State, runState, get, modify)
   
+import Data.List (sortOn)
+import Data.Ord (Down(Down))
 import Data.Text (Text)
 import qualified Data.Map as Map
 import Data.Map (Map)
@@ -149,30 +153,82 @@ class (Functor e, Foldable e) => Environment n e | e -> n where
   lookup :: n -> e a -> Maybe a 
   insert :: n -> a -> e a -> e a
   env_empty :: e a
-  eval_helper :: Monad m => (a -> e b -> m b) -> e a -> m (e b)
+  union :: e a -> e a -> e a
+  -- Traverse + Fold ???
+  eval_helper :: Monad m => (n -> a -> e b -> m b) -> e a -> m (e b)
   
 
-instance Environment Name (Map Integer) where
-  lookup_err (Name (Right (n, v))) env = case Map.lookup n env of 
-    Nothing -> throwError ("variable not in scope: " <> pretty v)
-    Just x -> pure x
+data Env a = Env
+  { _env_binds :: Map Name (a, Int)
+  , _lvl :: Int
+  }
+
+$(makeLenses ''Env)
+
+instance Functor Env where   
+  fmap f (Env b l) = Env (fmap (_1 %~ f) b) l
+
+instance Foldable Env where
+  foldl f z e = foldl f z env'
+    where
+      env' =
+        fmap (fst . snd) $
+        sortOn (snd . snd) $
+        Map.toList (e^.env_binds)
+
+  -- TODO: mgiht be dodge! (notably: make sure environment level is correct!!)
+  foldr f z e = foldr f z env'
+    where
+      env' =
+        fmap (fst . snd) $
+        sortOn (Down . snd . snd) $
+        Map.toList (e^.env_binds)
+
+-- instance Traversable Env where
+--   traverse f env = foldl (\a (id, (val, lvl)) ->
+--                             f val <*> a)
+
+--       env' 
+  -- eval_helper eval env = foldl (\m (id, (val, lvl)) -> m >>= \env' -> do
+  --                                  val' <- eval val env'
+  --                                  pure $ re_add id (val', lvl) env') (pure env_empty) env'
+    -- where
+
+instance Environment Name Env where
+  lookup_err n@(Name (Right _)) env = case Map.lookup n (env^.env_binds) of 
+    Nothing -> throwError ("variable not in scope: " <> pretty n)
+    Just (x, _) -> pure x
   lookup_err (Name (Left _)) _ = throwError "cannot lookup global var!"
 
-  lookup (Name (Right (n, _))) lst = case Map.lookup n lst of 
+  lookup n@(Name (Right _)) env = case Map.lookup n (env^.env_binds) of 
     Nothing -> Nothing
-    Just x -> pure x
+    Just (x,_) -> pure x
   lookup (Name (Left _)) _ = Nothing
 
-  insert (Name (Right (n, _))) v env = Map.insert n v env
+  insert n@(Name (Right _)) v env =
+    let lvl' = env^.lvl + 1
+        env_binds' = Map.insert n (v, env^.lvl) (env^.env_binds)
+    in Env env_binds' lvl'
   insert _ _ _ = error "cannot insert qualified var"
 
-  env_empty = Map.empty
+  union (Env binds lvl) (Env binds' lvl') = 
+    Env (Map.union binds (fmap (_2 %~ (+) lvl) binds')) (lvl + lvl')
 
-  eval_helper eval =
-    Map.foldlWithKey (\m id val -> m >>= \env' -> do
-                         val' <- eval val env'
-                         pure $ Map.insert id val' env')
-    (pure env_empty)
+  env_empty = Env Map.empty 0
+
+  -- eval_helper: this must evaluate bindings from /outermost/ to /innermost/,
+  -- hence we first convert to a List, sort on lvl and then fold!
+  eval_helper eval env =
+    foldl (\m (name, (val, lvl)) -> m >>= \env' -> do
+              val' <- eval name val env'
+              pure $ re_add name (val', lvl) env')
+      (pure env_empty) env'
+    where
+      env' =
+        sortOn (snd . snd) $
+        Map.toList (env^.env_binds)
+      
+      re_add name (val, lvl) (Env b _) = Env (Map.insert name (val, lvl) b) lvl
 
 
 {---------------------------------- INSTANCES ----------------------------------}

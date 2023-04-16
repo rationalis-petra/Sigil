@@ -29,8 +29,8 @@ import Glyph.Concrete.Typed
 
   
 class Checkable n a t | a -> n t where 
-  infer :: (Environment n e, MonadError GlyphDoc m, MonadGen m) => e (t,t) -> a -> m (t, t)
-  check :: (Environment n e, MonadError GlyphDoc m, MonadGen m) => e (t,t) -> a -> t -> m t
+  infer :: (Environment n e, MonadError GlyphDoc m, MonadGen m) => e (Maybe t,t) -> a -> m (t, t)
+  check :: (Environment n e, MonadError GlyphDoc m, MonadGen m) => e (Maybe t,t) -> a -> t -> m t
 
 instance Checkable Name TypedCore TypedCore where 
   infer env term = case term of
@@ -43,14 +43,35 @@ instance Checkable Name TypedCore TypedCore where
       pure (App χ l' r', subst (n ↦ r) ret_ty)
   
     Abs χ (AnnBind (n, a)) body -> do
-      (body', ret_ty) <- infer (insert n (Var () n, a) env) body
-      pure (Abs χ (AnnBind (n, a)) body', Prd () (AnnBind (n, a)) ret_ty)
+      (a', aty) <- infer env a
+      a_norm <- normalize env aty a'
+
+      let env' = insert n (Nothing, a_norm) env
+      (body', ret_ty) <- infer env' body
+
+      pure (Abs χ (AnnBind (n, a')) body', Prd () (AnnBind (n, a')) ret_ty)
+
+    Prd χ (AnnBind (n, a)) b -> do
+      (a', aty) <- infer env a
+      a_norm <- normalize env aty a'
+
+      let env' = insert n (Nothing, a_norm) env
+      (b', bty) <- infer env' b
+
+      i <- check_lvl aty
+      j <- check_lvl bty
+      pure $ (Prd χ (AnnBind (n, a')) b', Uni () (max i j))
+  
     _ -> throwError $ "infer not implemented for term:" <+> pretty term
       
   
     where 
       check_prod (Prd _ b ty) = pure (b, ty)
       check_prod term = throwError $ "expected prod, got:" <+> pretty term
+
+      check_lvl (Uni _ i) = pure i
+      check_lvl (Prd _ (AnnBind (_, a)) b) = max <$> check_lvl a <*> check_lvl b
+      check_lvl term = throwError $ "expected 𝒰ᵢ, got:" <+> pretty term
   
   
   -- Note: types are expected to be in normal form
@@ -63,13 +84,13 @@ instance Checkable Name TypedCore TypedCore where
     -- TODO: generalize to more bindings; notably untyped bindings!!
     (Abs χ (AnnBind (n, a)) body, Prd _ (AnnBind (_,a')) ret_ty) -> do
       check_eq a a'
-      body' <- check (insert n (Var () n, a) env) body ret_ty
+      body' <- check (insert n (Nothing, a) env) body ret_ty
       pure $ Abs χ (AnnBind (n, a')) body'
     (Abs _ _ _, _) -> throwError $ "expected λ-term to have Π-type, got" <+> pretty ty
   
     (Prd χ (AnnBind (n, a)) b, _) -> do
       a' <- check env a ty
-      b' <- check (insert n (Var () n, a) env) b ty
+      b' <- check (insert n (Nothing, a) env) b ty
       pure $ Prd χ (AnnBind (n, a')) b'
   
     _ -> do
@@ -88,14 +109,28 @@ instance Checkable Name ResolvedCore TypedCore where
       (l', lty) <- infer env l
       (AnnBind (n, arg_ty), ret_ty) <- check_prod lty
       r' <- check env r arg_ty
-      rnorm <- norm env arg_ty r'
+      rnorm <- normalize env arg_ty r'
       pure $ (App () l' r', subst (n ↦ rnorm) ret_ty)
   
     Abs _ (OptBind (Just n, Just a)) body -> do
       (a', aty) <- infer env a
-      a_norm <- norm env aty a'
-      (body', ret_ty) <- infer (insert n (Var mempty n, a_norm) env) body
-      pure (Abs () (AnnBind (n, a_norm)) body', Prd () (AnnBind (n, a_norm)) ret_ty)
+      a_norm <- normalize env aty a'
+
+      let env' = insert n (Nothing, a_norm) env
+      (body', ret_ty) <- infer env' body
+
+      pure (Abs () (AnnBind (n, a')) body', Prd () (AnnBind (n, a')) ret_ty)
+
+    Prd _ (OptBind (Just n, Just a)) b -> do
+      (a', aty) <- infer env a
+      a_norm <- normalize env aty a'
+
+      let env' = insert n (Nothing, a_norm) env
+      (b', bty) <- infer env' b
+
+      i <- check_lvl aty
+      j <- check_lvl bty
+      pure $ (Prd () (AnnBind (n, a')) b', Uni () (max i j))
     _ -> throwError $ "infer not implemented for term:" <+> pretty term
       
   
@@ -103,6 +138,9 @@ instance Checkable Name ResolvedCore TypedCore where
       check_prod (Prd _ b ty) = pure (b, ty)
       check_prod term = throwError $ "expected prod, got:" <+> pretty term
   
+      check_lvl (Uni _ i) = pure i
+      check_lvl (Prd _ (AnnBind (_, a)) b) = max <$> check_lvl a <*> check_lvl b
+      check_lvl term = throwError $ "expected 𝒰ᵢ, got:" <+> pretty term
   
   -- Note: types are expected to be in normal form
   -- Note: environment is expected to contain types of terms!!
@@ -114,19 +152,19 @@ instance Checkable Name ResolvedCore TypedCore where
     -- TODO: generalize to more bindings; notably untyped bindings!!
     (Abs _ (OptBind (Just n, Just a)) body, Prd _ (AnnBind (_,a')) ret_ty) -> do
       (a_typd, a_ty) <- infer env a
-      a_normal <- norm env a_ty a_typd
+      a_normal <- normalize env a_ty a_typd
       check_eq a_normal a'
-      body' <- check (insert n (Var mempty n, a_normal) env) body ret_ty
+      body' <- check (insert n (Nothing, a_normal) env) body ret_ty
       pure $ Abs () (AnnBind (n, a_normal)) body'
     (Abs _ (OptBind (Just n, Nothing)) body, Prd _ (AnnBind (_,a')) ret_ty) -> do
-      body' <- check (insert n (Var mempty n, a') env) body ret_ty
+      body' <- check (insert n (Nothing, a') env) body ret_ty
       pure $ Abs () (AnnBind (n, a')) body'
     (Abs _ _ _, _) -> throwError $ "expected λ-term to have Π-type, got" <+> pretty ty
   
     (Prd _ (OptBind (Just n, Just a)) b, _) -> do
       -- TODO: normalization??
       a' <- check env a ty
-      b' <- check (insert n (Var mempty n, a') env) b ty
+      b' <- check (insert n (Nothing, a') env) b ty
       pure $ Prd () (AnnBind (n, a')) b'
                             
     (Prd _ _ _, _) -> throwError $ "expected Π-term to have a named binding, did not!" <+> pretty term
@@ -135,10 +173,6 @@ instance Checkable Name ResolvedCore TypedCore where
       (term', ty') <- infer env term
       check_eq ty ty'
       pure term'
-
-norm :: (MonadError (Doc ann) m, Environment Name e) =>
-              e (TypedCore, TypedCore) -> TypedCore -> TypedCore -> m TypedCore
-norm = normalize . fmap fst
 
 -- fresh_name :: MonadGen m => m Name
 -- fresh_name = fresh_id >>= \id -> pure $ Name $ Right (id, "*" <> Text.pack (show id))

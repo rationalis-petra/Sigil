@@ -18,8 +18,6 @@ module Glyph.Interpret.Substitution
 import Prelude hiding (lookup)
 import Data.Foldable 
 import Data.Maybe (fromMaybe)
-import Data.Map (Map)
-import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Set (Set)
 
@@ -27,7 +25,7 @@ import Glyph.Abstract.Syntax
 import Glyph.Abstract.Environment
 
 
-newtype Substitution a = Substitution (Map Integer a)
+newtype Substitution a = Substitution (Env a)
   deriving (Functor, Foldable)
 
 class Subst n s a | a -> s n where
@@ -45,10 +43,10 @@ n ↦ v = insert n v env_empty
 
 instance Subst Name a a => Semigroup (Substitution a) where
   (Substitution m1) <> (Substitution m2) =
-    Substitution $ Map.union m2 $ fmap (subst m2) m1
+    Substitution $ union m2 $ fmap (subst m2) m1
 
 instance Subst Name a a => Monoid (Substitution a) where
-  mempty = Substitution Map.empty
+  mempty = Substitution env_empty
 
 instance Environment Name Substitution where
   lookup_err var (Substitution env) =
@@ -60,11 +58,14 @@ instance Environment Name Substitution where
   insert n val (Substitution env) =
     Substitution $ insert n val env
 
+  union (Substitution l) (Substitution r) = 
+    Substitution (union l r)
+
   env_empty =
     Substitution env_empty
 
   eval_helper eval (Substitution s) =
-    let eval' v env = eval v (Substitution env)
+    let eval' n v env = eval n v (Substitution env)
     in Substitution <$> eval_helper eval' s
 
 {--------------------------- SUBSTITUTION INSTANCES ----------------------------}
@@ -130,7 +131,7 @@ instance (Ord n, Binding b,
 
 
 instance Regen (Core OptBind Name χ) where 
-  regen = go (Substitution Map.empty) where
+  regen = go (Substitution env_empty) where
     freshen_bind (OptBind (n, ty)) sub = do
       n' <- mapM freshen n
       let sub' = maybe sub (flip (uncurry insert) sub) ((,) <$> n <*> n')
@@ -152,7 +153,7 @@ instance Regen (Core OptBind Name χ) where
       App χ l r -> App χ <$> (go sub l) <*> (go sub r)
 
 instance Regen (Core AnnBind Name χ) where 
-  regen = go (Substitution Map.empty) where
+  regen = go (Substitution env_empty) where
     freshen_bind (AnnBind (n, ty)) sub = do
       n' <- freshen n
       let sub' = insert n n' sub

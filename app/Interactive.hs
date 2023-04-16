@@ -6,7 +6,7 @@ module Interactive
 import Prelude hiding (getLine, putStr)
 
 import Control.Monad (unless)
-import Control.Monad.Except (ExceptT, runExceptT)
+import Control.Monad.Except (ExceptT, runExceptT, throwError, catchError)
 import qualified Data.Map as Map
 import Data.Text
 import Data.Text.IO
@@ -61,6 +61,9 @@ interactive = loop default_env
     meval line = do
       parsed <- parseToErr (core (Precedences Map.empty "infixl" "prefix" "postfix" "closed") <* eof) "console-in" line 
       resolved <- resolve parsed
-      (term, ty) <- infer (Map.empty :: Map.Map Integer (TypedCore, TypedCore)) resolved
-      norm <- normalize (Map.empty :: Map.Map Integer TypedCore) ty term
+        `catchError` (throwError . (<+>) "resolution:")
+      (term, ty) <- infer (env_empty :: Env (Maybe TypedCore, TypedCore)) resolved
+        `catchError` (throwError . (<+>) "inference:")
+      norm <- normalize (env_empty :: Env (Maybe TypedCore, TypedCore)) ty term
+        `catchError` (throwError . (<+>) "normalization:")
       pure $ (norm, ty) 

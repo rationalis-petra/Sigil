@@ -29,8 +29,8 @@ import Glyph.Abstract.AlphaEq
 
 
 class Pretty a => Term a where
-  normalize :: (MonadError (Doc ann) m, Environment Name e) => e a -> a -> a -> m a
-  equiv :: (MonadError (Doc ann) m, Environment Name e) => e a -> a -> a -> a -> m Bool
+  normalize :: (MonadError (Doc ann) m, Environment Name e) => e (Maybe a,a) -> a -> a -> m a
+  equiv :: (MonadError (Doc ann) m, Environment Name e) => e (Maybe a,a) -> a -> a -> a -> m Bool
 
 -- class (Default χ, DecEq χ, DecPretty χ) => TermDec χ where  
 --(Eq (Core AnnBind Name χ), Pretty (Core AnnBind Name χ))
@@ -84,7 +84,7 @@ data Normal e b χ = Normal (Sem e b χ) (Sem e b χ)
 
 
 -- TODO: now we use IDs for names, need to ensure we do capture-avoiding substitution!!
-instance (AlphaEq Name (Core AnnBind Name χ), Pretty (Core AnnBind Name χ)) => Term (Core AnnBind Name χ) where
+instance (AlphaEq Name (Core AnnBind Name χ), Pretty (Core AnnBind Name χ), Forallχ Monoid χ) => Term (Core AnnBind Name χ) where
   normalize env ty term =
     read_nf =<< (Normal <$> ty' <*> term')
     where
@@ -94,33 +94,35 @@ instance (AlphaEq Name (Core AnnBind Name χ), Pretty (Core AnnBind Name χ)) =>
   equiv env ty x y = (αeq) <$> normalize env ty x <*> normalize env ty y
 
 
-read_nf :: forall e χ m b ann. (Binding b, Pretty (Core b Name χ), MonadError (Doc ann) m, Environment Name e) =>
+read_nf :: forall e χ m b ann. (Binding b, Pretty (Core b Name χ), Forallχ Monoid χ, MonadError (Doc ann) m, Environment Name e) =>
   Normal e b χ -> m (Core b Name χ)
 read_nf (Normal ty val) = case (ty, val) of 
   (SPrd _ name a b, f) -> do
     let neua :: Sem e b χ 
-        neua = Neutral a $ NeuVar undefined name
+        neua = Neutral a $ NeuVar mempty name
     
         lvl = uni_level a
-    a' <- read_nf $ Normal (SUni undefined lvl) a
+    a' <- read_nf $ Normal (SUni mempty lvl) a
     f' <- read_nf =<< (Normal <$> (b `app'` neua) <*> (f `app'` neua))
     -- TODO: we can probably derive the χ-decoration from f somehow...
-    pure $ Abs undefined (bind name a') f'
+    pure $ Abs mempty (bind name a') f'
   (SUni _ _, SUni χ i) -> pure $ Uni χ i
   (SUni χ₁ k, SPrd χ₂ name a b) -> do
     a' <- (read_nf $ Normal (SUni χ₁ k) a)
-    b' <- (read_nf $ Normal (SPrd χ₂ name a (SUni undefined k)) b)
+    b' <- (read_nf $ Normal (SPrd χ₂ name a (SUni mempty k)) b)
     pure $ Prd χ₂ (bind name a') b'
         
   (_, Neutral _ e) -> read_ne e 
   (_, _) -> throwError ("bad read_nf: " <+> pretty val <> " : " <+> pretty ty)
 
-read_ne :: (Binding b, Pretty (Core b Name χ), MonadError (Doc ann) m, Environment Name e) => Neutral e b χ -> m (Core b Name χ)
+read_ne :: (Binding b, Pretty (Core b Name χ), Forallχ Monoid χ, MonadError (Doc ann) m, Environment Name e) =>
+             Neutral e b χ -> m (Core b Name χ)
 read_ne neu = case neu of 
   NeuVar χ name -> pure $ Var χ name
-  NeuApp χ l r -> App χ <$> (read_ne l) <*> (read_nf r) 
+  NeuApp χ l r -> App χ <$> (read_ne l) <*> (read_nf r)
 
-eval :: (Binding b, Pretty (Core b Name χ), MonadError (Doc ann) m, Environment Name e) => Core b Name χ -> e (Sem e b χ) -> m (Sem e b χ)
+eval :: (Binding b, Pretty (Core b Name χ), Forallχ Monoid χ, MonadError (Doc ann) m, Environment Name e) =>
+          Core b Name χ -> e (Sem e b χ) -> m (Sem e b χ)
 eval term env = case term of
   Coreχ _ -> throwError "cannot eval Coreχ terms" 
   Uni χ n -> pure $ SUni χ n
@@ -138,17 +140,33 @@ eval term env = case term of
     r' <- (eval r env)
     app χ l' r'
 
-app' :: (Binding b, Pretty (Core b Name χ), MonadError (Doc ann) m, Environment Name e) =>  Sem e b χ -> Sem e b χ -> m (Sem e b χ)
-app' = app undefined
+app' :: (Binding b, Pretty (Core b Name χ), Forallχ Monoid χ, MonadError (Doc ann) m, Environment Name e) =>
+          Sem e b χ -> Sem e b χ -> m (Sem e b χ)
+app' = app mempty
 
-app :: (Binding b, Pretty (Core b Name χ), MonadError (Doc ann) m, Environment Name e) => Appχ χ -> Sem e b χ -> Sem e b χ -> m (Sem e b χ)
+app :: (Binding b, Pretty (Core b Name χ), Forallχ Monoid χ, MonadError (Doc ann) m, Environment Name e) =>
+         Appχ χ -> Sem e b χ -> Sem e b χ -> m (Sem e b χ)
 app _ (SAbs name body env) val = eval body (insert name val env)
 app χ (Neutral (SPrd _ _ a b) neu) v =
   Neutral <$> (b `app'` v) <*> pure (NeuApp χ neu (Normal a v))
 app _ _ _ = throwError "bad args to app"
 
-env_eval :: (Binding b, Pretty (Core b Name χ), MonadError (Doc ann) m, Environment Name e) => e (Core b Name χ) -> m (e (Sem e b χ))
-env_eval = eval_helper eval
+env_eval :: (Binding b, Pretty (Core b Name χ), Forallχ Monoid χ, MonadError (Doc ann) m, Environment Name e) =>
+              e (Maybe (Core b Name χ), Core b Name χ) -> m (e (Sem e b χ))
+env_eval = eval_helper eval_var 
+  where
+
+    
+    eval_var :: (Binding b, Pretty (Core b Name χ), Forallχ Monoid χ, MonadError (Doc ann) m, Environment Name e) =>
+                  Name -> (Maybe (Core b Name χ), (Core b Name χ)) -> e (Sem e b χ) -> m (Sem e b χ)
+    eval_var n (Nothing, ty) env = mkvar n ty env
+    eval_var _ (Just val, _) env = eval val env
+    
+    mkvar :: (Binding b, Pretty (Core b Name χ), Forallχ Monoid χ, MonadError (Doc ann) m, Environment Name e) =>
+                  Name -> (Core b Name χ) -> e (Sem e b χ) -> m (Sem e b χ)
+    mkvar n ty env = do
+      ty' <- eval ty env
+      pure $ Neutral ty' (NeuVar mempty n)
 
 -- TODO: fix this function - it is wrong!
 uni_level :: (Sem e b χ) -> Int
