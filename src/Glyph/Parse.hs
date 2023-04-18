@@ -56,7 +56,7 @@ import Glyph.Parse.Lexer
 
 
 def :: Precedences -> Parser RawDefinition
-def precs = choice [mutual]
+def precs = choice' [mutual]
   where 
     mutual :: Parser RawDefinition
     mutual = do
@@ -80,11 +80,8 @@ def precs = choice [mutual]
 
 
 core :: Precedences -> Parser RawCore
-core precs = choice' [plam, pprod, pexpr, puniv]
+core precs = choice' [plam, pprod, pexpr]
   where
-    -- TODO: puniv needs to be integrated into pexpr!
-    puniv :: Parser RawCore
-    puniv = const (Uni mempty 0) <$> symbol "𝒰"
 
     plam :: Parser RawCore
     plam = do
@@ -125,16 +122,18 @@ core precs = choice' [plam, pprod, pexpr, puniv]
           (\n t -> OptBind (Just n, Just t)) <$> anyvar <*> (symbol ":" *> (core precs))
 
         ty_only :: Parser (OptBind Text RawCore)
-        ty_only = (\t -> OptBind (Nothing, Just t)) <$> choice' [puniv, plam, pexpr]
+        ty_only = (\t -> OptBind (Nothing, Just t)) <$> choice' [plam, pexpr]
+
 
     pexpr :: Parser RawCore
-    pexpr = run_precs precs (mixfix no_mixfix)
+    pexpr = mixfix patom (core precs) precs
       where 
-        no_mixfix = choice [plam]
+        patom = choice' [puniv]
+      --   no_mixfix = choice' [plam, pprod]
 
+    puniv :: Parser RawCore
+    puniv = const (Uni mempty 0) <$> symbol "𝒰"
 
-    -- buildapp [] = fail "empty buildapp"
-    -- buildapp (x:xs) = pure $ foldl' (App mempty) x xs
 
 {------------------------------ RUNNING A PARSER -------------------------------}
 

@@ -44,4 +44,6 @@ anyvar = lexeme $ pack <$> (many1 (satisfy symchar))
     symchar '\t' = False
     symchar _    = True
 
+-- data Token = Inc | Nil | Dec | Name Text
 
+-- lexer :: Parser [Token]

@@ -5,6 +5,7 @@ module Glyph.Abstract.Syntax
   , ImportDef(..)
   , IndType(..)
   -- , Clause(..)
+  , Transformerχ(..)
   , Forallχ
   , Coreχ
   , Varχ
@@ -132,6 +133,16 @@ data Definition b n χ
   | SigDef IndType (b n (Core b n χ)) [(b n (Core b n χ))]
   | IndDef IndType (b n (Core b n χ)) [(b n (Core b n χ))]
   -- | SctDef (b n (Core b n χ)) [(b n (Core b n χ))]
+
+
+data Transformerχ χ χ' = Transformerχ
+    --, tcore :: (Coreχ b n χ -> Coreχ b n χ)
+    { tuni :: Uniχ χ -> Uniχ χ'
+    , tvar :: Varχ χ -> Varχ χ'
+    , tprd :: Prdχ χ -> Prdχ χ'
+    , tabs :: Absχ χ -> Absχ χ'
+    , tapp :: Appχ χ -> Appχ χ'
+    }
 
 
 {--------------------------------- EQ INSTANCE ---------------------------------}

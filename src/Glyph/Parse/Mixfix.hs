@@ -9,26 +9,28 @@ module Glyph.Parse.Mixfix
   , fixity
   , name_parts
   , mixfix
-  , run_precs
   , update_precs
 
   -- Lenses
   , successors
-  , 
   ) where
 
 
 {----------------------------- MIXFIX PARSER PHASE -----------------------------}
 {- The mixfix parser works as follows:                                         -}      
 {- • Users can create named precedence groups, e.g. 'generic-sum'              -}      
-{- • Users can then specify precedence, e.g 'generic-sum' → 'generic product   -}      
+{- • Users can then specify precedence, e.g 'generic-sum' → 'generic-product'  -}      
+{-   would indicate that operators in 'generic-product' are higher precedence  -}      
+{-   (bind tighter) than those in 'generic-sum'                                -}      
 {- • Users can insert any element into a precedence graph, e.g.                -}      
 {-   • (infixr _⋅_ 'generic-product')                                          -}      
 {-   • (prefix ±_ 'tight-prefix')                                              -}      
 {-                                                                             -}      
 {- Each category (infix(l/r/n), prefix, postfix) has a default precedence      -}      
 {- group.                                                                      -}      
-{-                                                                             -}      
+{- • Any closed expression is also a prefix operator with default precedence   -}      
+{- • Any core expression in parentheses also counts as a closed operator with  -}      
+{-   default precedence.                                                       -}      
 {-------------------------------------------------------------------------------}      
 
 
@@ -44,10 +46,10 @@ import qualified Data.Map as Map
 import Data.Map (Map)
 
 import Text.Megaparsec
+import Prettyprinter
 import Topograph
 
 import Glyph.Abstract.Syntax
-import Glyph.Abstract.Environment
 import Glyph.Concrete.Decorations.Range
 import Glyph.Concrete.Parsed
 import Glyph.Parse.Combinator
@@ -55,8 +57,15 @@ import Glyph.Parse.Lexer
 
 
 {------------------------------ MIXFIX DATA TYPES ------------------------------}
+{- The data-types follow as one would expect. Operators are either closed,     -}      
+{- prefix, postfix or infix. Infix operators have an associativity (left,      -}      
+{- right or non).                                                              -}      
 {-                                                                             -}      
-{-                                                                             -}      
+{- The PrecedenceNode and Precedences form a public interface used by other    -}      
+{- bits of the parser. GraphNode and Telescope are used internally by the      -}      
+{- parser. Telescope represents a telescopic application, while OperatorLike   -}      
+{- allows 'operators' in the precedence graph to also be an injected closed    -}      
+{- expression, or partially parsed expression.                                 -}      
 {-------------------------------------------------------------------------------}      
 
 
@@ -85,11 +94,17 @@ data Precedences = Precedences
   , _default_closed :: Text
   }
 
-data Telescope χ = Tel (Core OptBind Text χ) [Core OptBind Text χ]
-
 $(makeLenses ''Operator)
 $(makeLenses ''PrecedenceNode)
 $(makeLenses ''Precedences)
+
+
+data Telescope a = Tel a [a]
+
+data IsDefault = IsNone | IsClosed
+  deriving (Eq, Ord)
+
+type GraphNode = (IsDefault, Set Operator)
 
 
 {----------------------------- MIXFIX PARSER PHASE -----------------------------}
@@ -106,12 +121,9 @@ $(makeLenses ''Precedences)
 {- Precedence is denoted by a DAG, with nodes being sets of operators with     -}
 {- equal precedence. Arrows point towards operators with higher precedence     -}
 {- (i.e. operators which bind tighter).                                        -}
-{-                                                                             -}      
-{- The Telescope type is used to represent repeated left/right associative     -}      
-{- applications.                                                               -}
 {-                                                                             -}
-{- However, Modifications:                                                     -}      
-{- lowest priority closed term is an expression in parentheses                 -}      
+{- However, modifications have been made, as the grammars do not quite match.  -}      
+{- highest precedence closed term is an expression in parentheses              -}      
 {- just before that it is a prefix operation                                   -}      
 {-                                                                             -}
 {- + [1] : https://www.cse.chalmers.se/~nad/publications/                      -}
@@ -121,20 +133,21 @@ $(makeLenses ''Precedences)
 {-                                                                             -}
 {-------------------------------------------------------------------------------}      
 
-type PrecedenceGraph i = G (Set Operator) i
 
-mixfix :: forall i. Parser RawCore -> PrecedenceGraph i -> Parser RawCore
-mixfix core (G {..}) = expr
+type PrecedenceGraph i = G GraphNode i
+
+mixfix :: Parser RawCore -> Parser RawCore -> Precedences -> Parser RawCore
+mixfix atom core precs = run_precs (mixfix' atom core) precs  
+
+mixfix' :: forall i. Parser RawCore -> Parser RawCore -> PrecedenceGraph i -> Parser RawCore
+mixfix' atom core (G {..}) = expr
   where
     expr :: Parser RawCore
-    expr = precs gVertices
-
-    paren_core = between (symbol "(") (symbol ")") core
+    expr = foldl (App mempty) <$> (precs gVertices) <*> many (precs gVertices)
     
     precs :: [i] -> Parser RawCore
     precs (p:ps) = prec p <||> precs ps
-    precs [] = -- paren_core
-      customFailure "ran out of operators in precedence graph" 
+    precs [] = customFailure "ran out of operators in precedence graph" 
   
     prec :: i -> Parser RawCore
     prec node = choice'
@@ -146,18 +159,25 @@ mixfix core (G {..}) = expr
       ]
 
       where
-        close :: Fixity -> Parser (Telescope Parsed)
-        close = inner . ops current_ops
+        close :: Fixity -> Parser (Telescope RawCore)
+        close f = inj f <||> (inner . ops current_ops) f
           where
             current_ops :: [Operator]
-            current_ops = Set.toList $ gFromVertex node
+            current_ops = Set.toList $ view _2 $ gFromVertex node
+
+            inj Closed =
+              if view _1 (gFromVertex node) == IsClosed then
+                flip Tel [] <$> (atom <||> between (symbol "(") (symbol ")") core)
+              else
+                fail "not default"
+            inj _ = fail "not default"
 
         psucs :: Parser RawCore
         psucs = precs $ gEdges node
 
         preRight :: Parser (RawCore -> RawCore)
         preRight = 
-              (\(Tel core lst) val -> unscope $ Tel core (lst <> [val])) <$> (close Prefix <||> close Closed <||> (flip Tel [] <$> paren_core))
+              (\(Tel core lst) val -> unscope $ Tel core (lst <> [val])) <$> close Prefix
           <||> (\l (Tel core lst) r -> unscope $ Tel core (l : lst <> [r]))
                <$> psucs <*> close (Infix RightAssociative)
 
@@ -171,7 +191,7 @@ mixfix core (G {..}) = expr
         appr fs e = foldr (\f e -> f e) e fs
         appl e fs = foldl (\e f -> f e) e fs
 
-    inner :: [Operator] -> Parser (Telescope Parsed)
+    inner :: [Operator] -> Parser (Telescope RawCore)
     inner [] = customFailure "inner ran out of operators"
     inner (op : ops) = choice'  
       [ do start <- getSourcePos
@@ -187,7 +207,7 @@ mixfix core (G {..}) = expr
     ops op f = filter ((== f) . view fixity) op
   
 
-unscope :: Telescope Parsed -> RawCore
+unscope :: Telescope RawCore -> RawCore
 unscope (Tel core l) = go core l where
   go :: RawCore -> [RawCore] -> RawCore
   go core [] = core 
@@ -206,28 +226,41 @@ opName (Operator {..}) = case _fixity of
         underscore (x:y:[]) = x <> "_" <> y
         underscore (x:y:xs) = x <> "_" <> y <> "_" <> underscore xs
 
-{----------------------------- GRAPH MANIPULATION ------------------------------}
-{-- Exported utilities: manipulate a precedence graph                         --}
-{-------------------------------------------------------------------------------}
-  
-run_precs :: Precedences -> (forall i. PrecedenceGraph i -> Parser a) -> Parser a
-run_precs precs f = case construct_graph (precs^.prec_nodes) of
+run_precs :: MonadFail m => (forall i. PrecedenceGraph i -> m a) -> Precedences -> m a
+run_precs f precs = case construct_graph precs of
   Right graph -> case runG graph (f . closure) of
     Right m -> m
     Left _ -> fail "cycle in precedence graph"
   Left e -> fail $ show e
 
   where
-    construct_graph :: Map Text PrecedenceNode -> Either Text (Map (Set Operator) (Set (Set Operator)))
-    construct_graph nodes = foldl' add_node (pure Map.empty) nodes
+    construct_graph :: Precedences -> Either Text (Map GraphNode (Set GraphNode))
+    construct_graph precs = build (precs^.prec_nodes)
       where
-        add_node :: Either Text (Map (Set Operator) (Set (Set Operator))) -> PrecedenceNode -> Either Text (Map (Set Operator) (Set (Set Operator)))
-        add_node m (PrecedenceNode {_prec_ops=p, _successors=sucs}) = do
+        build = (\m -> foldl' (add_node m) (pure Map.empty) m) . to_graph_node
+
+        to_graph_node :: Map Text PrecedenceNode -> Map Text (GraphNode, Set Text)
+        to_graph_node = Map.mapWithKey (\k v -> ((isdefault k, v^.prec_ops), v^.successors))
+          where 
+            isdefault k
+              | k == (precs^.default_closed) = IsClosed
+              | otherwise = IsNone
+        
+        add_node :: Map Text (GraphNode, Set Text)
+          -> Either Text (Map GraphNode (Set GraphNode))
+          -> (GraphNode, Set Text)
+          -> Either Text (Map GraphNode (Set GraphNode))
+        add_node nodes m (ops, sucs) = do
           graph <- m
           sucs' <- mapM (\s -> case nodes^.at s of
-                       Just pnode -> Right (pnode^.prec_ops)
+                       Just pnode -> Right (pnode^._1)
                        Nothing -> Left ("can't find " <> s)) (Set.toList sucs)
-          pure $ (at p ?~ (Set.fromList sucs')) graph
+          pure $ (at ops ?~ Set.fromList sucs') graph
+
+
+{----------------------------- GRAPH MANIPULATION ------------------------------}
+{-- Exported utilities: manipulate a precedence graph                         --}
+{-------------------------------------------------------------------------------}
 
 
 update_precs :: [Text] -> Precedences -> Precedences
@@ -267,4 +300,18 @@ update_precs args g = foldl' add_op g (map to_node args)
         single op = PrecedenceNode (Set.singleton op) Set.empty
         insert op = prec_ops %~ Set.insert op
 
-    
+
+instance Pretty Operator where    
+  pretty = pretty . opName
+
+instance Pretty IsDefault where 
+  pretty d = case d of 
+    IsNone -> ""
+    IsClosed -> "default-closed"
+
+instance Pretty Precedences where 
+  pretty precs = case run_precs (pure . pretty . lst . adjacencyList) precs of 
+    Just p -> p
+    Nothing -> "cycle in precedence graph"
+    where
+      lst = fmap (\(n, ns) -> ((_2 %~ Set.toList) n, fmap (_2 %~ Set.toList) ns))
