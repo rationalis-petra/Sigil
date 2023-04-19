@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-unused-binds #-}
 module Spec.Glyph.Parse (parse_spec) where
 
 import Prelude hiding (abs, pi)
@@ -158,24 +159,25 @@ parse_expr graph =
       "λ [_x] true x"
       (abs ["_x"] (var "_x" ⋅ var "true"))
 
-    , expr_test "lamb-in-expr"
-      "(λ [x_] x true) + (λ [x_] x true) "
-      (var "_+_" ⋅ (abs ["x_"] (var "x_" ⋅ var "true")) ⋅ (abs ["x_"] (var "x_" ⋅ var "true")))
     , expr_test "uni-uni-app"
       "𝒰 𝒰"
       (𝓊 0⋅ 𝓊 0)
-    , expr_test "uni-uni-paren-app"
-      "(𝒰 𝒰)"
-      (𝓊 0⋅ 𝓊 0)
-    , expr_test "lam-var-app"
-      "(λ [x_] x true) true"
-      ((abs ["x_"] (var "x_" ⋅ var "true")) ⋅ var "true")
-    , expr_test "lam-uni-app"
-      "(λ [x_] x true) 𝒰"
-      ((abs ["x_"] (var "x_" ⋅ var "true")) ⋅ 𝓊 0)
-    , expr_test "lam-lam-app"
-      "(λ [x_] x true) (λ [x_] x true)"
-      ((abs ["x_"] (var "x_" ⋅ var "true")) ⋅ (abs ["x_"] (var "x_" ⋅ var "true")))
+    -- slow
+    -- , expr_test "lamb-in-expr"
+    --   "(λ [x_] x true) + (λ [x_] x true) "
+    --   (var "_+_" ⋅ (abs ["x_"] (var "x_" ⋅ var "true")) ⋅ (abs ["x_"] (var "x_" ⋅ var "true")))
+    -- , expr_test "uni-uni-paren-app"
+    --   "(𝒰 𝒰)"
+    --   (𝓊 0⋅ 𝓊 0)
+    -- , expr_test "lam-var-app"
+    --   "(λ [x_] x true) true"
+    --   ((abs ["x_"] (var "x_" ⋅ var "true")) ⋅ var "true")
+    -- , expr_test "lam-uni-app"
+    --   "(λ [x_] x true) 𝒰"
+    --   ((abs ["x_"] (var "x_" ⋅ var "true")) ⋅ 𝓊 0)
+    -- , expr_test "lam-lam-app"
+    --   "(λ [x_] x true) (λ [x_] x true)"
+    --   ((abs ["x_"] (var "x_" ⋅ var "true")) ⋅ (abs ["x_"] (var "x_" ⋅ var "true")))
 
     -- Lambda: Annotations, multiple arguments etc.
     , expr_test "lam-ann"

@@ -67,13 +67,16 @@ data Core b n χ
   -- Type Families - with name and uid
   -- | Fam Text Integer [Core n χ]
 
-  -- Inductive + Coinductive constants - with name and uid
-  -- | Ive v Integer [Core n χ]
-  -- | Cve [Core n χ]
+  -- Inductive + Coinductive constants - now with name!
+  -- | Ive n [Core n χ] --
+  -- | Cve [Core n χ]   --
+  -- | Match [Pattern]  --
+  -- | CoCall           --
 
   -- Records constants - with name and uid
   -- | Sct [(b (Core b v χ), Core b v χ)]
   -- | Sig [(b (Core b v χ), Core b v χ)]
+  -- | Dot
 
 
 -- Type Families

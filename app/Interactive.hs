@@ -8,6 +8,7 @@ import Prelude hiding (getLine, putStr)
 import Control.Monad (unless)
 import Control.Monad.Except (ExceptT, runExceptT, throwError, catchError)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.Text
 import Data.Text.IO
 import System.IO hiding (getLine, putStr)
@@ -30,6 +31,18 @@ data InteractiveOpts = InteractiveOpts
   }
   deriving (Show, Read, Eq)
 
+default_precs :: Precedences
+default_precs = Precedences
+  (Map.fromList
+   [ ("sum", PrecedenceNode Set.empty (Set.fromList ["prod"]))
+   , ("prod", PrecedenceNode Set.empty (Set.fromList ["ppd"]))
+   , ("ppd", PrecedenceNode Set.empty (Set.fromList ["tight"]))
+   , ("ctrl", PrecedenceNode Set.empty (Set.fromList ["tight"]))
+   , ("tight", PrecedenceNode Set.empty (Set.fromList ["tight"]))
+   , ("tight", PrecedenceNode Set.empty (Set.fromList ["close"]))
+   , ("close", PrecedenceNode Set.empty Set.empty)
+   ])
+  "sum" "ppd" "ppd" "close"
 
 interactive :: InteractiveOpts -> IO ()
 interactive = loop default_env
@@ -59,7 +72,7 @@ interactive = loop default_env
 
     meval :: Text -> ExceptT GlyphDoc Gen (TypedCore, TypedCore)
     meval line = do
-      parsed <- parseToErr (core (Precedences Map.empty "infixl" "prefix" "postfix" "closed") <* eof) "console-in" line 
+      parsed <- parseToErr (core default_precs <* eof) "console-in" line 
       resolved <- resolve parsed
         `catchError` (throwError . (<+>) "resolution:")
       (term, ty) <- infer (env_empty :: Env (Maybe TypedCore, TypedCore)) resolved

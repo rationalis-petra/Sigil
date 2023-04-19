@@ -61,13 +61,16 @@ glyph_opts :: Parser Command
 glyph_opts = subparser $ 
   (command "compile" $ info (CompileCommand <$> compile_opts) (progDesc "Compile a Glyph program"))
   <>
-  (command "serve" $ info (ServerCommand <$> server_opts) (progDesc "Launch a Glyph language server"))
+  (command "serve" $ info (ServerCommand <$> server_opts) (progDesc "Launch the Glyph language server"))
   <>
   (command "interactive" $ info (InteractiveCommand <$> interactive_opts) (progDesc "Launch Glyph in interactive mode"))
 
 main :: IO ()
 main = do
-  command <- execParser (info glyph_opts idm)
+  command <- execParser $ info (glyph_opts <**> helper) 
+    ( fullDesc 
+    <> progDesc "Compile, Run or Develop a Glyph Program"
+    <> header "An implementation of the Glyph Language" )
   case command of 
     InteractiveCommand c -> interactive c
     _ -> putStrLn $ pack $ show command
