@@ -51,11 +51,15 @@ unify_tests =
     True
 
   -- ∃x:(A:𝒰→𝒰). x ≗ λ [A:𝒰] A
-  , can_solve_test "app" (Bind Exists (idn 0 "x") ([(idn 1 "A", 𝓊 0)] → 𝓊 0) $
+  , can_solve_test "ex-lam" (Bind Exists (idn 0 "x") ([(idn 1 "A", 𝓊 0)] → 𝓊 0) $
                             Conj [idv 0 "x" :≗: ([(idn 1 "A", 𝓊 0)] ⇒ idv 1 "A")]) True
 
-  , can_solve_test "app" (Bind Exists (idn 0 "x") ([(idn 1 "A", 𝓊 0)] → 𝓊 0) $
-                            Conj [idv 0 "x" :≗: ([(idn 1 "A", 𝓊 0)] ⇒ idv 1 "A")]) True
+  -- ∃x:(𝒰1→𝒰1). x 𝒰 ≗ 𝒰
+  , can_solve_test "ex-lam-app" (Bind Exists (idn 0 "x") ([(idn 1 "A", 𝓊 1)] → 𝓊 1) $
+                            Conj [(idv 0 "x" ⋅ 𝓊 0) :≗: 𝓊 0]) True
+
+  -- , can_solve_test "app" (Bind Exists (idn 0 "x") ([(idn 1 "A", 𝓊 0)] → 𝓊 0) $
+  --                           Conj [idv 0 "x" :≗: ([(idn 1 "A", 𝓊 0)] ⇒ idv 1 "A")]) True
   ]
 
   where 
@@ -96,8 +100,8 @@ args ⇒ body = foldr (\var body -> Abs () (AnnBind var) body) body args
 (→) :: [(Name, TypedCore)] -> TypedCore -> TypedCore
 args → body = foldr (\var body -> Prd () (AnnBind var) body) body args
 
--- (⋅) :: Core b n UD -> Core b n UD -> Core b n UD
--- (⋅) = App void
+(⋅) :: TypedCore -> TypedCore -> TypedCore
+(⋅) = App ()
 
 idv :: Integer -> Text -> TypedCore
 idv n t = Var () $ Name $ Right (n, t)

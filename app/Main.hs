@@ -7,7 +7,8 @@ import Data.Text (pack)
 
 import Options.Applicative
 
-import Interactive  
+import Interactive
+import Server
 
 data Backends = Native | JVM | Javascript | WASM
   deriving (Show, Read, Eq)
@@ -37,10 +38,6 @@ compile_opts = CompileOpts
     <> short 'b'
     <> value Native )
 
-data ServerOpts = ServerOpts
-  { port :: Int
-  }
-  deriving (Show, Read, Eq)
 
 server_opts :: Parser ServerOpts
 server_opts = ServerOpts
@@ -48,7 +45,7 @@ server_opts = ServerOpts
     ( long "port"
     <> help "What port the server runs from"
     <> showDefault
-    <> value 8000
+    <> value 8801
     <> metavar "INT" )
 
 data Command
@@ -61,7 +58,7 @@ glyph_opts :: Parser Command
 glyph_opts = subparser $ 
   (command "compile" $ info (CompileCommand <$> compile_opts) (progDesc "Compile a Glyph program"))
   <>
-  (command "serve" $ info (ServerCommand <$> server_opts) (progDesc "Launch the Glyph language server"))
+  (command "server" $ info (ServerCommand <$> server_opts) (progDesc "Launch the Glyph language server"))
   <>
   (command "interactive" $ info (InteractiveCommand <$> interactive_opts) (progDesc "Launch Glyph in interactive mode"))
 
@@ -73,4 +70,5 @@ main = do
     <> header "An implementation of the Glyph Language" )
   case command of 
     InteractiveCommand c -> interactive c
+    ServerCommand s -> server s
     _ -> putStrLn $ pack $ show command

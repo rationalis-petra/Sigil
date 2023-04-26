@@ -371,7 +371,7 @@ unify_eq quant_vars a b = case (a, b) of
     (var, terms) <- case (unwind s) of
       Just v -> pure v
       _ -> throwError $ "unwinding failed:" <+> pretty s
-    bind <- var ! quant_vars
+    bind <- var ! quant_vars -- lookup_atom atom quant_vars
     if (bind^.elem_quant) == Exists then do
       let ty = bind^.elem_type
           fors = Set.fromList $ get_foralls_after var quant_vars
@@ -867,10 +867,16 @@ elem_index = List.elemIndex
 {-------------------------------------------------------------------------------}
 
 
+--data Atom = AVar Name | AUni Int
+
+--lookup_atom ::   
+
 unwind :: Core b n Typed -> Maybe (n, [Core b n Typed])        
 unwind core = case core of 
   App _ l r -> (_2 %~ (r :)) <$> (unwind l)
   Var _ n -> Just (n, [])
+  -- Var _ n -> Just (AVar n, [])
+  --Uni _ n -> Just (A Unin, [])
   _ -> Nothing
 
 wind :: (n, [Core b n Typed]) -> Core b n Typed

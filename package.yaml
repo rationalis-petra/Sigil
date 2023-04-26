@@ -26,7 +26,13 @@ dependencies:
 - stm
 - lens
 - mtl
+- pipes
+- pipes-parse
+- pipes-aeson
+- aeson
 - containers
+- bytestring
+- network
 - megaparsec
 - topograph
 - prettyprinter
@@ -66,7 +72,7 @@ library:
   source-dirs: src
 
 executables:
-  glyph-exe:
+  glyph:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
