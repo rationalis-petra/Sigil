@@ -65,6 +65,7 @@ import qualified Data.List as List
 
 import Prettyprinter
 
+import Glyph.Abstract.AlphaEq
 import Glyph.Abstract.Syntax
 import Glyph.Abstract.Environment
 import Glyph.Interpret.Substitution
@@ -132,6 +133,7 @@ instance (Subst Name s a) => Subst Name s (Formula a) where
       Set.union (free_vars l) (free_vars r)
     Bind _ var ty body ->
       Set.union (free_vars ty) $ Set.delete var (free_vars body)
+
 
 {----------------------------- INTERNAL DATATYPES ------------------------------}
 {- TODO: Unification Monad, env and Binds                                      -}
@@ -206,7 +208,6 @@ instance (Subst Name s a) => Subst Name s (FBind a) where
 
   free_vars (FBind _ nm et) = Set.delete nm $ free_vars et 
     
-  
 instance (Subst Name s a) => Subst Name s (FlatFormula a) where
   substitute shadow sub (FlatFormula binds constraints) = 
     let (shadow', binds') = foldr (\ b (s, bs) ->
@@ -344,8 +345,7 @@ unify_eq quant_vars a b = case (a, b) of
                   <+> "and"
                   <+> "(𝒰 " <> pretty n' <> ")")
 
-  -- Terms which are otherwise equal
-  (s, s') | s == s' -> pure $ Just (quant_vars, mempty, [])
+  (s, s') | αeq s s' -> pure $ Just (quant_vars, mempty, [])
 
   -- (Var χ n, Var χ' n') -> check quantification
   -- (Prd _ (AnnBind (n, a)) b, Prd _ (AnnBind (n', a')) b') -> 
@@ -365,65 +365,69 @@ unify_eq quant_vars a b = case (a, b) of
   (Abs _ (AnnBind (n, ty)) body, s) -> 
     pure $ Just (add_bind Forall n ty quant_vars, mempty, [(body `app` mkvar n) :≗: s])
 
+
   -- Note: original was matching with spine, meaning it may include more than
   -- just App (e.g. vars, ∀, ...)
   (s, s') -> do
-    (var, terms) <- case (unwind s) of
+    (atom, terms) <- case (unwind s) of
       Just v -> pure v
-      _ -> throwError $ "unwinding failed:" <+> pretty s
-    bind <- var ! quant_vars -- lookup_atom atom quant_vars
-    if (bind^.elem_quant) == Exists then do
-      let ty = bind^.elem_type
-          fors = Set.fromList $ get_foralls_after var quant_vars
-          exists = Set.fromList $ get_exists_after var quant_vars
-      case unwind s' of
-        Just (var', terms') -> do
-          bind' <- var' ! quant_vars
-          case bind' of 
-            FBind { _elem_quant=Forall, _elem_type=ty' }
-              | (not $ elem (mkvar var) terms) && Set.member var' fors ->
-                if not $ is_partial_perm fors terms
+      _ -> throwError $ "unwinding failed for term:" <+> pretty s
+    mbind <- lookup_atom atom quant_vars
+    case mbind of
+      Just bind | bind^.elem_quant == Exists -> do
+        let ty = bind^.elem_type
+            var = bind^.elem_name
+            fors = Set.fromList $ get_foralls_after var quant_vars
+            exists = Set.fromList $ get_exists_after var quant_vars
+        case unwind s' of
+          Just (atom', terms') -> do
+            mbind' <- lookup_atom atom' quant_vars
+            case mbind' of 
+              Just (FBind { _elem_quant=Forall, _elem_type=ty', _elem_name=var' })
+                | (not $ elem (mkvar var) terms) && Set.member var' fors ->
+                  if not $ is_partial_perm fors terms
+                  then pure Nothing
+                  else throwError "gvar-uvar depends"
+                | Set.member var (free_vars terms') ->
+                  if not $ is_partial_perm fors terms
+                  then pure Nothing
+                  else throwError "occurs check failed"
+                | Set.member var' fors ->
+                  if is_partial_perm fors terms
+                  then gvar_uvar_inside (var, terms, ty) (var', terms', ty')
+                  else throwError "occurs check failed"
+                | otherwise ->
+                  if all_elements_are_vars fors terms
+                  then gvar_uvar_outside (var, terms, ty) (var', terms', ty')
+                  else throwError "occurs check failed"
+              Just bind'@(FBind { _elem_quant=Exists, _elem_type=ty', _elem_name=var'}) ->
+                if not $ is_partial_perm fors terms && is_partial_perm fors terms' && Set.member var' exists
                 then pure Nothing
-                else throwError "gvar-uvar depends"
-              | Set.member var (free_vars terms') ->
-                if not $ is_partial_perm fors terms
-                then pure Nothing
-                else throwError "occurs check failed"
-              | Set.member var' fors ->
-                if is_partial_perm fors terms
-                then gvar_uvar_inside (var, terms, ty) (var', terms', ty')
-                else throwError "occurs check failed"
-              | otherwise ->
-                if all_elements_are_vars fors terms
-                then gvar_uvar_outside (var, terms, ty) (var', terms', ty')
-                else throwError "occurs check failed"
-            FBind { _elem_quant=Exists, _elem_type=ty'} ->
-              if not $ is_partial_perm fors terms && is_partial_perm fors terms' && Set.member var' exists
-              then pure Nothing
-              else if var == var'
-                then gvar_gvar_same (var, terms, ty) (var', terms', ty')
-                else if Set.member var (free_vars terms')
-                  then throwError "occurs check failed"
-                  else gvar_gvar_diff bind (var, terms, ty) (var', terms', ty') bind'
-        _ -> pure Nothing -- gvar-gvar same?? 
+                else if var == var'
+                  then gvar_gvar_same (var, terms, ty) (var', terms', ty')
+                  else if Set.member var (free_vars terms')
+                    then throwError "occurs check failed"
+                    else gvar_gvar_diff bind (var, terms, ty) (var', terms', ty') bind'
+              _ -> throwError "not dealing with this case yet (1)"
+          _ -> pure Nothing -- gvar-gvar same?? 
     
-    else case unwind s' of
-      -- Note: HOU.hs matches with Spine, which can also include variables & constants 
-      -- what to do...
-      Just (var', _) | var /= var' -> do
-        bind' <- var' ! quant_vars
-        if bind'^.elem_quant == Exists
-          then pure $ Nothing
-          else throwError "can't unify two different universal equalitiies"
-    
-      -- uvar-uvar!
-      Just (var', _) | var == var' -> do
-        throwError "not sure what a type constraint is...?"
-        --let match _ _ = throwError "not sure what a type constraint is...?"
-    
-        --sctors <- match terms terms'
-        --pure $ Just (quant_vars, mempty, [])
-      _ -> throwError "can't unify a ∀-var against a term"
+      _ -> case unwind s' of
+        -- Note: HOU.hs matches with Spine, which can also include variables & constants 
+        -- what to do...
+        Just (atom', _) | atom /= atom' -> do
+          mbind' <- lookup_atom atom quant_vars
+          case mbind' of 
+            Just bind' | bind'^.elem_quant == Exists -> pure $ Nothing
+            _ -> throwError "can't unify two different universal equalitiies"
+      
+        -- uvar-uvar!
+        Just (atom', _) | atom == atom' -> do
+          throwError "not sure what a type constraint is...?"
+          --let match _ _ = throwError "not sure what a type constraint is...?"
+      
+          --sctors <- match terms terms'
+          --pure $ Just (quant_vars, mempty, [])
+        _ -> throwError "can't unify a ∀-var against a term"
 
   where
 
@@ -867,16 +871,19 @@ elem_index = List.elemIndex
 {-------------------------------------------------------------------------------}
 
 
---data Atom = AVar Name | AUni Int
+data Atom n = AVar n | AUni Int
+  deriving Eq
 
---lookup_atom ::   
+lookup_atom :: (MonadError (Doc ann) m) => Atom Name -> Binds' -> m (Maybe FBind')
+lookup_atom atom qvars = case atom of
+  AVar n -> Just <$> n ! qvars 
+  _ -> pure Nothing
 
-unwind :: Core b n Typed -> Maybe (n, [Core b n Typed])        
+unwind :: Core b n Typed -> Maybe (Atom n, [Core b n Typed])        
 unwind core = case core of 
   App _ l r -> (_2 %~ (r :)) <$> (unwind l)
-  Var _ n -> Just (n, [])
-  -- Var _ n -> Just (AVar n, [])
-  --Uni _ n -> Just (A Unin, [])
+  Var _ n -> Just (AVar n, [])
+  Uni _ n -> Just (AUni n, [])
   _ -> Nothing
 
 wind :: (n, [Core b n Typed]) -> Core b n Typed
