@@ -17,26 +17,26 @@ import Glyph.Concrete.Resolved
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
-resolve :: MonadGen m => RawCore -> m ResolvedCore
+resolve :: MonadGen m => ParsedCore -> m ResolvedCore
 resolve core = resolve_id' empty core where
-  resolve_id' :: MonadGen m => Map Text Integer -> RawCore -> m ResolvedCore
+  resolve_id' :: MonadGen m => Map Text Integer -> ParsedCore -> m ResolvedCore
   resolve_id' vars term = case term of 
-    Coreχ PUnit -> pure $ Coreχ ()
-    Uni χ n -> pure $ Uni χ n
-    Var χ name -> case lookup name vars of
-      Just n -> pure $ Var χ $ Name $ Right $ (n, name)
-      Nothing -> pure $ Var χ $ Name $ Left $ [name]
-    Prd χ (OptBind (t, a)) ty -> do
+    Core -> pure $ Coreχ ()
+    Uni rn n -> pure $ Uniχ rn n
+    Var rn name -> case lookup name vars of
+      Just n -> pure $ Varχ rn $ Name $ Right $ (n, name)
+      Nothing -> pure $ Varχ rn $ Name $ Left $ [name]
+    Prd rn (OptBind (t, a)) ty -> do
       id <- fresh_id
       let n = (\text -> Name $ Right (id,text)) <$> t
           vars' = maybe vars (\t -> insert t id vars) t
       a' <- mapM (resolve_id' vars') a
-      Prd χ (OptBind (n, a')) <$> resolve_id' vars' ty
-    Abs χ (OptBind (t, ty)) e -> do
+      Prdχ rn (OptBind (n, a')) <$> resolve_id' vars' ty
+    Abs rn (OptBind (t, ty)) e -> do
       id <- fresh_id
       let
         n = (\text -> Name $ Right (id,text)) <$> t 
         vars' = maybe vars (\t -> insert t id vars) t
       ty' <- mapM (resolve_id' vars') ty
-      Abs χ (OptBind (n, ty')) <$> resolve_id' vars' e
-    App χ l r -> App χ <$> (resolve_id' vars l) <*> (resolve_id' vars r)
+      Absχ rn (OptBind (n, ty')) <$> resolve_id' vars' e
+    App rn l r -> Appχ rn <$> (resolve_id' vars l) <*> (resolve_id' vars r)

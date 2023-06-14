@@ -4,9 +4,10 @@ module Glyph.Concrete.Resolved
   , ResolvedDefinition ) where
 
 
+import Prettyprinter
+
 import Glyph.Abstract.Environment
 import Glyph.Abstract.Syntax
-
 import Glyph.Concrete.Decorations.Range
 
 
@@ -22,3 +23,6 @@ type ResolvedCore = Core OptBind Name Resolved
 
 type ResolvedDefinition = Definition OptBind Name Resolved
   
+
+instance Pretty ResolvedCore where
+  pretty = pretty_core_builder pretty pretty pretty 

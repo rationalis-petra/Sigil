@@ -51,14 +51,13 @@ import Glyph.Parse.Lexer
 {-   If there is only one declaration, then it is a single definition, as it   -}
 {-   is not mutually recursive, but this is a special case.                    -}
 {-                                                                             -}
-{- •                                                                           -}
 {-------------------------------------------------------------------------------}      
 
 
-def :: Precedences -> Parser RawDefinition
+def :: Precedences -> Parser ParsedDef
 def precs = choice' [mutual]
   where 
-    mutual :: Parser RawDefinition
+    mutual :: Parser ParsedDef
     mutual = do
       args <- many1 anyvar
       _ <- symbol "≜"
@@ -69,7 +68,7 @@ def precs = choice' [mutual]
 
       case args of 
         [] -> error "impossible!"
-        (x:xs) -> pure $ Mutual [(OptBind (Just x, Nothing), tofn xs val)]
+        (x:xs) -> pure $ Mutualχ mempty [(OptBind (Just x, Nothing), tofn xs val)]
 
 
 {--------------------------------- CORE PARSER ---------------------------------}
@@ -79,60 +78,60 @@ def precs = choice' [mutual]
 {-------------------------------------------------------------------------------}      
 
 
-core :: Precedences -> Parser RawCore
+core :: Precedences -> Parser ParsedCore
 core precs = choice' [plam, pprod, pexpr]
   where
 
-    plam :: Parser RawCore
+    plam :: Parser ParsedCore
     plam = do
-      let unscope :: [OptBind Text RawCore] -> RawCore -> RawCore
+      let unscope :: [OptBind Text ParsedCore] -> ParsedCore -> ParsedCore
           unscope = flip $ foldr (Abs mempty)
 
-          args :: Parser (Precedences, [OptBind Text RawCore])
-          args = between (symbol "[") (symbol "]")
-                 (thread1 (\(precs, args) ->
+          args :: Parser (Precedences, [OptBind Text ParsedCore])
+          args = (thread1 (\(precs, args) ->
                              fmap (\a -> (update_precs (maybeToList $ name a) precs, a:args))
                                   (tyarg precs <||> arg))
                           (precs, []))
 
-          tyarg :: Precedences -> Parser (OptBind Text RawCore)
+          tyarg :: Precedences -> Parser (OptBind Text ParsedCore)
           tyarg precs = between (symbol "(") (symbol ")") $
                     (\n t -> OptBind (Just n, Just t)) <$> anyvar <*> (symbol ":" *> (core precs))
 
-          arg :: Parser (OptBind Text RawCore)
-          arg = flip (curry OptBind) Nothing . Just  <$> anyvar
+          arg :: Parser (OptBind Text ParsedCore)
+          arg =  notFollowedBy (symbol "↦") *> (flip (curry OptBind) Nothing . Just  <$> anyvar)
 
       _ <- symbol "λ"
       (precs', tel) <- args
+      _ <- symbol "↦"
       -- TODO: update precs per argument!!
       body <- core precs'
       pure $ unscope (reverse tel) body
 
-    pprod :: Parser RawCore
+    pprod :: Parser ParsedCore
     pprod = do
         arg <- parg <* (symbol "→")
         bdy <- core (update_precs (maybeToList $ name arg) precs)
         pure $ Prd mempty arg bdy
       where
-        parg :: Parser (OptBind Text RawCore)
+        parg :: Parser (OptBind Text ParsedCore)
         parg = annarg <||> ty_only
 
-        annarg :: Parser (OptBind Text RawCore)
+        annarg :: Parser (OptBind Text ParsedCore)
         annarg = between (symbol "(") (symbol ")") $
           (\n t -> OptBind (Just n, Just t)) <$> anyvar <*> (symbol ":" *> (core precs))
 
-        ty_only :: Parser (OptBind Text RawCore)
+        ty_only :: Parser (OptBind Text ParsedCore)
         ty_only = (\t -> OptBind (Nothing, Just t)) <$> choice' [plam, pexpr]
 
 
-    pexpr :: Parser RawCore
+    pexpr :: Parser ParsedCore
     pexpr = mixfix patom (core precs) precs
       where 
         patom = choice' [puniv]
       --   no_mixfix = choice' [plam, pprod]
 
-    puniv :: Parser RawCore
-    puniv = const (Uni mempty 0) <$> symbol "𝒰"
+    puniv :: Parser ParsedCore
+    puniv = (const (Uni mempty 0) <$> symbol "𝒰") <|> (const (Uni mempty 1) <$> symbol "𝒰₁")
 
 
 {------------------------------ RUNNING A PARSER -------------------------------}

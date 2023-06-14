@@ -57,7 +57,7 @@ class AlphaEq n a | a -> n where
 
 instance (Ord n, Binding b, AlphaEq n (Core b n χ), AlphaEq n (b n (Core b n χ))) => AlphaEq n (Definition b n χ) where
   αequal rename v1 v2 = case (v1, v2) of 
-    (Mutual defs, Mutual defs') -> is_eq . gather_rename rename $ (zip defs defs')
+    (Mutualχ _ defs, Mutualχ _ defs') -> is_eq . gather_rename rename $ (zip defs defs')
       where 
         is_eq (rename, defs) = foldl' (&&) True $ map (uncurry $ αequal rename) defs
 
@@ -79,27 +79,24 @@ instance (Ord n, Binding b, AlphaEq n (b n (Core b n χ)), AlphaEq n (Coreχ b n
   αequal rename v v' = case (v, v') of 
     (Coreχ r, Coreχ r') ->
       αequal rename r r'
-    (Uni _ n, Uni _ n') -> n == n'
-    (Var _ n, Var _ n') ->
+    (Uniχ _ n, Uniχ _ n') -> n == n'
+    (Varχ _ n, Varχ _ n') ->
       case (Map.lookup n (fst rename), Map.lookup n' (snd rename)) of
         (Just (Just r), Just (Just r')) -> r == n' && r' == n
         (Nothing, Nothing) -> n == n'
         _ -> False
-    (Prd _ b t, Prd _ b' t') ->
-           αequal rename b b'
-        && αequal rename' t t'
+    (Prdχ _ b t, Prdχ _ b' t') ->
+      αequal rename b b' && αequal rename' t t'
       where
         rename' = ( maybe (fst rename) (\n -> Map.insert n (name b') (fst rename)) (name b)
                   , maybe (snd rename) (\n -> Map.insert n (name b) (snd rename)) (name b'))
-    (Abs _ b e, Abs _ b' e') ->
-           αequal rename b b'
-        && αequal rename' e e'
+    (Absχ _ b e, Absχ _ b' e') ->
+      αequal rename b b' && αequal rename' e e'
       where
         rename' = ( maybe (fst rename) (\n -> Map.insert n (name b') (fst rename)) (name b)
                   , maybe (snd rename) (\n -> Map.insert n (name b) (snd rename)) (name b'))
-    (App _ l r, App _ l' r') ->
-         αequal rename l l'
-      && αequal rename r r'
+    (Appχ _ l r, Appχ _ l' r') ->
+      αequal rename l l' && αequal rename r r'
     (_, _) -> False
 
 instance (Ord n, Binding b, AlphaEq n (Core b n χ)) => AlphaEq n (b n (Core b n χ)) where

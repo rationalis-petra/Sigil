@@ -66,6 +66,7 @@ default-extensions:
 - LambdaCase
 - GeneralizedNewtypeDeriving
 - ConstraintKinds
+- PatternSynonyms
 
 
 library:

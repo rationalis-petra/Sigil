@@ -8,9 +8,9 @@ import Control.Monad.Except (MonadError, throwError)
 
 import Prettyprinter
 
-import Glyph.Abstract.Syntax
 import Glyph.Abstract.Environment
 import Glyph.Abstract.AlphaEq
+import Glyph.Concrete.Internal
   
 
 {------------------------------ THE TERM CLASSES -------------------------------}
@@ -37,6 +37,7 @@ class Pretty a => Term a where
 --(Pretty (Core AnnBind Name χ), MonadError (Doc ann) m, Environment Name e)
 --(Pretty (Core AnnBind Name χ), MonadError (Doc ann) m, Environment Name e)
 
+
 {------------------------------ DENOTATIVE TERMS -------------------------------}
 {- These are types for a denotative interpretation of expressions in core:     -}
 {- Most look similar to their 'normal' semantic representation, with the       -}
@@ -52,17 +53,19 @@ class Pretty a => Term a where
 {-------------------------------------------------------------------------------}
 
 
-data Sem e b χ
-  = SUni (Uniχ χ) Int
-  | SPrd (Prdχ χ) Name (Sem e b χ) (Sem e b χ)
-  | SAbs Name (Core b Name χ) (e (Sem e b χ))
-  | Neutral (Sem e b χ) (Neutral e b χ)
+data Sem e
+  = SUni Int
+  | SPrd Name (Sem e) (Sem e)
+  | SAbs Name InternalCore (e (Sem e))
+  | ISAbs Name InternalCore (e (Sem e))
+  | ISPrd Name (Sem e) (Sem e)
+  | Neutral (Sem e) (Neutral e)
 
-data Neutral e b χ
-  = NeuVar (Varχ χ) Name
-  | NeuApp (Appχ χ) (Neutral e b χ) (Normal e b χ)
+data Neutral e
+  = NeuVar Name
+  | NeuApp (Neutral e) (Normal e)
 
-data Normal e b χ = Normal (Sem e b χ) (Sem e b χ)
+data Normal e = Normal (Sem e) (Sem e)
 
 
 {-------------------------------- TERM INSTANCE --------------------------------}
@@ -71,7 +74,7 @@ data Normal e b χ = Normal (Sem e b χ) (Sem e b χ)
 {- extended to first perform normalization.                                    -}
 {-                                                                             -}
 {- Normalization relies on a few key helper functions:                         -}
-{- • eval performs untyped evaluation, converting any term into a Semantic     -}
+{- • eval performs untyped evaluation, converting any term into a Semantic  e  -}
 {-   term. eval has a helper function, app, which performs both function and   -}
 {-   type application.                                                         -}
 {- • env_eval evaluates each term in an environment, returning a semantic      -}
@@ -84,7 +87,7 @@ data Normal e b χ = Normal (Sem e b χ) (Sem e b χ)
 
 
 -- TODO: now we use IDs for names, need to ensure we do capture-avoiding substitution!!
-instance (AlphaEq Name (Core AnnBind Name χ), Pretty (Core AnnBind Name χ), Forallχ Monoid χ) => Term (Core AnnBind Name χ) where
+instance Term InternalCore where
   normalize env ty term =
     read_nf =<< (Normal <$> ty' <*> term')
     where
@@ -94,86 +97,91 @@ instance (AlphaEq Name (Core AnnBind Name χ), Pretty (Core AnnBind Name χ), Fo
   equiv env ty x y = (αeq) <$> normalize env ty x <*> normalize env ty y
 
 
-read_nf :: forall e χ m b ann. (Binding b, Pretty (Core b Name χ), Forallχ Monoid χ, MonadError (Doc ann) m, Environment Name e) =>
-  Normal e b χ -> m (Core b Name χ)
+read_nf :: forall e ann m. (MonadError (Doc ann) m, Environment Name e) => Normal e -> m InternalCore
 read_nf (Normal ty val) = case (ty, val) of 
-  (SPrd _ name a b, f) -> do
-    let neua :: Sem e b χ 
-        neua = Neutral a $ NeuVar mempty name
+  (SPrd name a b, f) -> do
+    let neua :: Sem e 
+        neua = Neutral a $ NeuVar name
     
         lvl = uni_level a
-    a' <- read_nf $ Normal (SUni mempty lvl) a
-    f' <- read_nf =<< (Normal <$> (b `app'` neua) <*> (f `app'` neua))
+    a' <- read_nf $ Normal (SUni lvl) a
+    f' <- read_nf =<< (Normal <$> (b `app` neua) <*> (f `app` neua))
     -- TODO: we can probably derive the χ-decoration from f somehow...
-    pure $ Abs mempty (bind name a') f'
-  (SUni _ _, SUni χ i) -> pure $ Uni χ i
-  (SUni χ₁ k, SPrd χ₂ name a b) -> do
-    a' <- (read_nf $ Normal (SUni χ₁ k) a)
-    b' <- (read_nf $ Normal (SPrd χ₂ name a (SUni mempty k)) b)
-    pure $ Prd χ₂ (bind name a') b'
+    pure $ Abs (bind name a') f'
+  (SUni _, SUni i) -> pure $ Uni i
+  (SUni k, SPrd name a b) -> do
+    a' <- (read_nf $ Normal (SUni k) a)
+    b' <- (read_nf $ Normal (SPrd name a (SUni k)) b)
+    pure $ Prd (bind name a') b'
         
   (_, Neutral _ e) -> read_ne e 
   (_, _) -> throwError ("bad read_nf: " <+> pretty val <> " : " <+> pretty ty)
 
-read_ne :: (Binding b, Pretty (Core b Name χ), Forallχ Monoid χ, MonadError (Doc ann) m, Environment Name e) =>
-             Neutral e b χ -> m (Core b Name χ)
-read_ne neu = case neu of 
-  NeuVar χ name -> pure $ Var χ name
-  NeuApp χ l r -> App χ <$> (read_ne l) <*> (read_nf r)
 
-eval :: (Binding b, Pretty (Core b Name χ), Forallχ Monoid χ, MonadError (Doc ann) m, Environment Name e) =>
-          Core b Name χ -> e (Sem e b χ) -> m (Sem e b χ)
+read_ne :: (MonadError (Doc ann) m, Environment Name e) => Neutral e -> m InternalCore
+read_ne neu = case neu of 
+  NeuVar name -> pure $ Var name
+  NeuApp l r -> App <$> (read_ne l) <*> (read_nf r)
+
+eval :: (MonadError (Doc ann) m, Environment Name e) => InternalCore -> e (Sem e) -> m (Sem e)
 eval term env = case term of
-  Coreχ _ -> throwError "cannot eval Coreχ terms" 
-  Uni χ n -> pure $ SUni χ n
-  Prd χ bnd b -> do
+  Uni n -> pure $ SUni n
+  Prd bnd b -> do
     nm <- fromMaybe (throwError "Prd must bind a name") (fmap pure $ name bnd)
     a <- fromMaybe (throwError "Prd must bind a type") (fmap pure $ tipe bnd)
     a' <- eval a env
-    pure $ SPrd χ nm a' $ SAbs nm b env
-  Var _ name -> lookup_err name env
-  Abs _ bnd body -> do
+    pure $ SPrd nm a' $ SAbs nm b env
+  Var name -> lookup_err name env
+  Abs bnd body -> do
     nme <- fromMaybe (throwError "Abs must bind a name") (fmap pure $ name bnd)
     pure $ SAbs nme body env
-  App χ l r -> do
+  App l r -> do
     l' <- (eval l env)
     r' <- (eval r env)
-    app χ l' r'
+    app l' r'
 
-app' :: (Binding b, Pretty (Core b Name χ), Forallχ Monoid χ, MonadError (Doc ann) m, Environment Name e) =>
-          Sem e b χ -> Sem e b χ -> m (Sem e b χ)
-app' = app mempty
+  -- Implicit terms 
+  IPrd bnd b -> do
+    nm <- fromMaybe (throwError "Prd must bind a name") (fmap pure $ name bnd)
+    a <- fromMaybe (throwError "Prd must bind a type") (fmap pure $ tipe bnd)
+    a' <- eval a env
+    pure $ ISPrd nm a' $ SAbs nm b env
+  IAbs bnd body -> do
+    nme <- fromMaybe (throwError "Abs must bind a name") (fmap pure $ name bnd)
+    pure $ ISAbs nme body env
+  TyCon _ _ -> throwError "don't know how to eval tycon"
+  --Coreχ _ -> throwError "cannot eval Coreχ terms" 
 
-app :: (Binding b, Pretty (Core b Name χ), Forallχ Monoid χ, MonadError (Doc ann) m, Environment Name e) =>
-         Appχ χ -> Sem e b χ -> Sem e b χ -> m (Sem e b χ)
-app _ (SAbs name body env) val = eval body (insert name val env)
-app χ (Neutral (SPrd _ _ a b) neu) v =
-  Neutral <$> (b `app'` v) <*> pure (NeuApp χ neu (Normal a v))
-app _ _ _ = throwError "bad args to app"
+app :: (MonadError (Doc ann) m, Environment Name e) => (Sem e) -> (Sem e) -> m (Sem e)
+app (SAbs name body env) val = eval body (insert name val env)
+app (Neutral (SPrd _ a b) neu) v =
+  Neutral <$> (b `app` v) <*> pure (NeuApp neu (Normal a v))
+app _ _ = throwError "bad args to app"
 
-env_eval :: (Binding b, Pretty (Core b Name χ), Forallχ Monoid χ, MonadError (Doc ann) m, Environment Name e) =>
-              e (Maybe (Core b Name χ), Core b Name χ) -> m (e (Sem e b χ))
+env_eval :: (MonadError (Doc ann) m, Environment Name e) => e (Maybe InternalCore, InternalCore) -> m (e (Sem e))
 env_eval = eval_helper eval_var 
   where
-
     
-    eval_var :: (Binding b, Pretty (Core b Name χ), Forallχ Monoid χ, MonadError (Doc ann) m, Environment Name e) =>
-                  Name -> (Maybe (Core b Name χ), (Core b Name χ)) -> e (Sem e b χ) -> m (Sem e b χ)
+    eval_var :: (MonadError (Doc ann) m, Environment Name e) =>
+                Name -> (Maybe InternalCore, InternalCore) -> e (Sem e) -> m (Sem e)
     eval_var n (Nothing, ty) env = mkvar n ty env
     eval_var _ (Just val, _) env = eval val env
     
-    mkvar :: (Binding b, Pretty (Core b Name χ), Forallχ Monoid χ, MonadError (Doc ann) m, Environment Name e) =>
-                  Name -> (Core b Name χ) -> e (Sem e b χ) -> m (Sem e b χ)
+    mkvar :: (MonadError (Doc ann) m, Environment Name e) =>
+              Name -> InternalCore -> e (Sem e) -> m (Sem e)
     mkvar n ty env = do
       ty' <- eval ty env
-      pure $ Neutral ty' (NeuVar mempty n)
+      pure $ Neutral ty' (NeuVar n)
 
 -- TODO: fix this function - it is wrong!
-uni_level :: (Sem e b χ) -> Int
+uni_level :: Sem e -> Int
 uni_level sem = case sem of 
-  SUni _ n -> n + 1
-  SPrd _ _ l r -> max (uni_level l) (uni_level r)
+  SUni n -> n + 1
+  SPrd _ l r -> max (uni_level l) (uni_level r)
   SAbs _ _ _ -> 0 -- note: predicative vs impredicative!!
+
+  ISPrd _ l r -> max (uni_level l) (uni_level r)
+  ISAbs _ _ _ -> 0 -- note: predicative vs impredicative!!
   Neutral _ _ -> 0 -- TODO: this is probably wrong!!!
 
 
@@ -184,18 +192,21 @@ uni_level sem = case sem of
 {-------------------------------------------------------------------------------}
 
 
-instance Pretty (Core b Name χ) => Pretty (Sem e b χ) where
+instance Pretty (Sem e) where
   pretty sem = case sem of 
-    SUni _ n -> "𝒰" <> pretty n
-    SPrd _ n a b -> pretty n <> " : " <> pretty a <+> "→" <+> pretty b
+    SUni n -> "𝒰" <> pretty n
+    SPrd n a b -> pretty n <> " : " <> pretty a <+> "→" <+> pretty b
     SAbs n body _ -> "λ (" <> pretty n <> ")" <+> pretty body
     Neutral _ n -> pretty n
   
-instance Pretty (Core b Name χ) => Pretty (Neutral e b χ) where
-  pretty neu = case neu of
-    NeuVar _ n -> pretty n
-    NeuApp _ l r -> pretty l <+> pretty r
+    ISPrd n a b -> "{" <> pretty n <+> ":" <+> pretty a <> "}" <+> "→" <+> pretty b
+    ISAbs n body _ -> "λ {" <> pretty n <> "}" <+> pretty body
 
-instance Pretty (Core b Name χ) => Pretty (Normal e b χ) where
+instance Pretty (Neutral e) where
+  pretty neu = case neu of
+    NeuVar n -> pretty n
+    NeuApp l r -> pretty l <+> pretty r
+
+instance Pretty (Normal e) where
   pretty (Normal _ val) = pretty val
 

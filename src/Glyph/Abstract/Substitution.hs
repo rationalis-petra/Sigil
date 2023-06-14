@@ -1,4 +1,4 @@
-module Glyph.Interpret.Substitution
+module Glyph.Abstract.Substitution
   ( Substitution
   , Subst(..)
   , subst
@@ -103,31 +103,31 @@ instance (Ord n, Binding b,
           => Subst n (Core b n χ) (Core b n χ) where 
   substitute shadow sub term = case term of
     Coreχ χ -> Coreχ χ 
-    Uni χ n -> Uni χ n
-    Var _ var ->
+    Uniχ χ n -> Uniχ χ n
+    Varχ _ var ->
       if Set.member var shadow then
         term
       else
         fromMaybe term (lookup var sub)
-    Prd χ bind ty ->
-      Prd χ (substitute shadow sub bind) (substitute shadow' sub ty)
+    Prdχ χ bind ty ->
+      Prdχ χ (substitute shadow sub bind) (substitute shadow' sub ty)
       where
         shadow' = maybe shadow (\n -> Set.insert n shadow) (name bind)
-    Abs χ bind body ->
-      Abs χ (substitute shadow sub bind) (substitute shadow' sub body)
+    Absχ χ bind body ->
+      Absχ χ (substitute shadow sub bind) (substitute shadow' sub body)
       where
         shadow' = maybe shadow (\n -> Set.insert n shadow) (name bind)
-    App χ l r -> App χ (substitute shadow sub l) (substitute shadow sub r)
+    Appχ χ l r -> Appχ χ (substitute shadow sub l) (substitute shadow sub r)
 
   free_vars term = case term of 
     Coreχ _ -> Set.empty
-    Uni _ _ -> Set.empty
-    Var _ var -> Set.singleton var
-    Prd _ bind ty -> let fvt = free_vars ty in
+    Uniχ _ _ -> Set.empty
+    Varχ _ var -> Set.singleton var
+    Prdχ _ bind ty -> let fvt = free_vars ty in
       Set.union (free_vars bind) (maybe fvt (\n -> Set.delete n fvt) (name bind))
-    Abs _ bind body -> let fvb = free_vars body in
+    Absχ _ bind body -> let fvb = free_vars body in
       Set.union (free_vars bind) (maybe fvb (\n -> Set.delete n fvb) (name bind))
-    App _ l r -> Set.union (free_vars l) (free_vars r)
+    Appχ _ l r -> Set.union (free_vars l) (free_vars r)
 
 
 instance Regen (Core OptBind Name χ) where 
@@ -140,17 +140,17 @@ instance Regen (Core OptBind Name χ) where
 
     go sub term = case term of 
       Coreχ χ -> pure $ Coreχ χ 
-      Uni χ n -> pure $ Uni χ n
-      Var χ var -> case lookup var sub of 
-        Just n' -> pure $ Var χ n'
+      Uniχ χ n -> pure $ Uniχ χ n
+      Varχ χ var -> case lookup var sub of 
+        Just n' -> pure $ Varχ χ n'
         Nothing -> pure term
-      Prd χ bind ty -> do
+      Prdχ χ bind ty -> do
         (sub', bind') <- freshen_bind bind sub
-        Prd χ bind' <$> (go sub' ty)
-      Abs χ bind body -> do
+        Prdχ χ bind' <$> (go sub' ty)
+      Absχ χ bind body -> do
         (sub', bind') <- freshen_bind bind sub
-        Abs χ bind' <$> (go sub' body)
-      App χ l r -> App χ <$> (go sub l) <*> (go sub r)
+        Absχ χ bind' <$> (go sub' body)
+      Appχ χ l r -> Appχ χ <$> (go sub l) <*> (go sub r)
 
 instance Regen (Core AnnBind Name χ) where 
   regen = go (Substitution env_empty) where
@@ -166,14 +166,14 @@ instance Regen (Core AnnBind Name χ) where
 
     go sub term = case term of 
       Coreχ χ -> pure $ Coreχ χ 
-      Uni χ n -> pure $ Uni χ n
-      Var χ var -> case lookup var sub of 
-        Just n' -> pure $ Var χ n'
+      Uniχ χ n -> pure $ Uniχ χ n
+      Varχ χ var -> case lookup var sub of 
+        Just n' -> pure $ Varχ χ n'
         Nothing -> pure term
-      Prd χ bind ty -> do
+      Prdχ χ bind ty -> do
         (sub', bind') <- freshen_bind bind sub
-        Prd χ bind' <$> (go sub' ty)
-      Abs χ bind body -> do
+        Prdχ χ bind' <$> (go sub' ty)
+      Absχ χ bind body -> do
         (sub', bind') <- freshen_bind bind sub
-        Abs χ bind' <$> (go sub' body)
-      App χ l r -> App χ <$> (go sub l) <*> (go sub r)
+        Absχ χ bind' <$> (go sub' body)
+      Appχ χ l r -> Appχ χ <$> (go sub l) <*> (go sub r)

@@ -7,8 +7,7 @@ import Prettyprinter
 import Prettyprinter.Render.Glyph
 
 import Glyph.Abstract.Environment
-import Glyph.Abstract.Syntax
-import Glyph.Concrete.Typed
+import Glyph.Concrete.Internal
 import Glyph.Interpret.Term
 
 import TestFramework
@@ -27,7 +26,7 @@ type NormM a = Except (Doc GlyphStyle) a
 runNormM :: NormM a -> Either (Doc GlyphStyle) a
 runNormM = runExcept
 
-default_env :: Env (Maybe TypedCore, TypedCore)
+default_env :: Env (Maybe InternalCore, InternalCore)
 default_env = env_empty
 
 eq_tests :: [Test]     
@@ -61,7 +60,7 @@ eq_tests =
   ]
 
   where 
-    eq_test :: Text -> TypedCore -> TypedCore -> TypedCore -> Bool -> Test
+    eq_test :: Text -> InternalCore -> InternalCore -> InternalCore -> Bool -> Test
     eq_test name ty l r expected = 
       Test name $ case runNormM $ equiv default_env ty l r of 
         Right b | b == expected -> Nothing
@@ -80,7 +79,7 @@ norm_tests =
   ]
   
   where
-    norm_test :: Text -> TypedCore -> TypedCore -> TypedCore -> Test
+    norm_test :: Text -> InternalCore -> InternalCore -> InternalCore -> Test
     norm_test name ty a expected = 
       Test name $ case runNormM $ normalize default_env ty a of 
         Right result | result == expected -> Nothing
@@ -90,20 +89,20 @@ norm_tests =
 -- var :: n -> Core b n UD
 -- var = Var void
 
-𝓊 :: Int -> TypedCore
-𝓊 = Uni ()
+𝓊 :: Int -> InternalCore
+𝓊 = Uni
 
-(⇒) :: [(Name, TypedCore)] -> TypedCore -> TypedCore
-args ⇒ body = foldr (\var body -> Abs () (AnnBind var) body) body args
+(⇒) :: [(Name, InternalCore)] -> InternalCore -> InternalCore
+args ⇒ body = foldr (\var body -> Abs (AnnBind var) body) body args
 
-(→) :: [(Name, TypedCore)] -> TypedCore -> TypedCore
-args → body = foldr (\var body -> Prd () (AnnBind var) body) body args
+(→) :: [(Name, InternalCore)] -> InternalCore -> InternalCore
+args → body = foldr (\var body -> Prd (AnnBind var) body) body args
 
-(⋅) :: TypedCore -> TypedCore -> TypedCore
-(⋅) = App ()
+(⋅) :: InternalCore -> InternalCore -> InternalCore
+(⋅) = App
 
-idv :: Integer -> Text -> TypedCore
-idv n t = Var () $ Name $ Right (n, t)
+idv :: Integer -> Text -> InternalCore
+idv n t = Var $ Name $ Right (n, t)
 
 idn :: Integer -> Text -> Name
 idn n t = Name $ Right (n, t)

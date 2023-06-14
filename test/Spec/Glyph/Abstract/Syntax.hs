@@ -11,7 +11,6 @@ import Glyph.Abstract.Environment
 import TestFramework
 import Spec.Glyph.Abstract.CoreUD
 
-type CoreUD = Core OptBind Name UD
 
 syntax_spec :: TestGroup
 syntax_spec = TestGroup "syntax" $ Left [pretty_group]
@@ -43,19 +42,19 @@ pretty_group = TestGroup "pretty" $ Right
 
 
 𝓊 :: Int -> CoreUD
-𝓊 = Uni void
+𝓊 = Uniχ void
 
 idv :: Integer -> Text -> CoreUD
-idv n t = Var void $ Name $ Right (n, t)
+idv n t = Varχ void $ Name $ Right (n, t)
 
 idn :: Integer -> Text -> Name
 idn n t = Name $ Right (n, t)
 
 (⋅) :: CoreUD -> CoreUD -> CoreUD
-(⋅) = App void
+(⋅) = Appχ void
 
 (⇒) :: [Name] -> CoreUD -> CoreUD
-args ⇒ body = foldr (\var body -> Abs void (OptBind (Just var, Nothing)) body) body args
+args ⇒ body = foldr (\var body -> Absχ void (OptBind (Just var, Nothing)) body) body args
 
 (→) :: [Name] -> CoreUD -> CoreUD
-args → body = foldr (\var body -> Prd void (OptBind (Just var, Nothing)) body) body args
+args → body = foldr (\var body -> Prdχ void (OptBind (Just var, Nothing)) body) body args

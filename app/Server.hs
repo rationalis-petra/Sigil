@@ -30,7 +30,7 @@ import Prettyprinter.Render.Glyph
 import Prettyprinter.Render.Text
 
 import Glyph.Abstract.Environment hiding (bind)
-import Glyph.Concrete.Typed
+import Glyph.Concrete.Internal
 import Glyph.Parse.Mixfix
 import Glyph.Parse
 import Glyph.Analysis.NameResolution
@@ -109,23 +109,22 @@ processMessage socket = \case
           Right (val, _) -> toJSON $ OutResult uid (renderStrict (layoutPretty defaultLayoutOptions (pretty val)))
           Left err -> toJSON $ OutError uid (renderStrict (layoutPretty defaultLayoutOptions err))
     in do
-      putStrLn $ "sending" <> (pack $ show $ encode object)
       sendAll socket (Bs.toStrict $ encode $ object)
       sendAll socket "\n"
    
 
   where 
-    eval_term :: Text -> Either GlyphDoc (TypedCore, TypedCore)
+    eval_term :: Text -> Either GlyphDoc (InternalCore, InternalCore)
     eval_term line = run_gen $ runExceptT $ meval line
 
-    meval :: Text -> ExceptT GlyphDoc Gen (TypedCore, TypedCore)
+    meval :: Text -> ExceptT GlyphDoc Gen (InternalCore, InternalCore)
     meval line = do
       parsed <- parseToErr (core default_precs <* eof) "console-in" line 
       resolved <- resolve parsed
         `catchError` (throwError . (<+>) "resolution:")
-      (term, ty) <- infer (env_empty :: Env (Maybe TypedCore, TypedCore)) resolved
+      (term, ty) <- infer (env_empty :: Env (Maybe InternalCore, InternalCore)) resolved
         `catchError` (throwError . (<+>) "inference:")
-      norm <- normalize (env_empty :: Env (Maybe TypedCore, TypedCore)) ty term
+      norm <- normalize (env_empty :: Env (Maybe InternalCore, InternalCore)) ty term
         `catchError` (throwError . (<+>) "normalization:")
       pure $ (norm, ty)
 

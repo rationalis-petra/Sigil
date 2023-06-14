@@ -14,8 +14,6 @@ alphaeq_spec :: TestGroup
 alphaeq_spec = TestGroup "α-eq" $ Right alphaeq_tests
 
 -- TODO: test with AnnBind also 
-type CoreUD = Core OptBind Name UD
-type DefinitionUD = Definition OptBind Name UD
 
 alphaeq_tests :: [Test]
 alphaeq_tests =
@@ -47,22 +45,22 @@ alphaeq_tests =
       | otherwise     = Test name $ Just "terms are not supposed to not α-equal"
 
 𝓊 :: Int -> CoreUD
-𝓊 = Uni void
+𝓊 = Uniχ void
 
 (⇒) :: [Name] -> CoreUD -> CoreUD
-args ⇒ body = foldr (\var body -> Abs void (OptBind (Just var, Nothing)) body) body args
+args ⇒ body = foldr (\var body -> Absχ void (OptBind (Just var, Nothing)) body) body args
 
 (→) :: [Name] -> CoreUD -> CoreUD
-args → body = foldr (\var body -> Prd void (OptBind (Just var, Nothing)) body) body args
+args → body = foldr (\var body -> Prdχ void (OptBind (Just var, Nothing)) body) body args
 
 -- (⋅) :: Core b n UD -> Core b n UD -> Core b n UD
 -- (⋅) = App void
 
 idv :: Integer -> Text -> CoreUD
-idv n t = Var void $ Name $ Right (n, t)
+idv n t = Varχ void $ Name $ Right (n, t)
 
 idn :: Integer -> Text -> Name
 idn n t = Name $ Right (n, t)
 
 (≜) :: Name -> CoreUD -> DefinitionUD
-n ≜ val = Mutual [(OptBind (Just n, Nothing), val)]
+n ≜ val = Mutualχ void [(OptBind (Just n, Nothing), val)]

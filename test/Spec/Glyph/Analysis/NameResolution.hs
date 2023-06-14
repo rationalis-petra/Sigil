@@ -18,7 +18,7 @@ import Glyph.Analysis.NameResolution
 resolve_spec :: TestGroup
 resolve_spec = TestGroup "name-resolution" $ Right tests
 
-res_test :: Text -> RawCore -> ResolvedCore -> Test
+res_test :: Text -> ParsedCore -> ResolvedCore -> Test
 res_test name val result = Test name err where
   err =
     if run_gen (resolve val) /= result then
@@ -26,7 +26,7 @@ res_test name val result = Test name err where
     else
       Nothing
 
-  print_bad :: RawCore -> ResolvedCore -> Doc GlyphStyle
+  print_bad :: ParsedCore -> ResolvedCore -> Doc GlyphStyle
   print_bad l r = pretty l <+> "is does not resolve to " <+> pretty r
 
 tests :: [Test]
@@ -46,32 +46,32 @@ tests =
   ]
   where
     var :: Forallχ Monoid χ => n -> Core b n χ
-    var = Var mempty
+    var = Varχ mempty
 
     𝓊 :: Forallχ Monoid χ => Int -> Core b n χ
-    𝓊 = Uni mempty
+    𝓊 = Uniχ mempty
 
     (⇒) :: Forallχ Monoid χ => [n] -> Core OptBind n χ -> Core OptBind n χ
-    args ⇒ body = foldr (\var body -> Abs mempty (OptBind (Just var, Nothing)) body) body args
+    args ⇒ body = foldr (\var body -> Absχ mempty (OptBind (Just var, Nothing)) body) body args
 
     (=⇒) :: Forallχ Monoid χ => [(n, Core OptBind n χ)] -> Core OptBind n χ -> Core OptBind n χ
-    args =⇒ body = foldr (\b body -> Abs mempty (OptBind $ bimap Just Just b) body) body args
+    args =⇒ body = foldr (\b body -> Absχ mempty (OptBind $ bimap Just Just b) body) body args
 
     (→) :: Forallχ Monoid χ => [n] -> Core OptBind n χ -> Core OptBind n χ
-    args → body = foldr (\var body -> Prd mempty (OptBind (Just var, Nothing)) body) body args
+    args → body = foldr (\var body -> Prdχ mempty (OptBind (Just var, Nothing)) body) body args
 
     (-→) :: Forallχ Monoid χ => [(n, Core OptBind n χ)] -> Core OptBind n χ -> Core OptBind n χ
-    args -→ body = foldr (\b body -> Prd mempty (OptBind $ bimap Just Just b) body) body args
+    args -→ body = foldr (\b body -> Prdχ mempty (OptBind $ bimap Just Just b) body) body args
 
     (⋅) :: Forallχ Monoid χ => Core b n χ -> Core b n χ -> Core b n χ
-    (⋅) = App mempty
+    (⋅) = Appχ mempty
 
     idv :: Forallχ Monoid χ => Integer -> Text -> Core OptBind Name χ
-    idv n t = Var mempty $ Name $ Right (n, t)
+    idv n t = Varχ mempty $ Name $ Right (n, t)
 
     idn :: Integer -> Text -> Name
     idn n t = Name $ Right (n, t)
 
     qvar :: Forallχ Monoid χ => Text -> Core OptBind Name χ
-    qvar v = Var mempty $ Name $ Left [v]
+    qvar v = Varχ mempty $ Name $ Left [v]
   

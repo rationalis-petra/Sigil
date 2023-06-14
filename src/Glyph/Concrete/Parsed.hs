@@ -1,9 +1,16 @@
 module Glyph.Concrete.Parsed
   ( Parsed
-  , RawCore
-  , RawDefinition
+  , ParsedCore
+  , ParsedDef
   , PUnit(..)
-  , range ) where
+  , range
+  , pattern Core
+  , pattern Uni
+  , pattern Var
+  , pattern Prd
+  , pattern Abs
+  , pattern App
+  ) where
 
 
 import Data.Text
@@ -31,14 +38,56 @@ type instance Prdχ Parsed = Range
 type instance Absχ Parsed = Range
 type instance Appχ Parsed = Range
 
-type RawCore = Core OptBind Text Parsed
+type ParsedCore = Core OptBind Text Parsed
 
-type RawDefinition = Definition OptBind Text Parsed
+type instance Mutualχ Parsed = Range
+type instance SigDefχ Parsed = Range
+type instance IndDefχ Parsed = Range
+
+type ParsedDef = Definition OptBind Text Parsed
+
+{-# COMPLETE Core, Uni, Var, Prd, Abs, App #-}
+pattern Core :: ParsedCore
+pattern Core <- Coreχ _
+  where Core = Coreχ PUnit
   
-range :: Core b n Parsed -> Range
-range (Coreχ _) = mempty
-range (Uni r _) = r
-range (Var r _) = r
-range (Prd r _ _) = r
-range (Abs r _ _) = r
-range (App r _ _) = r
+pattern Uni :: Range -> Int -> ParsedCore
+pattern Uni r n <- Uniχ r n
+  where Uni r n = Uniχ r n
+
+pattern Var :: Range -> Text -> ParsedCore
+pattern Var r n <- Varχ r n
+  where Var r n = Varχ r n
+
+pattern Prd :: Range -> OptBind Text ParsedCore -> ParsedCore -> ParsedCore
+pattern Prd r b e <- Prdχ r b e
+  where Prd r b e = Prdχ r b e
+
+pattern Abs :: Range -> OptBind Text ParsedCore -> ParsedCore -> ParsedCore
+pattern Abs r b e <- Absχ r b e
+  where Abs r b e = Absχ r b e
+
+pattern App :: Range -> ParsedCore -> ParsedCore -> ParsedCore
+pattern App r a b <- Appχ r a b
+  where App r a b = Appχ r a b
+
+range :: ParsedCore -> Range
+range core = case core of
+  Core -> mempty
+  Uni r _ -> r
+  Var r _ -> r
+  Prd r _ _ -> r
+  Abs r _ _ -> r
+  App r _ _ -> r
+
+  
+{---------------------------------- INSTANCES ----------------------------------}
+
+
+instance Pretty ParsedCore where
+  pretty =
+    pretty_core_builder pretty pretty pretty
+  
+instance Pretty ParsedDef where
+  pretty =
+    pretty_def_builder pretty pretty pretty

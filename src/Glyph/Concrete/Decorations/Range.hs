@@ -1,6 +1,12 @@
 module Glyph.Concrete.Decorations.Range
   ( Range(..) ) where
 
+{------------------------------------ RANGE ------------------------------------}
+{- The Range decoration is designed to encapsulate source position information -}
+{- for syntax highlighting and error reporting.                                -}
+{-                                                                             -}
+{-                                                                             -}
+{-------------------------------------------------------------------------------}
 
 import Text.Megaparsec
 

@@ -49,7 +49,6 @@ import Text.Megaparsec
 import Prettyprinter
 import Topograph
 
-import Glyph.Abstract.Syntax
 import Glyph.Concrete.Decorations.Range
 import Glyph.Concrete.Parsed
 import Glyph.Parse.Combinator
@@ -136,20 +135,20 @@ type GraphNode = (IsDefault, Set Operator)
 
 type PrecedenceGraph i = G GraphNode i
 
-mixfix :: Parser RawCore -> Parser RawCore -> Precedences -> Parser RawCore
+mixfix :: Parser ParsedCore -> Parser ParsedCore -> Precedences -> Parser ParsedCore
 mixfix atom core precs = run_precs (mixfix' atom core) precs  
 
-mixfix' :: forall i. Parser RawCore -> Parser RawCore -> PrecedenceGraph i -> Parser RawCore
+mixfix' :: forall i. Parser ParsedCore -> Parser ParsedCore -> PrecedenceGraph i -> Parser ParsedCore
 mixfix' atom core (G {..}) = expr
   where
-    expr :: Parser RawCore
+    expr :: Parser ParsedCore
     expr = foldl (App mempty) <$> (precs gVertices) <*> many (precs gVertices)
     
-    precs :: [i] -> Parser RawCore
+    precs :: [i] -> Parser ParsedCore
     precs (p:ps) = prec p <||> precs ps
     precs [] = customFailure "ran out of operators in precedence graph" 
   
-    prec :: i -> Parser RawCore
+    prec :: i -> Parser ParsedCore
     prec node = choice'
       [ unscope <$> close Closed
       , appn <$> psucs <*> close (Infix NonAssociative) <*> psucs
@@ -159,7 +158,7 @@ mixfix' atom core (G {..}) = expr
       ]
 
       where
-        close :: Fixity -> Parser (Telescope RawCore)
+        close :: Fixity -> Parser (Telescope ParsedCore)
         close f = inj f <||> (inner . ops current_ops) f
           where
             current_ops :: [Operator]
@@ -172,16 +171,16 @@ mixfix' atom core (G {..}) = expr
                 fail "not default"
             inj _ = fail "not default"
 
-        psucs :: Parser RawCore
+        psucs :: Parser ParsedCore
         psucs = precs $ gEdges node
 
-        preRight :: Parser (RawCore -> RawCore)
+        preRight :: Parser (ParsedCore -> ParsedCore)
         preRight = 
               (\(Tel core lst) val -> unscope $ Tel core (lst <> [val])) <$> close Prefix
           <||> (\l (Tel core lst) r -> unscope $ Tel core (l : lst <> [r]))
                <$> psucs <*> close (Infix RightAssociative)
 
-        postLeft :: Parser (RawCore -> RawCore)
+        postLeft :: Parser (ParsedCore -> ParsedCore)
         postLeft =
               (\(Tel core lst) val -> unscope $ Tel core (val : lst)) <$> close Postfix
           <||> (\(Tel core lst) l r -> unscope $ Tel core (r : lst <> [l]))
@@ -191,7 +190,7 @@ mixfix' atom core (G {..}) = expr
         appr fs e = foldr (\f e -> f e) e fs
         appl e fs = foldl (\e f -> f e) e fs
 
-    inner :: [Operator] -> Parser (Telescope RawCore)
+    inner :: [Operator] -> Parser (Telescope ParsedCore)
     inner [] = customFailure "inner ran out of operators"
     inner (op : ops) = choice'  
       [ do start <- getSourcePos
@@ -207,9 +206,9 @@ mixfix' atom core (G {..}) = expr
     ops op f = filter ((== f) . view fixity) op
   
 
-unscope :: Telescope RawCore -> RawCore
+unscope :: Telescope ParsedCore -> ParsedCore
 unscope (Tel core l) = go core l where
-  go :: RawCore -> [RawCore] -> RawCore
+  go :: ParsedCore -> [ParsedCore] -> ParsedCore
   go core [] = core 
   go core (c:cs) = go (App (range core <> range c) core c) cs 
   

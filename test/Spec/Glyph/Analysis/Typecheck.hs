@@ -7,8 +7,7 @@ import Prettyprinter
 import Prettyprinter.Render.Glyph
 
 import Glyph.Abstract.Environment
-import Glyph.Abstract.Syntax
-import Glyph.Concrete.Typed
+import Glyph.Concrete.Internal
 import Glyph.Analysis.Typecheck
 
 import TestFramework
@@ -30,7 +29,7 @@ type CheckM a = ExceptT (Doc GlyphStyle) Gen a
 runCheckM :: CheckM a -> Either (Doc GlyphStyle) a
 runCheckM = run_gen . runExceptT 
 
-default_env :: Env (Maybe TypedCore, TypedCore)
+default_env :: Env (Maybe InternalCore, InternalCore)
 default_env = env_empty
 
 check_tests :: [Test]     
@@ -55,7 +54,7 @@ check_tests =
   ]
 
   where 
-    check_test :: Text -> TypedCore -> TypedCore -> Bool -> Test
+    check_test :: Text -> InternalCore -> InternalCore -> Bool -> Test
     check_test name term ty succ = 
       Test name $ case runCheckM $ check default_env term ty of 
         Right _
@@ -91,7 +90,7 @@ infer_tests =
   ]
   
   where
-    infer_test :: Text -> TypedCore -> TypedCore -> Test
+    infer_test :: Text -> InternalCore -> InternalCore -> Test
     infer_test name term ty = 
       Test name $ case runCheckM $ infer default_env term of 
         Right (_, ty')
@@ -102,20 +101,20 @@ infer_tests =
 -- var :: n -> Core b n UD
 -- var = Var void
 
-𝓊 :: Int -> TypedCore
-𝓊 = Uni ()
+𝓊 :: Int -> InternalCore
+𝓊 = Uni
 
-(⇒) :: [(Name, TypedCore)] -> TypedCore -> TypedCore
-args ⇒ body = foldr (\var body -> Abs () (AnnBind var) body) body args
+(⇒) :: [(Name, InternalCore)] -> InternalCore -> InternalCore
+args ⇒ body = foldr (\var body -> Abs (AnnBind var) body) body args
 
-(→) :: [(Name, TypedCore)] -> TypedCore -> TypedCore
-args → body = foldr (\var body -> Prd () (AnnBind var) body) body args
+(→) :: [(Name, InternalCore)] -> InternalCore -> InternalCore
+args → body = foldr (\var body -> Prd (AnnBind var) body) body args
 
 -- (⋅) :: Core b n UD -> Core b n UD -> Core b n UD
 -- (⋅) = App void
 
-idv :: Integer -> Text -> TypedCore
-idv n t = Var () $ Name $ Right (n, t)
+idv :: Integer -> Text -> InternalCore
+idv n t = Var $ Name $ Right (n, t)
 
 idn :: Integer -> Text -> Name
 idn n t = Name $ Right (n, t)

@@ -4,6 +4,9 @@ module Glyph.Abstract.Environment
   , QualName
   , Name(..)
 
+  -- Paths
+  , Path
+
   -- Binding
   , Binding(..)
   , OptBind(..)
@@ -16,7 +19,7 @@ module Glyph.Abstract.Environment
   -- Fresh Variable Generation
   , MonadGen(..)
   , fresh_var
-  ,freshen
+  , freshen
   , Gen
   , run_gen ) where
 
@@ -31,9 +34,11 @@ module Glyph.Abstract.Environment
 import Prelude hiding (head, lookup)
 import Control.Lens
 import Control.Monad.Except (MonadError, ExceptT, throwError, lift)
-import Control.Monad.State (State, runState, get, modify)
+import Control.Monad.State (State, StateT, runState, get, modify)
+import Control.Monad.Reader (ReaderT)
   
 import Data.List (sortOn)
+import Data.List.NonEmpty (NonEmpty)
 import Data.Ord (Down(Down))
 import Data.Text (Text)
 import qualified Data.Map as Map
@@ -41,6 +46,12 @@ import Data.Map (Map)
 
 import Prettyprinter  
   
+{------------------------------------ PATHS ------------------------------------}
+{-                                                                             -}
+{-                                                                             -}
+{-------------------------------------------------------------------------------}
+
+type Path = NonEmpty
 
 {------------------------------------ NAMES ------------------------------------}
 {-                                                                             -}
@@ -129,6 +140,12 @@ instance MonadGen Gen where
     pure id
 
 instance MonadGen m => MonadGen (ExceptT e m) where
+  fresh_id = lift fresh_id
+
+instance MonadGen m => MonadGen (StateT e m) where
+  fresh_id = lift fresh_id
+
+instance MonadGen m => MonadGen (ReaderT e m) where
   fresh_id = lift fresh_id
 
 run_gen :: Gen a -> a
@@ -230,7 +247,7 @@ instance Environment Name Env where
       
       re_add name (val, lvl) (Env b _) = Env (Map.insert name (val, lvl) b) lvl
 
-
+  
 {---------------------------------- INSTANCES ----------------------------------}
 {-                                                                             -}
 {-------------------------------------------------------------------------------}

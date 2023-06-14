@@ -123,7 +123,7 @@ parse_mixfix precs = TestGroup "mixfix" $ Right
     ]
 
   where
-    mixfix_test :: Text -> Text -> RawCore -> Test
+    mixfix_test :: Text -> Text -> ParsedCore -> Test
     mixfix_test name text out =  
       case runParser (mixfix (fail "no core") (fail "no atom") precs) name text of  
         Right val ->
@@ -140,23 +140,23 @@ parse_expr graph =
   TestGroup "expression" $ Right
     [ expr_test "universe-0" "𝒰" (𝓊 0)
     , expr_test "universe-in-expr" "𝒰 + 𝒰" (var "_+_" ⋅ 𝓊 0 ⋅ 𝓊 0)
-    , expr_test "univar-lamb" "λ [x] true" (abs [("x")] (var "true"))
-    , expr_test "bivar-lamb" "λ [x y] false" (abs ["x", "y"] (var "false"))
+    , expr_test "univar-lamb" "λ x ↦ true" (abs [("x")] (var "true"))
+    , expr_test "bivar-lamb" "λ x y ↦ false" (abs ["x", "y"] (var "false"))
 
     , expr_test "closed-lamb"
-      "λ [x] x"
+      "λ x ↦ x"
       (abs [("x")] (var "x"))
     , expr_test "infix-lamb"
-      "λ [_x_] true x true"
+      "λ _x_ ↦ true x true"
       (abs ["_x_"] (var "_x_" ⋅ var "true" ⋅ var "true"))
     , expr_test "infix-closed_lamb"
-      "λ [_x_ th fo] th x fo"
+      "λ _x_ th fo ↦ th x fo"
       (abs ["_x_", "th", "fo"] (var "_x_" ⋅ var "th" ⋅ var "fo"))
     , expr_test "prefix-lamb"
-      "λ [x_] x true"
+      "λ x_ ↦ x true"
       (abs ["x_"] (var "x_" ⋅ var "true"))
     , expr_test "postfix-lamb"
-      "λ [_x] true x"
+      "λ _x ↦ true x"
       (abs ["_x"] (var "_x" ⋅ var "true"))
 
     , expr_test "uni-uni-app"
@@ -181,13 +181,13 @@ parse_expr graph =
 
     -- Lambda: Annotations, multiple arguments etc.
     , expr_test "lam-ann"
-      "λ [(A : 𝒰)] A"
+      "λ (A : 𝒰) ↦ A"
       (lam [("A", 𝓊 0)] (var "A"))
     , expr_test "lam-many"
-      "λ [(A : 𝒰) (B : 𝒰)] A"
+      "λ (A : 𝒰) (B : 𝒰) ↦ A"
       (lam [("A", 𝓊 0), ("B", 𝓊 0)] (var "A"))
     , expr_test "lam-dep"
-      "λ [(A : 𝒰) (x : A)] x"
+      "λ (A : 𝒰) (x : A) ↦ x"
       (lam [("A", 𝓊 0), ("x", var "A")] (var "x"))
 
     -- Product: Annotations, multiple arguments etc.
@@ -199,7 +199,7 @@ parse_expr graph =
       ([𝓊 0] → 𝓊 0)
     ]
   where
-    expr_test :: Text -> Text -> Core OptBind Text Parsed -> Test
+    expr_test :: Text -> Text -> ParsedCore -> Test
     expr_test name text out =  
       case runParser (core graph) name text of  
         Right val ->
@@ -242,25 +242,25 @@ parse_def precs =
 
 
 𝓊 :: Int -> Core b Text Parsed  
-𝓊 = Uni mempty
+𝓊 = Uniχ mempty
 
 var :: Text -> Core b Text Parsed  
-var = Var mempty
+var = Varχ mempty
 
-abs :: [Text] -> Core OptBind Text Parsed -> Core OptBind Text Parsed
-abs = flip $ foldr (\var body -> Abs mempty (OptBind (Just var, Nothing)) body)
+abs :: [Text] -> ParsedCore -> ParsedCore
+abs = flip $ foldr (\var body -> Absχ mempty (OptBind (Just var, Nothing)) body)
 
-lam :: [(Text, Core OptBind Text Parsed)] -> Core OptBind Text Parsed -> Core OptBind Text Parsed
-lam = flip (foldr (Abs mempty)) . fmap (OptBind . bimap Just Just)
+lam :: [(Text, ParsedCore)] -> ParsedCore -> ParsedCore
+lam = flip (foldr (Absχ mempty)) . fmap (OptBind . bimap Just Just)
 
-pi :: [(Text, Core OptBind Text Parsed)] -> Core OptBind Text Parsed -> Core OptBind Text Parsed
-pi = flip (foldr (Prd mempty)) . fmap (OptBind . bimap Just Just)
+pi :: [(Text, ParsedCore)] -> ParsedCore -> ParsedCore
+pi = flip (foldr (Prdχ mempty)) . fmap (OptBind . bimap Just Just)
 
-(→) :: [Core OptBind Text Parsed] -> Core OptBind Text Parsed -> Core OptBind Text Parsed
-(→) = flip (foldr (Prd mempty)) . fmap (\t -> OptBind (Nothing, Just t))
+(→) :: [ParsedCore] -> ParsedCore -> ParsedCore
+(→) = flip (foldr (Prdχ mempty)) . fmap (\t -> OptBind (Nothing, Just t))
 
-(⋅) :: Core OptBind Text Parsed -> Core OptBind Text Parsed -> Core OptBind Text Parsed
-(⋅) = App mempty
+(⋅) :: ParsedCore -> ParsedCore -> ParsedCore
+(⋅) = Appχ mempty
 
-vdef :: Text -> Core OptBind Text Parsed -> Definition OptBind Text Parsed
-vdef name val = Mutual [(OptBind (Just name, Nothing), val)]
+vdef :: Text -> ParsedCore -> ParsedDef
+vdef name val = Mutualχ mempty [(OptBind (Just name, Nothing), val)]

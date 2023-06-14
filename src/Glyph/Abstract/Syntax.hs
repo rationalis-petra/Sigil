@@ -5,14 +5,21 @@ module Glyph.Abstract.Syntax
   , ImportDef(..)
   , IndType(..)
   -- , Clause(..)
-  , Transformerχ(..)
   , Forallχ
   , Coreχ
   , Varχ
   , Uniχ
   , Prdχ
   , Absχ
-  , Appχ ) where
+  , Appχ
+  , Mutualχ
+  , SigDefχ
+  , IndDefχ
+
+  -- Adapters/utility
+  , pretty_core_builder
+  , pretty_def_builder
+  ) where
 
 
 {----------------------------------- SYNTAX ------------------------------------}
@@ -58,11 +65,11 @@ import Prettyprinter
 data Core b n χ
   = Coreχ (Coreχ b n χ)
   -- The Core Calculus, based on Martin Löf
-  | Uni (Uniχ χ) Int 
-  | Var (Varχ χ) n
-  | Prd (Prdχ χ) (b n (Core b n χ)) (Core b n χ)
-  | Abs (Absχ χ) (b n (Core b n χ)) (Core b n χ)
-  | App (Appχ χ) (Core b n χ) (Core b n χ)
+  | Uniχ (Uniχ χ) Int 
+  | Varχ (Varχ χ) n
+  | Prdχ (Prdχ χ) (b n (Core b n χ)) (Core b n χ)
+  | Absχ (Absχ χ) (b n (Core b n χ)) (Core b n χ)
+  | Appχ (Appχ χ) (Core b n χ) (Core b n χ)
 
   -- Type Families - with name and uid
   -- | Fam Text Integer [Core n χ]
@@ -132,21 +139,14 @@ data IndType = Inductive | Coinductive
   deriving (Eq, Ord, Show)
 
 data Definition b n χ
-  = Mutual [(b n (Core b n χ), Core b n χ)]
-  | SigDef IndType (b n (Core b n χ)) [(b n (Core b n χ))]
-  | IndDef IndType (b n (Core b n χ)) [(b n (Core b n χ))]
+  = Mutualχ (Mutualχ χ) [(b n (Core b n χ), Core b n χ)]
+  | SigDefχ (SigDefχ χ) IndType (b n (Core b n χ)) [(b n (Core b n χ))]
+  | IndDefχ (IndDefχ χ) IndType (b n (Core b n χ)) [(b n (Core b n χ))]
   -- | SctDef (b n (Core b n χ)) [(b n (Core b n χ))]
 
-
-data Transformerχ χ χ' = Transformerχ
-    --, tcore :: (Coreχ b n χ -> Coreχ b n χ)
-    { tuni :: Uniχ χ -> Uniχ χ'
-    , tvar :: Varχ χ -> Varχ χ'
-    , tprd :: Prdχ χ -> Prdχ χ'
-    , tabs :: Absχ χ -> Absχ χ'
-    , tapp :: Appχ χ -> Appχ χ'
-    }
-
+type family Mutualχ χ 
+type family SigDefχ χ
+type family IndDefχ χ 
 
 {--------------------------------- EQ INSTANCE ---------------------------------}
 {- The Equal type class instance performs an equality check directly on the    -}
@@ -158,10 +158,10 @@ data Transformerχ χ χ' = Transformerχ
 instance (Forall Eq b n χ) --Eq (b n (Core b n χ)), Eq n, Forallχ Eq χ, Eq (Coreχ b n χ))
           => Eq (Definition b n χ) where
   v1 == v2 = case (v1, v2) of 
-    (Mutual defs, Mutual defs') -> defs == defs'
-    (SigDef itype bind fields, SigDef itype' bind' fields') ->
+    (Mutualχ _ defs, Mutualχ _ defs') -> defs == defs'
+    (SigDefχ _ itype bind fields, SigDefχ _  itype' bind' fields') ->
       itype == itype' && bind == bind' && fields == fields'
-    (IndDef itype bind terms, IndDef itype' bind' terms') ->
+    (IndDefχ _ itype bind terms, IndDefχ _ itype' bind' terms') ->
       itype == itype' && bind == bind' && terms == terms'
     (_, _) -> False
 
@@ -170,15 +170,15 @@ instance Forall Eq b n χ --(Eq (b n (Core b n χ)), Eq n, Forallχ Eq χ, Eq (C
   v1 == v2 = case (v1, v2) of 
     (Coreχ r, Coreχ r') ->
       r == r'
-    (Uni χ n, Uni χ' n') ->
+    (Uniχ χ n, Uniχ χ' n') ->
       χ == χ' && n == n'
-    (Var χ n, Var χ' n') ->
+    (Varχ χ n, Varχ χ' n') ->
       χ == χ' && n == n' 
-    (Prd χ x t, Prd χ' x' t') ->
+    (Prdχ χ x t, Prdχ χ' x' t') ->
       χ == χ' && x == x' && t == t' 
-    (Abs χ x e, Abs χ' x' e') ->
+    (Absχ χ x e, Absχ χ' x' e') ->
       χ == χ' && x == x' && e == e'  
-    (App χ l r, App χ' l' r') ->
+    (Appχ χ l r, Appχ χ' l' r') ->
       χ == χ' && l == l' && r == r'
     (_, _) -> False
 
@@ -187,47 +187,51 @@ instance Forall Eq b n χ --(Eq (b n (Core b n χ)), Eq n, Forallχ Eq χ, Eq (C
 {-     Instances for printing syntax trees to via the Prettyprinter library    -}
 {-------------------------------------------------------------------------------}
 
+pretty_def_builder :: (b n (Core b n χ) -> Doc ann) -> (n -> Doc ann) -> (Coreχ b n χ -> Doc ann) -> Definition b n χ -> Doc ann
+pretty_def_builder pretty_bind pretty_name pretty_coreχ d =
+  case d of
+    (Mutualχ _ defs)  -> fold (fmap (pretty_bind . fst) defs) <+> fold (fmap (pretty_core . snd) defs)
+    (SigDefχ _ _ _ _) -> "Signature"
+    (IndDefχ _ _ _ _) -> "Co/Inductive type def"
+    where
+      pretty_core = pretty_core_builder pretty_bind pretty_name pretty_coreχ
 
-instance (Pretty (b n (Core b n χ)), Pretty n, Pretty (Coreχ b n χ)) => Pretty (Definition b n χ) where
-  pretty d = case d of
-    (Mutual defs)  -> fold (fmap (pretty . fst) defs) <+> fold (fmap (pretty . snd) defs)
-    (SigDef _ _ _) -> "Signature"
-    (IndDef _ _ _) -> "Co/Inductive type def"
 
-
-instance (Pretty (b n (Core b n χ)), Pretty n, Pretty (Coreχ b n χ)) => Pretty (Core b n χ) where
-  pretty c = case c of  
-    Coreχ v -> pretty v
-    Uni _ n -> "𝒰" <> pretty n
-    Var _ name -> pretty name
- 
-    Prd _ _ _ -> align $ sep $ head tel : zipWith (<+>) (repeat "→") (tail tel)
+pretty_core_builder :: (b n (Core b n χ) -> Doc ann) -> (n -> Doc ann) -> (Coreχ b n χ -> Doc ann) -> Core b n χ -> Doc ann
+pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
+  case c of
+    Coreχ v -> pretty_coreχ v
+    Uniχ _ n -> "𝒰" <> pretty n
+    Varχ _ name -> pretty_name name
+      
+    Prdχ _ _ _ -> align $ sep $ head tel : zipWith (<+>) (repeat "→") (tail tel)
       where
         tel = telescope c
         
-        telescope (Prd _ bind e) = pretty bind : telescope e
-        telescope b = [pretty b]
-  
-    Abs _ bind e ->
+        telescope (Prdχ _ bind e) = pretty_bind bind : telescope e
+        telescope b = [pretty_core  b]
+    
+    Absχ _ bind e ->
       let (args, body) = telescope e
     
-          telescope (Abs _ bind e) =
+          telescope (Absχ _ bind e) =
             let (args, body) = telescope e in 
               (bind : args, body)
           telescope body = ([], body)
     
-          pretty_args bind [] = pretty bind
+          pretty_args bind [] = pretty_bind bind
           pretty_args v (x : xs) = pretty_args v [] <+> pretty_args x xs
       in
         ("λ [" <> pretty_args bind args <> "]") <+> nest 2 (bracket body)
     -- telescoping
-    App χ l r -> sep $ fmap bracket $ unwind (App χ l r)
+    Appχ χ l r -> sep $ fmap bracket $ unwind (Appχ χ l r)
     where 
-      bracket v = if iscore v then pretty v else "(" <> pretty v <> ")"
+        pretty_core = pretty_core_builder pretty_bind pretty_name pretty_coreχ
+        bracket v = if iscore v then pretty_core v else "(" <> pretty_core v <> ")"
+        
+        iscore (Uniχ _ _) = True
+        iscore (Varχ _ _) = True
+        iscore _ = False
       
-      iscore (Uni _ _) = True
-      iscore (Var _ _) = True
-      iscore _ = False
-
-      unwind (App _ l r) = unwind l <> [r]
-      unwind t = [t]
+        unwind (Appχ _ l r) = unwind l <> [r]
+        unwind t = [t]

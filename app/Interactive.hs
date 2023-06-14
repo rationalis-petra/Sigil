@@ -23,7 +23,7 @@ import Glyph.Parse.Mixfix
 import Glyph.Analysis.NameResolution
 import Glyph.Analysis.Typecheck
 import Glyph.Interpret.Term
-import Glyph.Concrete.Typed
+import Glyph.Concrete.Internal
 
 
 data InteractiveOpts = InteractiveOpts
@@ -67,16 +67,16 @@ interactive = loop default_env
     should_quit ":q" = True
     should_quit _ = False
     
-    eval_line :: Text -> Either GlyphDoc (TypedCore, TypedCore)
+    eval_line :: Text -> Either GlyphDoc (InternalCore, InternalCore)
     eval_line line = run_gen $ runExceptT $ meval line
 
-    meval :: Text -> ExceptT GlyphDoc Gen (TypedCore, TypedCore)
+    meval :: Text -> ExceptT GlyphDoc Gen (InternalCore, InternalCore)
     meval line = do
       parsed <- parseToErr (core default_precs <* eof) "console-in" line 
       resolved <- resolve parsed
         `catchError` (throwError . (<+>) "resolution:")
-      (term, ty) <- infer (env_empty :: Env (Maybe TypedCore, TypedCore)) resolved
+      (term, ty) <- infer (env_empty :: Env (Maybe InternalCore, InternalCore)) resolved
         `catchError` (throwError . (<+>) "inference:")
-      norm <- normalize (env_empty :: Env (Maybe TypedCore, TypedCore)) ty term
+      norm <- normalize (env_empty :: Env (Maybe InternalCore, InternalCore)) ty term
         `catchError` (throwError . (<+>) "normalization:")
       pure $ (norm, ty) 
