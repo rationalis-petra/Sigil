@@ -201,7 +201,24 @@ pretty_core_builder :: (b n (Core b n χ) -> Doc ann) -> (n -> Doc ann) -> (Core
 pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
   case c of
     Coreχ v -> pretty_coreχ v
-    Uniχ _ n -> "𝒰" <> pretty n
+    Uniχ _ n -> "𝒰" <> pretty_subscript n
+      where
+        pretty_subscript =
+          pretty . fmap to_subscript . show
+        to_subscript c = case c of 
+          '0' -> '₀' 
+          '1' -> '₁'
+          '2' -> '₂'
+          '3' -> '₃'
+          '4' -> '₄'
+          '5' -> '₅'
+          '6' -> '₆'
+          '7' -> '₇'
+          '8' -> '₈'
+          '9' -> '₉'
+          _ -> c
+
+  
     Varχ _ name -> pretty_name name
       
     Prdχ _ _ _ -> align $ sep $ head tel : zipWith (<+>) (repeat "→") (tail tel)
@@ -222,7 +239,7 @@ pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
           pretty_args bind [] = pretty_bind bind
           pretty_args v (x : xs) = pretty_args v [] <+> pretty_args x xs
       in
-        ("λ [" <> pretty_args bind args <> "]") <+> nest 2 (bracket body)
+        ("λ " <> pretty_args bind args <> "") <+> nest 2 (bracket body)
     -- telescoping
     Appχ χ l r -> sep $ fmap bracket $ unwind (Appχ χ l r)
     where 

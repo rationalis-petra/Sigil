@@ -8,6 +8,7 @@ module Glyph.Parse
   , parseToErr
   ) where
 
+
 {------------------------------------ PARSER -----------------------------------}
 {- The Parsing algorithm contains two distinct parts: the 'primary grammar'    -}
 {- and a mixfix subgrammar. These two parts are expressed in two different     -}
@@ -131,7 +132,8 @@ core precs = choice' [plam, pprod, pexpr]
       --   no_mixfix = choice' [plam, pprod]
 
     puniv :: Parser ParsedCore
-    puniv = (const (Uni mempty 0) <$> symbol "𝒰") <|> (const (Uni mempty 1) <$> symbol "𝒰₁")
+    puniv = (single '𝒰' *> (Uni mempty <$> subscript_int))
+      <||> (const (Uni mempty 0) <$> symbol "𝒰")
 
 
 {------------------------------ RUNNING A PARSER -------------------------------}

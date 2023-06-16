@@ -75,7 +75,8 @@ precs = Precedences
 
 parse_spec :: TestGroup
 parse_spec = TestGroup "parsing" $ Left
-  [ parse_mixfix precs
+  [ parse_lit precs
+  , parse_mixfix precs
   , parse_expr precs
   , parse_def precs
   ]
@@ -135,11 +136,31 @@ parse_mixfix precs = TestGroup "mixfix" $ Right
               "expected:" <+> annotate (fg_colour (dull white)) (pretty out)
         Left msg -> Test name $ Just msg
 
+parse_lit :: Precedences -> TestGroup
+parse_lit graph =
+  TestGroup "literal" $ Right
+    [ lit_test "universe-0"   "𝒰"   (𝓊 0)
+    , lit_test "universe-0v2" "𝒰₀"  (𝓊 0)
+    , lit_test "universe-1"   "𝒰₁"  (𝓊 1)
+    , lit_test "universe-10"  "𝒰₁₀" (𝓊 10)
+    , lit_test "universe-23"  "𝒰₂₃" (𝓊 23)
+    ]
+
+  where
+    lit_test :: Text -> Text -> ParsedCore -> Test
+    lit_test name text out =  
+      case runParser (core graph) name text of  
+        Right val ->
+          if αeq val out then
+            Test name Nothing
+          else
+            Test name $ Just $ "got:" <+> "(" <> pretty val <>")" <+> "expected" <+> "(" <> pretty out <> ")"
+        Left msg -> Test name $ Just msg
+
 parse_expr :: Precedences -> TestGroup
 parse_expr graph =
   TestGroup "expression" $ Right
-    [ expr_test "universe-0" "𝒰" (𝓊 0)
-    , expr_test "universe-in-expr" "𝒰 + 𝒰" (var "_+_" ⋅ 𝓊 0 ⋅ 𝓊 0)
+    [ expr_test "universe-in-expr" "𝒰 + 𝒰" (var "_+_" ⋅ 𝓊 0 ⋅ 𝓊 0)
     , expr_test "univar-lamb" "λ x ↦ true" (abs [("x")] (var "true"))
     , expr_test "bivar-lamb" "λ x y ↦ false" (abs ["x", "y"] (var "false"))
 
