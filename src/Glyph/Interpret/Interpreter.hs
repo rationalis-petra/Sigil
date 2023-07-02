@@ -28,10 +28,9 @@ import Glyph.Abstract.Substitution
 import Glyph.Concrete.Internal
 
 
-
 {---------------------------------- INTERFACE ----------------------------------}
 
-data World a = World (Map Text (a, Maybe (World a)))
+newtype World a = World (Map Text (a, Maybe (World a)))
 
 data Image a = Image (World a) (Restarts a)
 
@@ -39,13 +38,12 @@ type Restarts a = [IO a]
   
 data Interpreter m = Interpreter
   -- Evaluating single terms 
-  { eval :: Path Name -> InternalCore -> InternalCore -> m InternalCore
-  , norm_eq :: Path Name -> InternalCore -> InternalCore -> InternalCore -> m Bool
-  , solve_formula :: Path Name -> Formula InternalCore -> m (Substitution InternalCore) 
+  { eval :: Path Text -> InternalCore -> InternalCore -> m InternalCore
+  , norm_eq :: Path Text -> InternalCore -> InternalCore -> InternalCore -> m Bool
+  , solve_formula :: Path Text -> Formula InternalCore -> m (Substitution InternalCore) 
 
   -- Updating the environment 
-  , intern_module :: Path Name -> InternalModule -> m ()
-  , intern_def :: Path Name -> InternalDef -> m ()
+  , intern_module :: Path Text -> Text -> m ()
 
   -- capabilities (is m a comonad??)
   , extract_io :: forall a. m a -> IO (a, m ())
@@ -63,3 +61,14 @@ data InbuiltType = InbuiltNat | InbuiltFloat | InbuiltSigned | InbuiltUnsigned |
 data FunctionPragma = InbuiltArith   
 
 data ArithFun = Add | Sub | Mul | Div
+
+
+-- lookup_path :: Path Name -> World -> Module Env
+-- lookup_path path world = 
+
+-- get_path_env :: Path Text -> World a -> Env (Maybe a, a)
+-- get_path_env (name :| names) world =
+--   case (lookup name world, names)  of 
+--     (Just (), (x:xs))
+--     (Just (), _)
+--     (Nothing, _)

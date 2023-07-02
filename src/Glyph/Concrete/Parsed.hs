@@ -2,6 +2,7 @@ module Glyph.Concrete.Parsed
   ( Parsed
   , ParsedCore
   , ParsedDef
+  , ParsedModule
   , PUnit(..)
   , range
   , pattern Core
@@ -45,6 +46,8 @@ type instance SigDefχ Parsed = Range
 type instance IndDefχ Parsed = Range
 
 type ParsedDef = Definition OptBind Text Parsed
+
+type ParsedModule = Module OptBind Text Parsed
 
 {-# COMPLETE Core, Uni, Var, Prd, Abs, App #-}
 pattern Core :: ParsedCore

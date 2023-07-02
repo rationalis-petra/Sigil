@@ -1,5 +1,5 @@
 name:                glyph
-version:             0.1.0.0
+version:             0.2.0.0
 github:              "rationalis-petra/glyph"
 license:             BSD3
 author:              "Connor Redfern"
@@ -67,6 +67,7 @@ default-extensions:
 - GeneralizedNewtypeDeriving
 - ConstraintKinds
 - PatternSynonyms
+- TupleSections
 
 
 library:

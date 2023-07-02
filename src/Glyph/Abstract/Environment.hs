@@ -69,7 +69,6 @@ newtype Name = Name (Either QualName UniqueName)
   deriving (Eq, Ord)
 
 
-
 {------------------------------ BIND ABSTRACTION -------------------------------}
 {- There are 3 variants of binding we can have:                                -}
 {- + Name but no type, e.g. λ [x] x                                            -}
@@ -81,10 +80,12 @@ newtype Name = Name (Either QualName UniqueName)
 {- requires both a name and a type.                                            -}
 {-------------------------------------------------------------------------------}
 
+
 class Binding b where 
   name :: b n a -> Maybe n
   tipe :: b n a -> Maybe a
   bind :: n -> a -> b n a
+
 
 {----------------------------- CONCRETE BINDINGS -------------------------------}
 -- Bindings: 
@@ -120,7 +121,8 @@ instance Functor (OptBind n) where
 instance Binding OptBind where   
   name (OptBind (n, _)) = n
   tipe (OptBind (_, ty)) = ty
-  bind n ty = OptBind $ (Just n, Just ty)
+  bind n ty = OptBind (Just n, Just ty)
+
 
 {--------------------------------- GENERATION ----------------------------------}
 {-                                                                             -}
@@ -149,7 +151,7 @@ instance MonadGen m => MonadGen (ReaderT e m) where
   fresh_id = lift fresh_id
 
 run_gen :: Gen a -> a
-run_gen = fst . flip runState 0 . ungen 
+run_gen = fst . flip runState 0 . ungen
 
 fresh_var :: MonadGen m => Text -> m Name
 fresh_var s = fresh_id >>= pure . Name . Right . flip (,) s

@@ -1,6 +1,14 @@
 module Glyph.Parse.Layout () where
 
+{----------------------------------- LAYOUTS -----------------------------------}
+{- Layouts are the first phase of parsing - key syntactic structures like      -}
+{- let-expressions, definitions and lambda-abstraction are parsed. However,    -}
+{- mixfix expressions are left as lists of tokens. These are then parsed via   -}
+{- a memoising parser in the Mixfix stage.                                     -}
+{-                                                                             -}
+{-------------------------------------------------------------------------------}
 
+{------------------------------------- OLD -------------------------------------}
 {----------------------------------- LAYOUTS -----------------------------------}
 {- A syntax keyword can (optionally) introduce a new layout.                   -}
 {- Layouts work as follows:                                                    -}

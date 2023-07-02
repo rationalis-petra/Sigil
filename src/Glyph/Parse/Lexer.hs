@@ -1,34 +1,64 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 module Glyph.Parse.Lexer
   ( sc
+  , scn
   , symbol
+  , symboln
   , lexeme
+  , lexemen
   , anyvar
   , subscript_int
   ) where
 
-
 {-------------------------------- LEXING TOOLS ---------------------------------}
+{- The lexer is rather complicated, as tokenization depends on two things:     -}
+{- • What is currently being parsed (e.g. a definition vs an expression)       -}
+{-                                                                             -}
+{-------------------------------------------------------------------------------}
 
 
 import Data.Text (Text, pack)
+import Data.Functor (($>))
+import Control.Monad (void)
 
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Megaparsec.Char
-import Text.Megaparsec
+import Text.Megaparsec hiding (Token)
 
 import Glyph.Parse.Combinator
+import Prelude hiding (head)
+
 
 sc :: Parser () 
 sc = L.space
+  (void $ char ' ' <|> char '\t')
+  (L.skipLineComment ";;")
+  (L.skipBlockComment "(;;" ";;)")
+
+scn :: Parser () 
+scn = L.space
   space1
   (L.skipLineComment ";;")
   (L.skipBlockComment "(;;" ";;)")
+
+-- indent_block1 :: Parser a -> Parser [a]
+-- indent_block1 =
+--   L.indentBlock sc indented_block
+--   where 
+--     indented_block = do
+  
+
+lexemen :: Parser a -> Parser a
+lexemen = L.lexeme scn
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
 
 symbol :: Text -> Parser Text
 symbol = L.symbol sc
+
+symboln :: Text -> Parser Text
+symboln = L.symbol scn
 
 subscript_int :: Parser Int -- TODO update to INTEGER
 subscript_int = lexeme $ to_int 1 . reverse <$> many1 sub_numchar
@@ -37,33 +67,28 @@ subscript_int = lexeme $ to_int 1 . reverse <$> many1 sub_numchar
     to_int n (x:xs) = n * x + to_int (n * 10) xs
 
     sub_numchar = choice
-      [ satisfy (== '₀') *> pure 0
-      , satisfy (== '₁') *> pure 1  
-      , satisfy (== '₂') *> pure 2  
-      , satisfy (== '₃') *> pure 3  
-      , satisfy (== '₄') *> pure 4  
-      , satisfy (== '₅') *> pure 5  
-      , satisfy (== '₆') *> pure 6  
-      , satisfy (== '₇') *> pure 7  
-      , satisfy (== '₈') *> pure 8  
-      , satisfy (== '₉') *> pure 9
+      [ satisfy (== '₀') $>  0
+      , satisfy (== '₁') $>  1  
+      , satisfy (== '₂') $>  2  
+      , satisfy (== '₃') $>  3  
+      , satisfy (== '₄') $>  4  
+      , satisfy (== '₅') $>  5  
+      , satisfy (== '₆') $>  6  
+      , satisfy (== '₇') $>  7  
+      , satisfy (== '₈') $>  8  
+      , satisfy (== '₉') $>  9
       ]
 
 anyvar :: Parser Text  
-anyvar = lexeme $ pack <$> (many1 (satisfy symchar))
+anyvar = lexeme $ pack <$> many1 (satisfy symchar)
   where 
     symchar :: Char -> Bool
     symchar '('  = False
     symchar ')'  = False
-    symchar '['  = False
-    symchar ']'  = False
+    symchar '.'  = False
     symchar '≜'  = False
     symchar ' '  = False
     symchar '\n' = False
     symchar '\r' = False
     symchar '\t' = False
     symchar _    = True
-
--- data Token = Inc | Nil | Dec | Name Text
-
--- lexer :: Parser [Token]

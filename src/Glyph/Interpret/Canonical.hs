@@ -15,6 +15,7 @@ module Glyph.Interpret.Canonical
 
 import Control.Monad.State (StateT)
 import Control.Monad.Except (ExceptT)
+import Data.Text (Text)
 
 import Prettyprinter  
 import Prettyprinter.Render.Glyph
@@ -27,11 +28,7 @@ import Glyph.Interpret.Term
 
 data Context = Context { world :: World InternalCore } -- threads :: ??
   
-type CanonM = StateT (Env InternalCore) (ExceptT (Doc GlyphDoc) Gen)
-
-build_eval_env_from :: Path Name -> CanonM (Env (Maybe InternalCore, InternalCore))
-build_eval_env_from = error "build_eval_env_from not implemented"
-
+type CanonM = StateT (World InternalCore) (ExceptT (Doc GlyphDoc) Gen)
 
 canonical_interpreter :: Interpreter CanonM 
 canonical_interpreter = Interpreter
@@ -55,9 +52,12 @@ canonical_interpreter = Interpreter
   -- Updating the environment 
   -- intern_module :: Path Name -> InternalModule -> m ()
   , intern_module = error "intern_module not implemented"
-
-  -- intern_def :: Path Name -> InternalDef -> m ()
-  , intern_def = error "intern_def not implemented"
+  -- , intern_module path text = do
+  --     ctx <- context_from_path path
+  --     parsed_modul <- parseToErr (mod (ctx^.parser_env) <* eof) "interpreter-in" text
+  --     resolved_module <- resolve parsed_module
+  --     checked_module <- typecheck_module resolved_modul 
+  --     update_world_with_module checked_module
 
   -- capabilities (is m a comonad??)
   -- extract_io :: forall a. m a -> IO (a, m ())
@@ -66,3 +66,16 @@ canonical_interpreter = Interpreter
   , extract_pure = error "extract_pure not implemented"
 
   }
+
+
+
+
+build_eval_env_from :: Path Text -> CanonM (Env (Maybe InternalCore, InternalCore))
+build_eval_env_from = error "build_eval_env"
+ -- build_eval_env_from path = do
+ --  menv <- get_module_env path <$> get
+ --  case menv of 
+ --    Just modul -> env
+ --    Nothing ->
+ --      throwError ("Can't find module at path" <+> pretty path)
+

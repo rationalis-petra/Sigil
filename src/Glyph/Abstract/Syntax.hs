@@ -2,7 +2,7 @@ module Glyph.Abstract.Syntax
   ( Core(..)
   , Module(..)
   , Definition(..)
-  , ImportDef(..)
+  , PortDef(..)
   , IndType(..)
   -- , Clause(..)
   , Forallχ
@@ -123,25 +123,25 @@ type Forallχ (φ :: Type -> Constraint) χ
 
 
 data Module b v χ  
-  = Module { _module_name :: [Text]
-           , _module_exports :: [Text]
-           , _module_imports :: [ImportDef]
+  = Module { _module_header :: [Text]
+           , _module_exports :: [PortDef]
+           , _module_imports :: [PortDef]
            , _module_defs :: [(b v (Core b v χ), Definition b v χ)]
            } 
 
-data ImportDef
-  = ImportOne [Text] Text
-  | ImportAll [Text] Text
-  | ImportSet [Text] [Text]
-  | ImportExcept [Text] [Text]
+data PortDef
+  = PortOne [Text] Text
+  | PortAll [Text] Text
+  | PortSet [Text] [Text]
+  | PortExcept [Text] [Text]
 
 data IndType = Inductive | Coinductive  
   deriving (Eq, Ord, Show)
 
 data Definition b n χ
   = Mutualχ (Mutualχ χ) [(b n (Core b n χ), Core b n χ)]
-  | SigDefχ (SigDefχ χ) IndType (b n (Core b n χ)) [(b n (Core b n χ))]
-  | IndDefχ (IndDefχ χ) IndType (b n (Core b n χ)) [(b n (Core b n χ))]
+  | SigDefχ (SigDefχ χ) IndType (b n (Core b n χ)) [b n (Core b n χ)]
+  | IndDefχ (IndDefχ χ) IndType (b n (Core b n χ)) [b n (Core b n χ)]
   -- | SctDef (b n (Core b n χ)) [(b n (Core b n χ))]
 
 type family Mutualχ χ 

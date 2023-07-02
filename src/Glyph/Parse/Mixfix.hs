@@ -1,18 +1,27 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 module Glyph.Parse.Mixfix
   ( Precedences(..)
   , PrecedenceNode(..)
-  , PrecedenceGraph
   , Operator(..)
   , Associativity(..)
   , Fixity(..)
-  , fixity
-  , name_parts
-  , mixfix
-  , update_precs
+  , PrecedenceGraph
 
   -- Lenses
+  , fixity
+  , name_parts
+
+  , prec_ops
   , successors
+
+  , prec_nodes
+  , default_infix
+  , default_prefix
+  , default_postfix
+  , default_closed
+  , mixfix
+  , update_precs
   ) where
 
 
@@ -86,7 +95,7 @@ data PrecedenceNode = PrecedenceNode
   }
 
 data Precedences = Precedences
-  { _prec_nodes :: Map.Map Text PrecedenceNode
+  { _prec_nodes :: Map Text PrecedenceNode
   , _default_infix :: Text
   , _default_prefix :: Text
   , _default_postfix :: Text
@@ -105,6 +114,7 @@ data IsDefault = IsNone | IsClosed
 
 type GraphNode = (IsDefault, Set Operator)
 
+type PrecedenceGraph i = G GraphNode i
 
 {----------------------------- MIXFIX PARSER PHASE -----------------------------}
 {- The parsing of mixifx operators is particularly finicky, and this           -} 
@@ -133,16 +143,14 @@ type GraphNode = (IsDefault, Set Operator)
 {-------------------------------------------------------------------------------}      
 
 
-type PrecedenceGraph i = G GraphNode i
-
 mixfix :: Parser ParsedCore -> Parser ParsedCore -> Precedences -> Parser ParsedCore
-mixfix atom core precs = run_precs (mixfix' atom core) precs  
+mixfix atom core = run_precs (mixfix' atom core)
 
 mixfix' :: forall i. Parser ParsedCore -> Parser ParsedCore -> PrecedenceGraph i -> Parser ParsedCore
 mixfix' atom core (G {..}) = expr
   where
     expr :: Parser ParsedCore
-    expr = foldl (App mempty) <$> (precs gVertices) <*> many (precs gVertices)
+    expr = foldl (App mempty) <$> precs gVertices <*> many (precs gVertices)
     
     precs :: [i] -> Parser ParsedCore
     precs (p:ps) = prec p <||> precs ps
@@ -213,17 +221,6 @@ unscope (Tel core l) = go core l where
   go core (c:cs) = go (App (range core <> range c) core c) cs 
   
 
-opName :: Operator -> Text
-opName (Operator {..}) = case _fixity of
-  Closed -> name
-  Prefix -> name <> "_" 
-  Postfix -> "_"<> name 
-  Infix _ -> "_" <> name <> "_"
-  where name = underscore (Vector.toList _name_parts)
-        underscore [] = ""
-        underscore [x] = x
-        underscore (x:y:[]) = x <> "_" <> y
-        underscore (x:y:xs) = x <> "_" <> y <> "_" <> underscore xs
 
 run_precs :: MonadFail m => (forall i. PrecedenceGraph i -> m a) -> Precedences -> m a
 run_precs f precs = case construct_graph precs of
@@ -255,6 +252,19 @@ run_precs f precs = case construct_graph precs of
                        Just pnode -> Right (pnode^._1)
                        Nothing -> Left ("can't find " <> s)) (Set.toList sucs)
           pure $ (at ops ?~ Set.fromList sucs') graph
+
+
+opName :: Operator -> Text
+opName (Operator {..}) = case _fixity of
+  Closed -> name
+  Prefix -> name <> "_" 
+  Postfix -> "_"<> name 
+  Infix _ -> "_" <> name <> "_"
+  where name = underscore (Vector.toList _name_parts)
+        underscore [] = ""
+        underscore [x] = x
+        underscore (x:y:[]) = x <> "_" <> y
+        underscore (x:y:xs) = x <> "_" <> y <> "_" <> underscore xs
 
 
 {----------------------------- GRAPH MANIPULATION ------------------------------}
@@ -294,7 +304,7 @@ update_precs args g = foldl' add_op g (map to_node args)
       (Operator Closed    _) -> add_to_node (precs^.default_closed)  op precs
   
     add_to_node :: Text -> Operator -> Precedences -> Precedences
-    add_to_node name op = prec_nodes.(at name) %~ (Just . maybe (single op) (insert op))
+    add_to_node name op = prec_nodes . at name %~ (Just . maybe (single op) (insert op))
       where 
         single op = PrecedenceNode (Set.singleton op) Set.empty
         insert op = prec_ops %~ Set.insert op

@@ -1,9 +1,11 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 module Glyph.Parse
   ( Range
   , Parsed
   , core
   , def
+  , mod
   , runParser
   , parseToErr
   ) where
@@ -17,13 +19,16 @@ module Glyph.Parse
 {-------------------------------------------------------------------------------}
 
 
-import Prelude hiding (head, last, tail)
+import Prelude hiding (head, last, tail, mod)
+import Control.Monad (join)
 import Control.Monad.Except (MonadError, throwError)
 import qualified Data.Text as Text
 import Data.Text (Text)
 import Data.Maybe (maybeToList)
 
 import qualified Text.Megaparsec as Megaparsec
+import qualified Text.Megaparsec.Char as C
+import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Megaparsec hiding (runParser)
 import Prettyprinter
 
@@ -36,6 +41,68 @@ import Glyph.Parse.Combinator
 import Glyph.Parse.Mixfix
 import Glyph.Parse.Lexer
 
+{-------------------------------- MODULE PARSER --------------------------------}
+{- The module parser parses                                                    -}
+{-                                                                             -}
+{-------------------------------------------------------------------------------}      
+
+
+-- precs_from_module :: OptBind Text ParsedCore -> Precedences
+-- precs_from_module b =
+update_precs_def :: Precedences -> ParsedDef -> Precedences
+update_precs_def precs def =
+  case def of 
+    Mutualχ _ mutuals -> update_precs (join $ map (maybeToList . name . fst) mutuals) precs
+    SigDefχ _ _ _ _ -> error "Haven't implemented update_precs_def for SigDef"
+    IndDefχ _ _ _ _ -> error "Haven't implemented update_precs_def for IndDef"
+
+  
+
+mod :: ([PortDef] -> Precedences) -> Parser ParsedModule
+mod get_precs = do
+  (title, ports) <- module_header
+  let imports = fmap snd . filter fst $ ports
+      exports = fmap snd . filter (not . fst) $ ports
+      precs = get_precs imports
+  body <-
+    let go precs =
+          try (do d <- def precs
+                  let precs' = update_precs_def precs d
+                  go precs') <|> pure [] 
+    in go precs
+      
+  pure $ Module title exports imports body
+
+  where
+    module_header :: Parser ([Text], [(Bool, PortDef)])
+    module_header = do
+      L.nonIndented scn (L.indentBlock scn modul)
+      where 
+        modul :: Parser (L.IndentOpt Parser ([Text], [(Bool, PortDef)]) [(Bool, PortDef)])
+        modul = do 
+          _ <- symbol "module"
+          title <- sepBy anyvar (C.char '.')
+          pure (L.IndentMany Nothing (pure . (title, ) . join) modulePart)
+      
+        modulePart :: Parser [(Bool, PortDef)]
+        modulePart =
+          L.indentBlock scn (imports <|> exports)
+      
+        imports :: Parser (L.IndentOpt Parser [(Bool, PortDef)] PortDef)
+        imports = do
+          _ <- symbol "import" 
+          pure (L.IndentSome Nothing (pure . fmap (True,)) importStatement)
+      
+        importStatement :: Parser PortDef
+        importStatement = fail "import statement not implemented"
+          
+        exports :: Parser (L.IndentOpt Parser [(Bool, PortDef)] PortDef)
+        exports = do
+         _ <- symbol "export"
+         pure (L.IndentSome Nothing (pure . fmap (False,)) exportStatement)
+      
+        exportStatement :: Parser PortDef
+        exportStatement = fail "export statement not implemented"
 
 {--------------------------------- DEF PARSER ----------------------------------}
 {- The def parser parses definitions, which have one of the following forms:   -}
@@ -76,7 +143,7 @@ def precs = choice' [mutual]
 {- The core parser first looks for the head of an expression (λ, let, etc.)    -}
 {- if no identifiable head is found, then it is assumed to be a mixfix         -}
 {- expression.                                                                 -}
-{-------------------------------------------------------------------------------}      
+{-------------------------------------------------------------------------------}
 
 
 core :: Precedences -> Parser ParsedCore

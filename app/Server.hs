@@ -37,6 +37,8 @@ import Glyph.Analysis.NameResolution
 import Glyph.Analysis.Typecheck
 import Glyph.Interpret.Term
 
+import Server.Agent
+
 
 data ServerOpts = ServerOpts
   { port :: Int
@@ -104,7 +106,7 @@ threadWorker socket = go (packetProducer socket)
 
 processMessage :: Socket -> InMessage -> IO ()  
 processMessage socket = \case
-  RunCode uid _ code ->
+  EvalExpr uid _ code ->
     let object = case eval_term code of
           Right (val, _) -> toJSON $ OutResult uid (renderStrict (layoutPretty defaultLayoutOptions (pretty val)))
           Left err -> toJSON $ OutError uid (renderStrict (layoutPretty defaultLayoutOptions err))
@@ -112,14 +114,13 @@ processMessage socket = \case
       sendAll socket (Bs.toStrict $ encode $ object)
       sendAll socket "\n"
    
-
   where 
     eval_term :: Text -> Either GlyphDoc (InternalCore, InternalCore)
     eval_term line = run_gen $ runExceptT $ meval line
 
     meval :: Text -> ExceptT GlyphDoc Gen (InternalCore, InternalCore)
     meval line = do
-      parsed <- parseToErr (core default_precs <* eof) "console-in" line 
+      parsed <- parseToErr (core default_precs <* eof) "sever-in" line 
       resolved <- resolve parsed
         `catchError` (throwError . (<+>) "resolution:")
       (term, ty) <- infer (env_empty :: Env (Maybe InternalCore, InternalCore)) resolved
@@ -138,34 +139,4 @@ messageParser :: Monad m => Parser Bs.ByteString m (Maybe (Either DecodingError 
 messageParser = AP.decode
 
   
-data InMessage
-  = RunCode Int [Text] Text
 
-data OutMessage
-  = OutResult Int Text
-  | OutError Int Text
-  
-
-instance FromJSON InMessage where   
-  parseJSON (Object v) = do 
-    tipe <- v .: "type"
-    case tipe of 
-      "RunCode" -> RunCode
-        <$> v .: "uid"
-        <*> v .: "path"
-        <*> v .: "code"
-      _ -> fail ("unexpected type " <> tipe)
-  parseJSON invalid = typeMismatch "In Message" invalid
-
-instance ToJSON OutMessage where 
-  toJSON (OutResult uid val) = 
-    object [ ("type", toJSON ("Result" :: Text))
-           , ("uid", toJSON uid)
-           , ("val", toJSON val)
-           ]
-
-  toJSON (OutError uid msg) = 
-    object [ ("type", toJSON ("Error" :: Text))
-           , ("uid", toJSON uid) 
-           , ("msg", toJSON msg)
-           ] 
