@@ -113,7 +113,7 @@ instance (Ord n, Binding b, AlphaEq n (b n (Core b n χ)), AlphaEq n (Coreχ b n
     (m^.module_header == m'^.module_header) &&
     (m^.module_exports == m'^.module_exports) &&
     (m^.module_imports == m'^.module_imports) &&
-    go rename (m^.module_defs) (m^.module_defs)
+    go rename (m^.module_defs) (m'^.module_defs)
     where
       go rename (d:ds) (d':ds')= 
         αequal rename d d' && go rename' ds ds'

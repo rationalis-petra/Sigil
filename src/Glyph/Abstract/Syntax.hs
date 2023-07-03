@@ -203,7 +203,8 @@ instance Forall Eq b n χ --(Eq (b n (Core b n χ)), Eq n, Forallχ Eq χ, Eq (C
 pretty_def_builder :: (b n (Core b n χ) -> Doc ann) -> (n -> Doc ann) -> (Coreχ b n χ -> Doc ann) -> Definition b n χ -> Doc ann
 pretty_def_builder pretty_bind pretty_name pretty_coreχ d =
   case d of
-    (Mutualχ _ defs)  -> fold (fmap (pretty_bind . fst) defs) <+> fold (fmap (pretty_core . snd) defs)
+    (Mutualχ _ [def]) -> pretty_bind (fst def) <+> "≜" <+> pretty_core (snd def)
+    (Mutualχ _ defs)  -> vsep (fmap (pretty_bind . fst) defs) <+> vsep (fmap (\v -> (pretty_bind (fst v)) <+> "≜" <+> (pretty_core (snd v)) ) defs)
     (SigDefχ _ _ _ _) -> "Signature"
     (IndDefχ _ _ _ _) -> "Co/Inductive type def"
     where
@@ -253,6 +254,7 @@ pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
           pretty_args v (x : xs) = pretty_args v [] <+> pretty_args x xs
       in
         ("λ " <> pretty_args bind args <> " →") <+> nest 2 (bracket body)
+
     -- telescoping
     Appχ χ l r -> sep $ fmap bracket $ unwind (Appχ χ l r)
     where 
@@ -272,13 +274,3 @@ pretty_mod_builder pretty_def m =
   vsep $
     ("module" <+> (foldl' (<>) "" . zipWith (<>) ("" : repeat ".") . fmap pretty $ (m^.module_header)))
     : (fmap pretty_def (m^.module_defs))
-    
-    
-         
-  
-  -- case 
-  --   (Mutualχ _ defs)  -> fold (fmap (pretty_bind . fst) defs) <+> fold (fmap (pretty_core . snd) defs)
-  --   (SigDefχ _ _ _ _) -> "Signature"
-  --   (IndDefχ _ _ _ _) -> "Co/Inductive type def"
-  --   where
-  --     pretty_core = pretty_core_builder pretty_bind pretty_name pretty_coreχ

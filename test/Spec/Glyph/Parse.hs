@@ -267,19 +267,29 @@ parse_def precs =
 parse_mod :: ([PortDef] -> Precedences) -> TestGroup
 parse_mod env = 
   TestGroup "module" $ Right
-    [ def_test "empty"
+    [ mod_test "empty"
       "module empty"
-      (modul ["empty"] [] [] [])
+      (modul ["empty"] [] [] []),
+
+      mod_test "single-def"
+      "module single-def \n\
+      \x ≜ true"
+      (modul ["single-def"] [] [] [(vdef "x" (var "true"))]),
+      mod_test "multi-def"
+      "module multi-def \n\
+      \x ≜ true\n\
+      \y ≜ false"
+      (modul ["multi-def"] [] [] [(vdef "x" (var "true")), (vdef "y" (var "false"))])
     ]
   where
-    def_test :: Text -> Text -> ParsedModule -> Test
-    def_test name text out =  
+    mod_test :: Text -> Text -> ParsedModule -> Test
+    mod_test name text out =  
       case runParser (mod env) name text of  
         Right val ->
           if αeq val out then
             Test name Nothing
           else
-            Test name $ Just $ "got: " <> pretty val <+> "expected" <+> pretty out
+            Test name $ Just $ vsep ["got:", pretty val, "expected:", pretty out]
         Left msg -> Test name $ Just msg
 
 𝓊 :: Int -> ParsedCore  

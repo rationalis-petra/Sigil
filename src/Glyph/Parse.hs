@@ -65,9 +65,9 @@ mod get_precs = do
       precs = get_precs imports
   body <-
     let go precs =
-          try (do d <- def precs
+          try (do d <- L.nonIndented scn (def precs)
                   let precs' = update_precs_def precs d
-                  go precs') <|> pure [] 
+                  (d :) <$> (go precs')) <|> pure [] 
     in go precs
       
   pure $ Module title exports imports body
