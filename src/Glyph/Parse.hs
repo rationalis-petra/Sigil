@@ -55,7 +55,6 @@ update_precs_def precs def =
     Mutualχ _ mutuals -> update_precs (join $ map (maybeToList . name . fst) mutuals) precs
     SigDefχ _ _ _ _ -> error "Haven't implemented update_precs_def for SigDef"
     IndDefχ _ _ _ _ -> error "Haven't implemented update_precs_def for IndDef"
-
   
 
 mod :: ([PortDef] -> Precedences) -> Parser ParsedModule

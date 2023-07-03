@@ -108,5 +108,21 @@ instance (Ord n, Binding b, AlphaEq n (Core b n χ)) => AlphaEq n (b n (Core b n
     (Nothing, Nothing) -> True
     _ -> False
 
+instance (Ord n, Binding b, AlphaEq n (b n (Core b n χ)), AlphaEq n (Coreχ b n χ)) => AlphaEq n (Module b n χ) where
+  αequal rename m m' = 
+    (m^.module_header == m'^.module_header) &&
+    (m^.module_exports == m'^.module_exports) &&
+    (m^.module_imports == m'^.module_imports) &&
+    go rename (m^.module_defs) (m^.module_defs)
+    where
+      go rename (d:ds) (d':ds')= 
+        αequal rename d d' && go rename' ds ds'
+        where
+          -- TODO: INCORRECT BEHAVIOUR
+          rename' = rename 
+      go _ [] [] = True
+      go _ _ _ = False
+
+
 instance AlphaEq Name () where
   αequal _ _ _ = True

@@ -1,6 +1,7 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 import Prelude hiding (putStrLn)
 
-import Control.Monad (when, join)
+import Control.Monad (when, join, unless)
 import Data.Text.IO (putStrLn)
 
 import Prettyprinter
@@ -46,17 +47,18 @@ tests =
 runall :: [TestGroup] -> Config -> IO ()
 runall group config = do
   errors <- join <$> mapM (rungroup 0) group
-  when (not $ null errors) $ do
+  unless (null errors) $ do
     putStrLn "\nErrors:"
-    mapM_ putDocLn $ map (indent 2) errors
+    mapM_ (putDocLn . indent 2) errors
   where
     rungroup :: Int -> TestGroup-> IO [Doc GlyphStyle]
     rungroup nesting (TestGroup name children)  = do
       when (verbosity config >= Groups)
         (putDocLn $ indent (nesting * 2) $ pretty name)
       case children of  
-          Left subgruops -> join <$> mapM (rungroup (nesting + 1)) subgruops
-          Right tests -> runtests (nesting + 1) tests
+          Left subgruops -> map ((annotate (fg_colour red) $ pretty name <> ".") <>) . join <$> mapM (rungroup (nesting + 1)) subgruops
+          Right tests ->
+            map ((annotate (fg_colour red) $ pretty name <> ".") <>) <$> runtests (nesting + 1) tests
     
     runtests :: Int -> [Test] -> IO [Doc GlyphStyle]
     runtests nesting tests = join <$> mapM runtest tests where

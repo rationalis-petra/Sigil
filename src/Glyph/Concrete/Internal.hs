@@ -127,7 +127,7 @@ instance Pretty InternalCore where
               ("{" <> pretty bind <> "}") <+> pretty_args xs
             pretty_args [] = mempty
         in
-          ("λ" <+> pretty_args args <+> "↦") <+> nest 2 (bracket body)
+          ("λ" <+> pretty_args args <+> "→") <+> nest 2 (bracket body)
       
       bracket v = if iscore v then pretty v else "(" <> pretty v <> ")"
       

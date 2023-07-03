@@ -94,3 +94,7 @@ instance Pretty ParsedCore where
 instance Pretty ParsedDef where
   pretty =
     pretty_def_builder pretty pretty pretty
+
+instance Pretty ParsedModule where
+  pretty =
+    pretty_mod_builder pretty

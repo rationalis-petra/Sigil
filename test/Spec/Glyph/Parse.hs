@@ -1,7 +1,9 @@
 {-# OPTIONS_GHC -Wno-unused-binds #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use camelCase" #-}
 module Spec.Glyph.Parse (parse_spec) where
 
-import Prelude hiding (abs, pi)
+import Prelude hiding (abs, pi, mod)
 import Data.Bifunctor
 import Data.Text (Text)
 import qualified Data.Map as Map
@@ -79,6 +81,7 @@ parse_spec = TestGroup "parsing" $ Left
   , parse_mixfix precs
   , parse_expr precs
   , parse_def precs
+  , parse_mod (const precs)
   ]
       
 -- parsing of mixfix operations 
@@ -161,12 +164,12 @@ parse_expr :: Precedences -> TestGroup
 parse_expr graph =
   TestGroup "expression" $ Right
     [ expr_test "universe-in-expr" "𝒰 + 𝒰" (var "_+_" ⋅ 𝓊 0 ⋅ 𝓊 0)
-    , expr_test "univar-lamb" "λ x ↦ true" (abs [("x")] (var "true"))
+    , expr_test "univar-lamb" "λ x ↦ true" (abs ["x"] (var "true"))
     , expr_test "bivar-lamb" "λ x y ↦ false" (abs ["x", "y"] (var "false"))
 
     , expr_test "closed-lamb"
       "λ x ↦ x"
-      (abs [("x")] (var "x"))
+      (abs ["x"] (var "x"))
     , expr_test "infix-lamb"
       "λ _x_ ↦ true x true"
       (abs ["_x_"] (var "_x_" ⋅ var "true" ⋅ var "true"))
@@ -182,7 +185,7 @@ parse_expr graph =
 
     , expr_test "uni-uni-app"
       "𝒰 𝒰"
-      (𝓊 0⋅ 𝓊 0)
+      (𝓊 0 ⋅ 𝓊 0)
     -- slow
     -- , expr_test "lamb-in-expr"
     --   "(λ [x_] x true) + (λ [x_] x true) "
@@ -261,11 +264,28 @@ parse_def precs =
             Test name $ Just $ "got: " <> pretty val <+> "expected" <+> pretty out
         Left msg -> Test name $ Just msg
 
+parse_mod :: ([PortDef] -> Precedences) -> TestGroup
+parse_mod env = 
+  TestGroup "module" $ Right
+    [ def_test "empty"
+      "module empty"
+      (modul ["empty"] [] [] [])
+    ]
+  where
+    def_test :: Text -> Text -> ParsedModule -> Test
+    def_test name text out =  
+      case runParser (mod env) name text of  
+        Right val ->
+          if αeq val out then
+            Test name Nothing
+          else
+            Test name $ Just $ "got: " <> pretty val <+> "expected" <+> pretty out
+        Left msg -> Test name $ Just msg
 
-𝓊 :: Int -> Core b Text Parsed  
+𝓊 :: Int -> ParsedCore  
 𝓊 = Uniχ mempty
 
-var :: Text -> Core b Text Parsed  
+var :: Text -> ParsedCore  
 var = Varχ mempty
 
 abs :: [Text] -> ParsedCore -> ParsedCore
@@ -285,3 +305,6 @@ pi = flip (foldr (Prdχ mempty)) . fmap (OptBind . bimap Just Just)
 
 vdef :: Text -> ParsedCore -> ParsedDef
 vdef name val = Mutualχ mempty [(OptBind (Just name, Nothing), val)]
+
+modul :: [Text] -> [PortDef] -> [PortDef] -> [ParsedDef] -> ParsedModule
+modul = Module 

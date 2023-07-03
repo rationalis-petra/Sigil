@@ -16,9 +16,16 @@ module Glyph.Abstract.Syntax
   , SigDefχ
   , IndDefχ
 
+  -- lenses
+  , module_header
+  , module_imports
+  , module_exports
+  , module_defs
+
   -- Adapters/utility
   , pretty_core_builder
   , pretty_def_builder
+  , pretty_mod_builder
   ) where
 
 
@@ -33,6 +40,7 @@ module Glyph.Abstract.Syntax
 
 import Prelude hiding (lookup, length)
 
+import Control.Lens (makeLenses, (^.))
 import Data.Kind
 import Data.Foldable
 import Data.Text hiding (zipWith, foldl', tail, head)
@@ -126,14 +134,16 @@ data Module b v χ
   = Module { _module_header :: [Text]
            , _module_exports :: [PortDef]
            , _module_imports :: [PortDef]
-           , _module_defs :: [(b v (Core b v χ), Definition b v χ)]
+           , _module_defs :: [Definition b v χ]
            } 
+  
 
 data PortDef
   = PortOne [Text] Text
   | PortAll [Text] Text
   | PortSet [Text] [Text]
   | PortExcept [Text] [Text]
+  deriving (Ord, Eq)
 
 data IndType = Inductive | Coinductive  
   deriving (Eq, Ord, Show)
@@ -148,6 +158,9 @@ type family Mutualχ χ
 type family SigDefχ χ
 type family IndDefχ χ 
 
+$(makeLenses ''Module)
+
+  
 {--------------------------------- EQ INSTANCE ---------------------------------}
 {- The Equal type class instance performs an equality check directly on the    -}
 {- names - this means that an Eq instance is not α equality!                   -}
@@ -239,7 +252,7 @@ pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
           pretty_args bind [] = pretty_bind bind
           pretty_args v (x : xs) = pretty_args v [] <+> pretty_args x xs
       in
-        ("λ " <> pretty_args bind args <> "") <+> nest 2 (bracket body)
+        ("λ " <> pretty_args bind args <> " →") <+> nest 2 (bracket body)
     -- telescoping
     Appχ χ l r -> sep $ fmap bracket $ unwind (Appχ χ l r)
     where 
@@ -252,3 +265,20 @@ pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
       
         unwind (Appχ _ l r) = unwind l <> [r]
         unwind t = [t]
+
+pretty_mod_builder :: (Definition b n χ -> Doc ann) -> Module b n χ -> Doc ann
+pretty_mod_builder pretty_def m =
+  -- TOOD: account for imports/exports
+  vsep $
+    ("module" <+> (foldl' (<>) "" . zipWith (<>) ("" : repeat ".") . fmap pretty $ (m^.module_header)))
+    : (fmap pretty_def (m^.module_defs))
+    
+    
+         
+  
+  -- case 
+  --   (Mutualχ _ defs)  -> fold (fmap (pretty_bind . fst) defs) <+> fold (fmap (pretty_core . snd) defs)
+  --   (SigDefχ _ _ _ _) -> "Signature"
+  --   (IndDefχ _ _ _ _) -> "Co/Inductive type def"
+  --   where
+  --     pretty_core = pretty_core_builder pretty_bind pretty_name pretty_coreχ
