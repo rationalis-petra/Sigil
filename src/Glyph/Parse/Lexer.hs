@@ -32,14 +32,14 @@ import Prelude hiding (head)
 sc :: Parser () 
 sc = L.space
   (void $ char ' ' <|> char '\t')
-  (L.skipLineComment ";;")
-  (L.skipBlockComment "(;;" ";;)")
+  (L.skipLineComment "⍝")   
+  (L.skipBlockComment "⋳" "⋻")
 
 scn :: Parser () 
 scn = L.space
   space1
-  (L.skipLineComment ";;")
-  (L.skipBlockComment "(;;" ";;)")
+  (L.skipLineComment "⍝")   
+  (L.skipBlockComment "⋳" "⋻")
 
 -- indent_block1 :: Parser a -> Parser [a]
 -- indent_block1 =

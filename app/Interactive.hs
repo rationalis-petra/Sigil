@@ -73,10 +73,10 @@ interactive = loop default_env
     meval :: Text -> ExceptT GlyphDoc Gen (InternalCore, InternalCore)
     meval line = do
       parsed <- parseToErr (core default_precs <* eof) "console-in" line 
-      resolved <- resolve parsed
+      resolved <- resolve_closed parsed
         `catchError` (throwError . (<+>) "resolution:")
       (term, ty) <- infer (env_empty :: Env (Maybe InternalCore, InternalCore)) resolved
         `catchError` (throwError . (<+>) "inference:")
       norm <- normalize (env_empty :: Env (Maybe InternalCore, InternalCore)) ty term
         `catchError` (throwError . (<+>) "normalization:")
-      pure $ (norm, ty) 
+      pure (norm, ty) 

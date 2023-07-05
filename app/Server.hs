@@ -121,7 +121,7 @@ processMessage socket = \case
     meval :: Text -> ExceptT GlyphDoc Gen (InternalCore, InternalCore)
     meval line = do
       parsed <- parseToErr (core default_precs <* eof) "sever-in" line 
-      resolved <- resolve parsed
+      resolved <- resolve_closed parsed
         `catchError` (throwError . (<+>) "resolution:")
       (term, ty) <- infer (env_empty :: Env (Maybe InternalCore, InternalCore)) resolved
         `catchError` (throwError . (<+>) "inference:")

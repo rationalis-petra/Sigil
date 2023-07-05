@@ -1,7 +1,9 @@
 module Glyph.Concrete.Resolved
   ( Resolved
   , ResolvedCore
-  , ResolvedDefinition ) where
+  , ResolvedDef
+  , ResolvedModule
+  ) where
 
 
 import Prettyprinter
@@ -21,8 +23,12 @@ type instance Appχ Resolved = Range
 
 type ResolvedCore = Core OptBind Name Resolved
 
-type ResolvedDefinition = Definition OptBind Name Resolved
+type instance Mutualχ Resolved = Range
+
+type ResolvedDef = Definition OptBind Name Resolved
   
+--type instance Appχ Resolved = Range
+type ResolvedModule = Module OptBind Name Resolved
 
 instance Pretty ResolvedCore where
   pretty = pretty_core_builder pretty pretty pretty 

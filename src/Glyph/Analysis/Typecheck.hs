@@ -1,5 +1,8 @@
 module Glyph.Analysis.Typecheck
-  ( Checkable(..) ) where
+  ( Checkable(..)
+  , check_def
+  , check_module
+  ) where
 
 
 {-------------------------------- TYPECHECKING ---------------------------------}
@@ -7,11 +10,12 @@ module Glyph.Analysis.Typecheck
 {- see:                                                                        -}
 {-https://boxbase.org/entries/2019/jul/29/bidirectional-typechecking-dependent/-}
 {-                                                                             -}
-{-                                                                             -}
 {-------------------------------------------------------------------------------}
 
 
 import Control.Monad.Except (MonadError, throwError)
+import Control.Lens
+import Data.Foldable
 -- import qualified Data.Map as Map
 -- import Data.Map (Map)  
 -- import qualified Data.Text as Text
@@ -158,55 +162,43 @@ instance Checkable Name ResolvedCore InternalCore where
       check_eq ty ty'
       pure term'
 
-
--- infer :: (Environment n e, MonadError GlyphDoc m, MonadGen m) =>
---          e (Maybe Core Name b χ', Core Name b χ') -> Transformer χ χ' -> Core Name b χ -> m (Core Name b χ', Core Name b χ')
--- infer (Transformerχ {..}) env term = case term of
---   Var _ n -> (\(_, ty) -> (term, ty)) <$> lookup_err n env
---   Uni χ j -> pure (Uni (tuni χ) j, Uni (tuni χ) (j + 1))
---   App χ l r -> do
---     (l', lty) <- infer env l
---     (AnnBind (n, arg_ty), ret_ty) <- check_prod lty
---     r' <- check env r arg_ty
---     pure (App (tapp χ) l' r', subst (n ↦ r) ret_ty)
-
---   Abs χ (AnnBind (n, a)) body -> do
---     (a', aty) <- infer env a
---     a_norm <- normalize env aty a'
-
---     let env' = insert n (Nothing, a_norm) env
---     (body', ret_ty) <- infer env' body
-
---     pure (Abs (tabs χ) (AnnBind (n, a')) body', Prd () (AnnBind (n, a')) ret_ty)
-
---   Prd χ (AnnBind (n, a)) b -> do
---     (a', aty) <- infer env a
---     a_norm <- normalize env aty a'
-
---     let env' = insert n (Nothing, a_norm) env
---     (b', bty) <- infer env' b
-
---     i <- check_lvl aty
---     j <- check_lvl bty
---     pure $ (Prd χ (AnnBind (n, a')) b', Uni () (max i j))
-
---   _ -> throwError $ "infer not implemented for term:" <+> pretty term
+check_def :: (Environment Name e, MonadError GlyphDoc m, MonadGen m) => e (Maybe InternalCore,InternalCore) -> ResolvedDef -> m InternalDef
+check_def env mod = case mod of 
+  Mutualχ _ defs -> do
+    binds <- mapM (check_bind env) (map fst defs)
+    let env' = foldl' (\env (n, ty) -> insert n (Nothing, ty) env) env binds
+    vals <- mapM (uncurry (check env')) (zip (map snd defs) (map snd binds))
+    pure $ Mutualχ () (zip (map AnnBind binds) vals)
+    where 
+      -- check_bind :: (Environment Name e, MonadError GlyphDoc m, MonadGen m) => e (Maybe InternalCore,InternalCore) -> [OptBind Name ResolvedCore] -> m  [(Name, InternalCore)]
+      check_bind env b = case b of 
+        OptBind (Just n, Just a) -> do
+          (a_typd, a_ty) <- infer env a
+          a_normal <- normalize env a_ty a_typd
+          pure (n, a_normal)
+        _ -> throwError "Expecting bind in definition to have name & type"
+    
+  SigDefχ {} -> throwError "check_def for Signatures not implemented"
+  IndDefχ {} -> throwError "check_def for Induction not implemented"
     
 
---   where 
---     check_prod (Prd _ b ty) = pure (b, ty)
---     check_prod term = throwError $ "expected prod, got:" <+> pretty term
 
---     check_lvl (Uni _ i) = pure i
---     check_lvl (Prd _ (AnnBind (_, a)) b) = max <$> check_lvl a <*> check_lvl b
---     check_lvl term = throwError $ "expected 𝒰ᵢ, got:" <+> pretty term
+-- TODO: swap environment → world?
+check_module :: (Environment Name e, MonadError GlyphDoc m, MonadGen m) => e (Maybe InternalCore,InternalCore) -> ResolvedModule -> m InternalModule
+check_module env mod = do
+  defs' <- check_defs env (mod^.module_defs)
+  pure $ set module_defs defs' mod 
+  where 
+    check_defs _ [] = pure []
+    check_defs env (d:ds) = do
+      d' <- check_def env d
+      case d' of
+        Mutualχ () defs -> do
+          let env' = foldl' (\env (AnnBind (n, ty), val) -> insert n (Just val, ty) env) env defs
+          ds' <- check_defs env' ds
+          pure (d' : ds')
+        _ -> throwError "check_module for Signatures/Structures/Induction not implementd"
   
--- check :: (Environment n e, MonadError GlyphDoc m, MonadGen m) => e (Maybe t,t) -> a -> t -> m t
--- fresh_name :: MonadGen m => m Name
--- fresh_name = fresh_id >>= \id -> pure $ Name $ Right (id, "*" <> Text.pack (show id))
-
--- freshen :: MonadGen m => Maybe Name -> m Name
--- freshen = maybe fresh_name pure
 
 -- TODO: replace with check_sub!!
 check_eq :: (MonadError GlyphDoc m, AlphaEq n a, Pretty a) => a -> a -> m ()

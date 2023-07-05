@@ -32,6 +32,10 @@ type instance TyConχ Internal = ()
 
 type InternalCore = Core AnnBind Name Internal
 
+type instance Mutualχ Internal = ()
+type instance SigDefχ Internal = ()
+type instance IndDefχ Internal = ()
+
 type InternalDef = Definition AnnBind Name Internal
 
 type InternalModule = Module AnnBind Name Internal  
