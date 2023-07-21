@@ -1,6 +1,3 @@
-{-# OPTIONS_GHC -Wno-unused-binds #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Use camelCase" #-}
 module Spec.Glyph.Parse (parse_spec) where
 
 import Prelude hiding (abs, pi, mod)
@@ -164,23 +161,23 @@ parse_expr :: Precedences -> TestGroup
 parse_expr graph =
   TestGroup "expression" $ Right
     [ expr_test "universe-in-expr" "𝒰 + 𝒰" (var "_+_" ⋅ 𝓊 0 ⋅ 𝓊 0)
-    , expr_test "univar-lamb" "λ x ↦ true" (abs ["x"] (var "true"))
-    , expr_test "bivar-lamb" "λ x y ↦ false" (abs ["x", "y"] (var "false"))
+    , expr_test "univar-lamb" "λ x → true" (abs ["x"] (var "true"))
+    , expr_test "bivar-lamb" "λ x y → false" (abs ["x", "y"] (var "false"))
 
     , expr_test "closed-lamb"
-      "λ x ↦ x"
+      "λ x → x"
       (abs ["x"] (var "x"))
     , expr_test "infix-lamb"
-      "λ _x_ ↦ true x true"
+      "λ _x_ → true x true"
       (abs ["_x_"] (var "_x_" ⋅ var "true" ⋅ var "true"))
     , expr_test "infix-closed_lamb"
-      "λ _x_ th fo ↦ th x fo"
+      "λ _x_ th fo → th x fo"
       (abs ["_x_", "th", "fo"] (var "_x_" ⋅ var "th" ⋅ var "fo"))
     , expr_test "prefix-lamb"
-      "λ x_ ↦ x true"
+      "λ x_ → x true"
       (abs ["x_"] (var "x_" ⋅ var "true"))
     , expr_test "postfix-lamb"
-      "λ _x ↦ true x"
+      "λ _x → true x"
       (abs ["_x"] (var "_x" ⋅ var "true"))
 
     , expr_test "uni-uni-app"
@@ -205,13 +202,13 @@ parse_expr graph =
 
     -- Lambda: Annotations, multiple arguments etc.
     , expr_test "lam-ann"
-      "λ (A : 𝒰) ↦ A"
+      "λ (A : 𝒰) → A"
       (lam [("A", 𝓊 0)] (var "A"))
     , expr_test "lam-many"
-      "λ (A : 𝒰) (B : 𝒰) ↦ A"
+      "λ (A : 𝒰) (B : 𝒰) → A"
       (lam [("A", 𝓊 0), ("B", 𝓊 0)] (var "A"))
     , expr_test "lam-dep"
-      "λ (A : 𝒰) (x : A) ↦ x"
+      "λ (A : 𝒰) (x : A) → x"
       (lam [("A", 𝓊 0), ("x", var "A")] (var "x"))
 
     -- Product: Annotations, multiple arguments etc.

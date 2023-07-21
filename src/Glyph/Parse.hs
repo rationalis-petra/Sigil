@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 module Glyph.Parse
   ( Range
   , Parsed
@@ -165,11 +164,11 @@ core precs = choice' [plam, pprod, pexpr]
                     (\n t -> OptBind (Just n, Just t)) <$> anyvar <*> (symbol ":" *> (core precs))
 
           arg :: Parser (OptBind Text ParsedCore)
-          arg =  notFollowedBy (symbol "↦") *> (flip (curry OptBind) Nothing . Just  <$> anyvar)
+          arg =  notFollowedBy (symbol "→") *> (flip (curry OptBind) Nothing . Just  <$> anyvar)
 
       _ <- symbol "λ"
       (precs', tel) <- args
-      _ <- symbol "↦"
+      _ <- symbol "→"
       -- TODO: update precs per argument!!
       body <- core precs'
       pure $ unscope (reverse tel) body

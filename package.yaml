@@ -51,8 +51,10 @@ ghc-options:
 - -Wmissing-home-modules
 - -Wpartial-fields
 - -Wredundant-constraints
+- -optP-Wno-nonportable-include-path # to fix build on Windows
 
 default-extensions: 
+- ScopedTypeVariables
 - UndecidableInstances
 - TypeFamilies
 - FlexibleInstances
@@ -68,6 +70,7 @@ default-extensions:
 - ConstraintKinds
 - PatternSynonyms
 - TupleSections
+- GADTs
 
 
 library:

@@ -5,8 +5,7 @@ module Interactive
 
 import Prelude hiding (getLine, putStr)
 
-import Control.Monad (unless)
-import Control.Monad.Except (ExceptT, runExceptT, throwError, catchError)
+import Control.Monad.Except (MonadError, throwError, catchError)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Text
@@ -22,7 +21,7 @@ import Glyph.Parse
 import Glyph.Parse.Mixfix
 import Glyph.Analysis.NameResolution
 import Glyph.Analysis.Typecheck
-import Glyph.Interpret.Term
+import Glyph.Interpret.Interpreter
 import Glyph.Concrete.Internal
 
 
@@ -44,39 +43,45 @@ default_precs = Precedences
    ])
   "sum" "ppd" "ppd" "close"
 
-interactive :: InteractiveOpts -> IO ()
-interactive = loop default_env
+interactive :: forall m e s t. (MonadError GlyphDoc m, MonadGen m, Environment Name e)
+  => Interpreter m (e (Maybe InternalCore, InternalCore)) s t -> InteractiveOpts -> IO ()
+interactive (Interpreter {..}) = loop start_state
   where
-    default_env :: ()
-    default_env = ()
-
-    loop :: () -> InteractiveOpts -> IO ()
-    loop _ opts = do
+    loop :: s -> InteractiveOpts -> IO ()
+    loop state opts =  do
       putStr "> "
       hFlush stdout
       line <- getLine
-      unless (should_quit line) $ do
-        case eval_line line of
+      if (should_quit line) then do
+        (result, state') <- run state $ eval_line line 
+        case result of
           Right (val, ty) -> do
             putDocLn $ "final value:" <+> nest 2 (pretty val)
             putDocLn $ "type" <+> nest 2 (pretty ty)
           Left err -> putDocLn err
-        loop () opts
+        loop state' opts
+      else
+        (run state stop) >> pure ()
     
     should_quit :: Text -> Bool
     should_quit ":q" = True
     should_quit _ = False
-    
-    eval_line :: Text -> Either GlyphDoc (InternalCore, InternalCore)
-    eval_line line = run_gen $ runExceptT $ meval line
 
-    meval :: Text -> ExceptT GlyphDoc Gen (InternalCore, InternalCore)
-    meval line = do
+    eval_line :: Text -> m (InternalCore, InternalCore)
+    eval_line line = do
+      env <- get_env Nothing 
       parsed <- parseToErr (core default_precs <* eof) "console-in" line 
       resolved <- resolve_closed parsed
-        `catchError` (throwError . (<+>) "resolution:")
-      (term, ty) <- infer (env_empty :: Env (Maybe InternalCore, InternalCore)) resolved
-        `catchError` (throwError . (<+>) "inference:")
-      norm <- normalize (env_empty :: Env (Maybe InternalCore, InternalCore)) ty term
-        `catchError` (throwError . (<+>) "normalization:")
-      pure (norm, ty) 
+        `catchError` (throwError . (<+>) "Resolution:")
+      (term, ty) <- infer interp_eval env resolved
+        `catchError` (throwError . (<+>) "Inference:")
+      norm <- interp_eval env ty term
+        `catchError` (throwError . (<+>) "Normalization:")
+      pure (norm, ty)
+
+    interp_eval :: e (Maybe InternalCore, InternalCore) -> InternalCore -> InternalCore -> m InternalCore
+    interp_eval env ty val = do
+      ty' <- reify ty
+      val' <- reify val
+      result <- eval env ty' val'
+      reflect result 

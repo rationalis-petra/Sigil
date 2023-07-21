@@ -21,7 +21,7 @@ resolve_spec = TestGroup "name-resolution" $ Right tests
 res_test :: Text -> ParsedCore -> ResolvedCore -> Test
 res_test name val result = Test name err where
   err =
-    if run_gen (resolve val) /= result then
+    if run_gen (resolve_closed val) /= result then
       Just $ print_bad val result
     else
       Nothing

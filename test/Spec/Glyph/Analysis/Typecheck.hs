@@ -9,6 +9,7 @@ import Prettyprinter.Render.Glyph
 import Glyph.Abstract.Environment
 import Glyph.Concrete.Internal
 import Glyph.Analysis.Typecheck
+import Glyph.Interpret.Term
 
 import TestFramework
 
@@ -56,7 +57,7 @@ check_tests =
   where 
     check_test :: Text -> InternalCore -> InternalCore -> Bool -> Test
     check_test name term ty succ = 
-      Test name $ case runCheckM $ check default_env term ty of 
+      Test name $ case runCheckM $ check normalize default_env term ty of 
         Right _
           | succ -> Nothing
           | otherwise -> Just "checker passed, expected to fail"
@@ -92,7 +93,7 @@ infer_tests =
   where
     infer_test :: Text -> InternalCore -> InternalCore -> Test
     infer_test name term ty = 
-      Test name $ case runCheckM $ infer default_env term of 
+      Test name $ case runCheckM $ infer normalize default_env term of 
         Right (_, ty')
           | ty == ty' -> Nothing
           | otherwise -> Just $ "expected type:" <+> pretty ty <+> "got" <+> pretty ty'

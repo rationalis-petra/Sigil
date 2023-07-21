@@ -1,29 +1,42 @@
+{-# LANGUAGE ApplicativeDo #-}
 module Main (main) where
 
 import Prelude hiding (putStrLn)
 
+import Control.Monad.Except (MonadError)
 import Data.Text.IO
 import Data.Text (pack)
 
 import Options.Applicative
+import Prettyprinter.Render.Glyph
 
+import Glyph.Abstract.Environment (Environment, Env, Name, MonadGen)
+import Glyph.Interpret.Interpreter 
+import Glyph.Interpret.Canonical 
+import Glyph.Concrete.Internal
 import Interactive
 import Server
 
-data Backends = Native | JVM | Javascript | WASM
+data Backend = Native | JVM | Javascript | WASM
   deriving (Show, Read, Eq)
 
-interactive_opts :: Parser InteractiveOpts
-interactive_opts = InteractiveOpts
-  <$> strOption
+interactive_opts :: Parser (InteractiveOpts, Backend)
+interactive_opts = do
+  file <- strOption
     ( long "file"
     <> short 'f'
     <> value ""
     <> help "Specify what file to run (if any)" )
+  backend <- option auto
+    ( long "backend"
+    <> short 'b'
+    <> showDefault
+    <> value Native )
+  pure (InteractiveOpts file, backend)
 
 data CompileOpts = CompileOpts
   { cfile :: String
-  , backend :: Backends
+  , backend :: Backend
   }
   deriving (Show, Read, Eq)
 
@@ -39,19 +52,25 @@ compile_opts = CompileOpts
     <> value Native )
 
 
-server_opts :: Parser ServerOpts
-server_opts = ServerOpts
-  <$> option auto
+server_opts :: Parser (ServerOpts, Backend)
+server_opts = do
+  port <- option auto
     ( long "port"
     <> help "What port the server runs from"
     <> showDefault
     <> value 8801
     <> metavar "INT" )
+  backend <- option auto
+    ( long "backend"
+    <> short 'b'
+    <> showDefault
+    <> value Native )
+  pure (ServerOpts port, backend)
 
 data Command
-  = InteractiveCommand InteractiveOpts
-  | CompileCommand CompileOpts
-  | ServerCommand ServerOpts
+  = CompileCommand CompileOpts
+  | InteractiveCommand (InteractiveOpts, Backend)
+  | ServerCommand (ServerOpts, Backend)
   deriving (Show, Read, Eq)
 
 glyph_opts :: Parser Command
@@ -69,6 +88,16 @@ main = do
     <> progDesc "Compile, Run or Develop a Glyph Program"
     <> header "An implementation of the Glyph Language" )
   case command of 
-    InteractiveCommand c -> interactive c
-    ServerCommand s -> server s
+    InteractiveCommand (c, backend) -> run_with_backend backend interactive c
+    ServerCommand (s, backend) -> run_with_backend backend server s
     _ -> putStrLn $ pack $ show command
+
+
+run_with_backend ::
+  Backend
+  -> (forall m e s t. (MonadError GlyphDoc m, MonadGen m, Environment Name e) =>
+      (Interpreter m (e (Maybe InternalCore, InternalCore)) s t) -> a -> IO ())
+  -> a -> IO ()
+run_with_backend backend func val = case backend of
+  Native -> func (canonical_interpreter :: Interpreter CanonM (Env (Maybe InternalCore, InternalCore)) (World InternalModule) InternalCore) val
+  b -> putStrLn $ pack ("Cannot run with backend:" <> show b)

@@ -5,7 +5,7 @@ module Server
 
 import Prelude hiding (putStrLn)
 import Control.Monad (forever)
-import Control.Monad.Except (ExceptT, runExceptT, catchError, throwError)
+import Control.Monad.Except (MonadError, catchError, throwError)
 import qualified Control.Exception as Ex
 import Control.Concurrent (forkFinally)
   
@@ -35,10 +35,12 @@ import Glyph.Parse.Mixfix
 import Glyph.Parse
 import Glyph.Analysis.NameResolution
 import Glyph.Analysis.Typecheck
-import Glyph.Interpret.Term
+import Glyph.Interpret.Interpreter
 
 import Server.Agent
 
+-- We use an existential type to allow substituting different interpreters with
+-- different monads
 
 data ServerOpts = ServerOpts
   { port :: Int
@@ -58,12 +60,14 @@ default_precs = Precedences
    ])
   "sum" "ppd" "ppd" "close"
 
-server :: ServerOpts -> IO ()
-server opts = do
-  runTCPServer Nothing (show $ port opts) threadWorker
+server :: forall m e s t. (MonadError GlyphDoc m, MonadGen m, Environment Name e) =>
+  Interpreter m (e (Maybe InternalCore, InternalCore)) s t -> ServerOpts -> IO ()
+server interpreter opts = do
+  runTCPServer Nothing (show $ port opts) (threadWorker interpreter)
 
 -- start a server which listens for incoming bytestrings
 -- from the "network-run" package.
+
 runTCPServer :: Maybe HostName -> ServiceName -> (Socket -> IO a) -> IO a
 runTCPServer mhost port threadWorker = withSocketsDo $ do
     addr <- resolve
@@ -88,46 +92,58 @@ runTCPServer mhost port threadWorker = withSocketsDo $ do
             -- @conn@) before proper cleanup of @conn@ is your case
             forkFinally (threadWorker conn) (const $ gracefulClose conn 5000)
 
-threadWorker :: Socket -> IO ()  
-threadWorker socket = go (packetProducer socket)
+
+threadWorker :: forall m e s t. (MonadError GlyphDoc m, MonadGen m, Environment Name e)
+  => Interpreter m (e (Maybe InternalCore, InternalCore)) s t -> Socket -> IO ()
+threadWorker interpreter socket = loop (packetProducer socket) (start_state interpreter)
   where
-    go :: Producer Bs.ByteString IO () -> IO ()  
-    go p = do
+    loop :: Producer Bs.ByteString IO () -> s -> IO ()
+    loop p state = do
       (mmessage, cont) <- runStateT messageParser p
       case mmessage of 
         Just message -> do
-          procErr message 
-          go cont
-        Nothing -> pure ()
+          state' <- procErr state message
+          loop cont state' 
+        Nothing -> do
+          _ <- run interpreter state $ stop interpreter
+          pure ()
         
-    procErr :: Either DecodingError InMessage -> IO () 
-    procErr = either id id .  bimap (putStrLn . ("Error: " <>) . pack . show) (processMessage socket)  
+    procErr :: s -> Either DecodingError InMessage -> IO s
+    procErr state
+      = either (>> pure state) id .  bimap (putStrLn . ("Error: " <>) . pack . show) (processMessage interpreter state socket)
 
 
-processMessage :: Socket -> InMessage -> IO ()  
-processMessage socket = \case
-  EvalExpr uid _ code ->
-    let object = case eval_term code of
+processMessage :: forall m e s t. (MonadError GlyphDoc m, MonadGen m, Environment Name e)
+  => Interpreter m (e (Maybe InternalCore, InternalCore)) s t -> s -> Socket -> InMessage -> IO s
+processMessage (Interpreter {..}) state socket = \case
+  EvalExpr uid _ code -> do -- TODO: update to use path!
+    (result, state') <- run state $ eval_msg code
+    let object = case result of
           Right (val, _) -> toJSON $ OutResult uid (renderStrict (layoutPretty defaultLayoutOptions (pretty val)))
           Left err -> toJSON $ OutError uid (renderStrict (layoutPretty defaultLayoutOptions err))
-    in do
-      sendAll socket (Bs.toStrict $ encode $ object)
-      sendAll socket "\n"
+    sendAll socket (Bs.toStrict $ encode $ object)
+    sendAll socket "\n"
+    pure state'
    
   where 
-    eval_term :: Text -> Either GlyphDoc (InternalCore, InternalCore)
-    eval_term line = run_gen $ runExceptT $ meval line
-
-    meval :: Text -> ExceptT GlyphDoc Gen (InternalCore, InternalCore)
-    meval line = do
-      parsed <- parseToErr (core default_precs <* eof) "sever-in" line 
+    eval_msg :: Text -> m (InternalCore, InternalCore)
+    eval_msg line = do
+      env <- get_env Nothing 
+      parsed <- parseToErr (core default_precs <* eof) "server-in" line 
       resolved <- resolve_closed parsed
-        `catchError` (throwError . (<+>) "resolution:")
-      (term, ty) <- infer (env_empty :: Env (Maybe InternalCore, InternalCore)) resolved
-        `catchError` (throwError . (<+>) "inference:")
-      norm <- normalize (env_empty :: Env (Maybe InternalCore, InternalCore)) ty term
-        `catchError` (throwError . (<+>) "normalization:")
-      pure $ (norm, ty)
+        `catchError` (throwError . (<+>) "Resolution:")
+      (term, ty) <- infer interp_eval env resolved
+        `catchError` (throwError . (<+>) "Inference:")
+      norm <- interp_eval env ty term
+        `catchError` (throwError . (<+>) "Normalization:")
+      pure (norm, ty)
+
+    interp_eval :: e (Maybe InternalCore, InternalCore) -> InternalCore -> InternalCore -> m InternalCore
+    interp_eval env ty val = do
+      ty' <- reify ty
+      val' <- reify val
+      result <- eval env ty' val'
+      reflect result 
 
 packetProducer :: MonadIO m => Socket -> Producer Bs.ByteString m ()
 packetProducer socket = do

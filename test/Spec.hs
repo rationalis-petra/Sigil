@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 import Prelude hiding (putStrLn)
 
 import Control.Monad (when, join, unless)
@@ -13,6 +12,8 @@ import Spec.Glyph.Abstract
 import Spec.Glyph.Parse
 import Spec.Glyph.Interpret
 import Spec.Glyph.Analysis
+
+import Spec.Glint.Parse
 
 data Verbosity = Errors | Groups | Verbose
   deriving (Read, Show, Eq, Ord)
@@ -42,6 +43,8 @@ tests =
   , parse_spec
   , interpret_spec
   , analysis_spec
+
+  , gl_parse_spec
   ]
 
 runall :: [TestGroup] -> Config -> IO ()
