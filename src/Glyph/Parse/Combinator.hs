@@ -1,5 +1,6 @@
 module Glyph.Parse.Combinator
   ( Parser
+  , ParserT
   , betweenM
   , many1
   , thread
@@ -25,13 +26,14 @@ import Text.Megaparsec hiding (runParser)
 {--------------------------------- PARSER TYPE ---------------------------------}
 
 
+type ParserT = ParsecT Text Text
 type Parser = Parsec Text Text
 
 
 {--------------------------------- COMBINATORS ---------------------------------}
 
   
-betweenM :: Vector (Parser b) -> Parser a -> Parser [a]  
+betweenM :: Monad m => Vector (ParserT m b) -> ParserT m a -> ParserT m [a]  
 betweenM vec p = case length vec of 
   0 -> pure []
   1 -> head vec *> pure []
@@ -39,20 +41,20 @@ betweenM vec p = case length vec of
   _ -> (head vec) *> ((:) <$> p <*> betweenM (tail vec) p)
 
 -- Parse many of an element (min 1) 
-many1 :: Parser a -> Parser [a]
+many1 :: ParserT m a -> ParserT m [a]
 many1 p = (:) <$> p <*> many p 
 
-thread :: (a -> Parser a) -> a -> Parser a   
+thread :: Monad m => (a -> ParserT m a) -> a -> ParserT m a   
 thread p val = (p val >>= thread p) <||> pure val
 
-thread1 :: (a -> Parser a) -> a -> Parser a   
+thread1 :: Monad m => (a -> ParserT m a) -> a -> ParserT m a   
 thread1 p val = (p val >>= thread p)
 
 -- choice with backtracking
-choice' :: [Parser a] -> Parser a
+choice' :: [ParserT m a] -> ParserT m a
 choice' = choice . fmap try
 
 infixl 3 <||>
 -- <|> with backtracking
-(<||>) :: Parser a -> Parser a -> Parser a
+(<||>) :: ParserT m a -> ParserT m a -> ParserT m a
 l <||> r = try l <|> try r

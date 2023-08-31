@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 module Glyph.Interpret.Canonical
   ( Context(..)
   , CanonM
@@ -13,29 +14,30 @@ module Glyph.Interpret.Canonical
 {- current machine.                                                            -}
 {-------------------------------------------------------------------------------}
 
-import Control.Monad.State (StateT, modify)
-import Control.Monad.Except (ExceptT)
+import Control.Monad.State (StateT, modify, runStateT)
+import Control.Monad.Except (ExceptT, runExceptT)
 import qualified Data.Map as Map
 --import Data.Text (Text)
 
 --import Prettyprinter  
 import Prettyprinter.Render.Glyph
 
+import Glyph.Parse.Mixfix
 import Glyph.Abstract.Environment
 import Glyph.Concrete.Internal
 import Glyph.Interpret.Interpreter
 --import Glyph.Interpret.Unify
 import Glyph.Interpret.Term
 
-data Context = Context { world :: World InternalModule } -- threads :: ??
+newtype Context = Context { world :: World InternalModule } -- threads :: ??
   
 type CanonM = StateT (World InternalModule) (ExceptT GlyphDoc Gen)
 
 canonical_interpreter :: Environment Name e => Interpreter CanonM (e (Maybe InternalCore, InternalCore)) (World InternalModule) InternalCore
 canonical_interpreter = Interpreter
   -- reify_term :: e -> InternalCore -> m t
-  { reify = error "reify not implemented"
-  , reflect = error "reflect not implemented"
+  { reify = pure
+  , reflect = pure
   -- , reflect_term :: t -> m InternalCore
 
 
@@ -49,7 +51,7 @@ canonical_interpreter = Interpreter
 
   -- solve :: Path Name -> Formula InternalCore -> m (Substitution InternalCore) 
   --, solve_formula = \_ formula -> do
-      -- TODO: solve neets to depend on path!
+      -- TODO: solve needs to depend on path!
       -- env <- build_eval_env_from path
       -- solve formula
 
@@ -58,14 +60,21 @@ canonical_interpreter = Interpreter
   , intern_module = \path modul ->
       modify (insert_at_path path modul)
 
-  -- get_env :: Path Text -> m e
-  , get_env = error "get env not implemented"
+  -- get_env :: Path Text -> [ImportDef] -> m e
+  , get_env = \_ _ -> pure env_empty
+
+  , get_precs = \_ _ ->
+      pure $ Precedences Map.empty "in" "pre" "post" "close"
 
   -- capabilities (is m a comonad??)
   -- extract_io :: forall a. m a -> IO (a, m ())
   -- run :: forall a. s -> m a -> IO (Either GlyphDoc a, s)
-  , run = error "extract_io not implemented"
-  , start_state = (World Map.empty) 
+  , run = \s mon -> 
+      pure $ case run_gen $ runExceptT $ runStateT mon s of 
+        Right (v,s) -> (Right v, s)
+        Left err -> (Left err, s)
+
+  , start_state = World Map.empty
   , stop = pure () 
 
   , to_image = error "to_image not implemented"

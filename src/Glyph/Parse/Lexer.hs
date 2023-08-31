@@ -29,13 +29,13 @@ import Glyph.Parse.Combinator
 import Prelude hiding (head)
 
 
-sc :: Parser () 
+sc :: ParserT m () 
 sc = L.space
   (void $ char ' ' <|> char '\t')
   (L.skipLineComment "⍝")   
   (L.skipBlockComment "⋳" "⋻")
 
-scn :: Parser () 
+scn :: ParserT m () 
 scn = L.space
   space1
   (L.skipLineComment "⍝")   
@@ -48,19 +48,19 @@ scn = L.space
 --     indented_block = do
   
 
-lexemen :: Parser a -> Parser a
+lexemen :: ParserT m a -> ParserT m a
 lexemen = L.lexeme scn
 
-lexeme :: Parser a -> Parser a
+lexeme :: ParserT m a -> ParserT m a
 lexeme = L.lexeme sc
 
-symbol :: Text -> Parser Text
+symbol :: Text -> ParserT m Text
 symbol = L.symbol sc
 
-symboln :: Text -> Parser Text
+symboln :: Text -> ParserT m Text
 symboln = L.symbol scn
 
-subscript_int :: Parser Int -- TODO update to INTEGER
+subscript_int :: ParserT m Int -- TODO update to INTEGER
 subscript_int = lexeme $ to_int 1 . reverse <$> many1 sub_numchar
   where
     to_int _ [] = 0
@@ -79,7 +79,7 @@ subscript_int = lexeme $ to_int 1 . reverse <$> many1 sub_numchar
       , satisfy (== '₉') $>  9
       ]
 
-anyvar :: Parser Text  
+anyvar :: ParserT m Text  
 anyvar = lexeme $ pack <$> many1 (satisfy symchar)
   where 
     symchar :: Char -> Bool

@@ -2,7 +2,10 @@ module Glyph.Abstract.Syntax
   ( Core(..)
   , Module(..)
   , Definition(..)
-  , PortDef(..)
+  , ImportModifier(..)
+  , ExportModifier(..)
+  , ImportDef
+  , ExportDef
   , IndType(..)
   -- , Clause(..)
   , Forallχ
@@ -42,6 +45,8 @@ import Prelude hiding (lookup, length)
 
 import Control.Lens (makeLenses, (^.))
 import Data.Kind
+import Data.List.NonEmpty (NonEmpty)
+import Data.Set (Set)
 import Data.Foldable
 import Data.Text hiding (zipWith, foldl', tail, head)
 
@@ -125,25 +130,53 @@ type Forallχ (φ :: Type -> Constraint) χ
 
 {---------------------------------- MODULE TYPE ----------------------------------}
 {-                                                                               -}
+{- ImortDef = Import definitions. These are divided into two parts:              -}
+{- • The Prefix: A non-empty list of names, e.g. [data string] or [prelude]      -}
+{- • The Postfix: Indicates what to do with the prefix:                          -}
+{-   • Singleton: Tread the prefix as a path to any value, which is imported     -}
+{-     e.g. ([data, string], singleton) will bring 'string' into scope.          -}
+{-   • Wildcard: treat the prefix as a module path or inductive type; import all -}
+{-     elements for example ([data, string], wildcard) will import all members   -}
+{-     from the 'data.string' module into the current scope.                     -}
+{-   • Except: given a set of strings, treat the path as indicating a module,    -}
+{-     and import all fields except for the given set                            -}
+{-   • Set: Given a set of strings, import                                       -}
 {-                                                                               -}
+{- • Postfix (for exports)                                                       -}
+{-   • Singleton: Export the                                                     -}
+{-   • Seal: Export the given value (assumed to be a type), but the definition   -}
+{-     is not exposed for the purpose of judgemental equality.                   -}
+{-   • As type: Export the given value, as a particular type (usually a subtype  -}
+{-     of the given type).                                                       -}
 {-                                                                               -}
 {---------------------------------------------------------------------------------}
 
 
 data Module b v χ  
   = Module { _module_header :: [Text]
-           , _module_exports :: [PortDef]
-           , _module_imports :: [PortDef]
+           , _module_imports :: [ImportDef]
+           , _module_exports :: [ExportDef]
            , _module_defs :: [Definition b v χ]
            } 
-  
 
-data PortDef
-  = PortOne [Text] Text
-  | PortAll [Text] Text
-  | PortSet [Text] [Text]
-  | PortExcept [Text] [Text]
-  deriving (Ord, Eq)
+data ImportModifier
+  = ImWildcard
+  | ImSingleton
+  | ImAlias Text
+  | ImPortExcept (Set Text)
+  | ImPortGroup (Set Text)
+  deriving (Ord, Eq, Show)
+
+-- TODO Sealing
+data ExportModifier
+  = ExWildcard
+  | ExAsType
+  | ExSeal
+  deriving (Ord, Eq, Show)
+
+type ImportDef = (NonEmpty Text, ImportModifier)
+
+type ExportDef = (NonEmpty Text, ExportModifier)
 
 data IndType = Inductive | Coinductive  
   deriving (Eq, Ord, Show)
@@ -200,17 +233,6 @@ instance Forall Eq b n χ --(Eq (b n (Core b n χ)), Eq n, Forallχ Eq χ, Eq (C
 {-     Instances for printing syntax trees to via the Prettyprinter library    -}
 {-------------------------------------------------------------------------------}
 
-pretty_def_builder :: (b n (Core b n χ) -> Doc ann) -> (n -> Doc ann) -> (Coreχ b n χ -> Doc ann) -> Definition b n χ -> Doc ann
-pretty_def_builder pretty_bind pretty_name pretty_coreχ d =
-  case d of
-    (Mutualχ _ [def]) -> pretty_bind (fst def) <+> "≜" <+> pretty_core (snd def)
-    (Mutualχ _ defs)  -> vsep (fmap (pretty_bind . fst) defs) <+> vsep (fmap (\v -> (pretty_bind (fst v)) <+> "≜" <+> (pretty_core (snd v)) ) defs)
-    (SigDefχ _ _ _ _) -> "Signature"
-    (IndDefχ _ _ _ _) -> "Co/Inductive type def"
-    where
-      pretty_core = pretty_core_builder pretty_bind pretty_name pretty_coreχ
-
-
 pretty_core_builder :: (b n (Core b n χ) -> Doc ann) -> (n -> Doc ann) -> (Coreχ b n χ -> Doc ann) -> Core b n χ -> Doc ann
 pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
   case c of
@@ -256,7 +278,7 @@ pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
         ("λ " <> pretty_args bind args <> " →") <+> nest 2 (bracket body)
 
     -- telescoping
-    Appχ χ l r -> sep $ fmap bracket $ unwind (Appχ χ l r)
+    Appχ χ l r -> sep $ bracket <$> unwind (Appχ χ l r)
     where 
         pretty_core = pretty_core_builder pretty_bind pretty_name pretty_coreχ
         bracket v = if iscore v then pretty_core v else "(" <> pretty_core v <> ")"
@@ -268,9 +290,21 @@ pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
         unwind (Appχ _ l r) = unwind l <> [r]
         unwind t = [t]
 
+
+pretty_def_builder :: (b n (Core b n χ) -> Doc ann) -> (n -> Doc ann) -> (Coreχ b n χ -> Doc ann) -> Definition b n χ -> Doc ann
+pretty_def_builder pretty_bind pretty_name pretty_coreχ d =
+  case d of
+    (Mutualχ _ [def]) -> pretty_bind (fst def) <+> "≜" <+> pretty_core (snd def)
+    (Mutualχ _ defs)  -> vsep (fmap (pretty_bind . fst) defs) <+> vsep (fmap (\v -> pretty_bind (fst v) <+> "≜" <+> pretty_core (snd v)) defs)
+    (SigDefχ _ _ _ _) -> "Signature"
+    (IndDefχ _ _ _ _) -> "Co/Inductive type def"
+    where
+      pretty_core = pretty_core_builder pretty_bind pretty_name pretty_coreχ
+
+
 pretty_mod_builder :: (Definition b n χ -> Doc ann) -> Module b n χ -> Doc ann
 pretty_mod_builder pretty_def m =
   -- TOOD: account for imports/exports
   vsep $
     ("module" <+> (foldl' (<>) "" . zipWith (<>) ("" : repeat ".") . fmap pretty $ (m^.module_header)))
-    : (fmap pretty_def (m^.module_defs))
+    : fmap pretty_def (m^.module_defs)

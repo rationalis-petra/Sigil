@@ -107,7 +107,7 @@ instance Pretty InternalCore where
   
     where 
       pretty_prd_like e =
-        align $ sep $ head tel : zipWith (<+>) (repeat "→") (tail tel)
+        align $ sep $ head tel : map ("→" <+>) (tail tel)
         where
           tel = telescope e
         
@@ -141,3 +141,15 @@ instance Pretty InternalCore where
 
       unwind (App l r) = unwind l <> [r]
       unwind t = [t]
+
+instance Pretty (ImplCore AnnBind Name Internal) where
+  pretty ic = case ic of 
+    IAbsχ _ b body -> "λ ⟨" <> pretty b <> "⟩" <+> "→" <+> pretty body
+    IPrdχ _ b body -> "⟨" <> pretty b <> "⟩" <+> "→" <+> pretty body
+    TyConχ _ n body -> "[" <> pretty n <+> "<:" <+> pretty body <> "]"   -- Constrains named type n  
+
+instance Pretty InternalDef where
+  pretty = pretty_def_builder pretty pretty pretty
+
+instance Pretty InternalModule where
+  pretty = pretty_mod_builder pretty

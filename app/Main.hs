@@ -75,11 +75,11 @@ data Command
 
 glyph_opts :: Parser Command
 glyph_opts = subparser $ 
-  (command "compile" $ info (CompileCommand <$> compile_opts) (progDesc "Compile a Glyph program"))
+  command "compile" (info (CompileCommand <$> compile_opts) (progDesc "Compile a Glyph program"))
   <>
-  (command "server" $ info (ServerCommand <$> server_opts) (progDesc "Launch the Glyph language server"))
+  command "server" (info (ServerCommand <$> server_opts) (progDesc "Launch the Glyph language server"))
   <>
-  (command "interactive" $ info (InteractiveCommand <$> interactive_opts) (progDesc "Launch Glyph in interactive mode"))
+  command "interactive" (info (InteractiveCommand <$> interactive_opts) (progDesc "Launch Glyph in interactive mode"))
 
 main :: IO ()
 main = do
@@ -96,7 +96,7 @@ main = do
 run_with_backend ::
   Backend
   -> (forall m e s t. (MonadError GlyphDoc m, MonadGen m, Environment Name e) =>
-      (Interpreter m (e (Maybe InternalCore, InternalCore)) s t) -> a -> IO ())
+      Interpreter m (e (Maybe InternalCore, InternalCore)) s t -> a -> IO ())
   -> a -> IO ()
 run_with_backend backend func val = case backend of
   Native -> func (canonical_interpreter :: Interpreter CanonM (Env (Maybe InternalCore, InternalCore)) (World InternalModule) InternalCore) val

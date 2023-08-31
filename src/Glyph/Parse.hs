@@ -5,6 +5,7 @@ module Glyph.Parse
   , core
   , def
   , mod
+  , parse
   , runParser
   , parseToErr
   ) where
@@ -20,15 +21,18 @@ module Glyph.Parse
 
 import Prelude hiding (head, last, tail, mod)
 import Control.Monad (join)
+import Control.Monad.Trans (lift)
 import Control.Monad.Except (MonadError, throwError)
 import qualified Data.Text as Text
 import Data.Text (Text)
+import Data.Either (lefts, rights)
 import Data.Maybe (maybeToList)
 
 import qualified Text.Megaparsec as Megaparsec
 import qualified Text.Megaparsec.Char as C
 import qualified Text.Megaparsec.Char.Lexer as L
-import Text.Megaparsec hiding (runParser)
+import Text.Megaparsec hiding (runParser, parse)
+import Prettyprinter.Render.Glyph (GlyphDoc)
 import Prettyprinter
 
 import Glyph.Abstract.Syntax
@@ -56,50 +60,52 @@ update_precs_def precs def =
     IndDefχ _ _ _ _ -> error "Haven't implemented update_precs_def for IndDef"
   
 
-mod :: ([PortDef] -> Precedences) -> Parser ParsedModule
+-- Parase a module 
+mod :: Monad m => ([Text] -> [ImportDef] -> m Precedences) -> ParserT m ParsedModule
 mod get_precs = do
   (title, ports) <- module_header
-  let imports = fmap snd . filter fst $ ports
-      exports = fmap snd . filter (not . fst) $ ports
-      precs = get_precs imports
+  let imports = lefts ports
+      exports = rights ports
+  precs <- lift $ get_precs title imports
+
   body <-
     let go precs =
           try (do d <- L.nonIndented scn (def precs)
                   let precs' = update_precs_def precs d
-                  (d :) <$> (go precs')) <|> pure [] 
+                  (d :) <$> go precs') <|> pure [] 
     in go precs
       
-  pure $ Module title exports imports body
+  pure $ Module title imports exports body
 
   where
-    module_header :: Parser ([Text], [(Bool, PortDef)])
+    module_header :: ParserT m ([Text], [Either ImportDef ExportDef])
     module_header = do
       L.nonIndented scn (L.indentBlock scn modul)
       where 
-        modul :: Parser (L.IndentOpt Parser ([Text], [(Bool, PortDef)]) [(Bool, PortDef)])
+        modul :: ParserT m (L.IndentOpt (ParserT m) ([Text], [Either ImportDef ExportDef]) [Either ImportDef ExportDef])
         modul = do 
           _ <- symbol "module"
           title <- sepBy anyvar (C.char '.')
           pure (L.IndentMany Nothing (pure . (title, ) . join) modulePart)
       
-        modulePart :: Parser [(Bool, PortDef)]
+        modulePart :: ParserT m [Either ImportDef ExportDef]
         modulePart =
           L.indentBlock scn (imports <|> exports)
       
-        imports :: Parser (L.IndentOpt Parser [(Bool, PortDef)] PortDef)
+        imports :: ParserT m (L.IndentOpt (ParserT m) [Either ImportDef ExportDef] (Either ImportDef ExportDef))
         imports = do
           _ <- symbol "import" 
-          pure (L.IndentSome Nothing (pure . fmap (True,)) importStatement)
+          pure (L.IndentSome Nothing pure (fmap Left importStatement))
       
-        importStatement :: Parser PortDef
+        importStatement :: ParserT m ImportDef
         importStatement = fail "import statement not implemented"
           
-        exports :: Parser (L.IndentOpt Parser [(Bool, PortDef)] PortDef)
+        exports :: ParserT m (L.IndentOpt (ParserT m) [Either ImportDef ExportDef] (Either ImportDef ExportDef))
         exports = do
          _ <- symbol "export"
-         pure (L.IndentSome Nothing (pure . fmap (False,)) exportStatement)
+         pure (L.IndentSome Nothing pure (fmap Right exportStatement))
       
-        exportStatement :: Parser PortDef
+        exportStatement :: ParserT m ExportDef
         exportStatement = fail "export statement not implemented"
 
 {--------------------------------- DEF PARSER ----------------------------------}
@@ -120,10 +126,10 @@ mod get_precs = do
 {-------------------------------------------------------------------------------}      
 
 
-def :: Precedences -> Parser ParsedDef
+def :: forall m. Monad m => Precedences -> ParserT m ParsedDef
 def precs = choice' [mutual]
   where 
-    mutual :: Parser ParsedDef
+    mutual :: ParserT m ParsedDef
     mutual = do
       args <- many1 anyvar
       _ <- symbol "≜"
@@ -144,26 +150,26 @@ def precs = choice' [mutual]
 {-------------------------------------------------------------------------------}
 
 
-core :: Precedences -> Parser ParsedCore
+core :: forall m. Monad m => Precedences -> ParserT m ParsedCore
 core precs = choice' [plam, pprod, pexpr]
   where
 
-    plam :: Parser ParsedCore
+    plam :: ParserT m ParsedCore
     plam = do
       let unscope :: [OptBind Text ParsedCore] -> ParsedCore -> ParsedCore
           unscope = flip $ foldr (Abs mempty)
 
-          args :: Parser (Precedences, [OptBind Text ParsedCore])
+          args :: ParserT m (Precedences, [OptBind Text ParsedCore])
           args = (thread1 (\(precs, args) ->
                              fmap (\a -> (update_precs (maybeToList $ name a) precs, a:args))
                                   (tyarg precs <||> arg))
                           (precs, []))
 
-          tyarg :: Precedences -> Parser (OptBind Text ParsedCore)
+          tyarg :: Precedences -> ParserT m (OptBind Text ParsedCore)
           tyarg precs = between (symbol "(") (symbol ")") $
                     (\n t -> OptBind (Just n, Just t)) <$> anyvar <*> (symbol ":" *> (core precs))
 
-          arg :: Parser (OptBind Text ParsedCore)
+          arg :: ParserT m (OptBind Text ParsedCore)
           arg =  notFollowedBy (symbol "→") *> (flip (curry OptBind) Nothing . Just  <$> anyvar)
 
       _ <- symbol "λ"
@@ -173,36 +179,42 @@ core precs = choice' [plam, pprod, pexpr]
       body <- core precs'
       pure $ unscope (reverse tel) body
 
-    pprod :: Parser ParsedCore
+    pprod :: ParserT m ParsedCore
     pprod = do
         arg <- parg <* (symbol "→")
         bdy <- core (update_precs (maybeToList $ name arg) precs)
         pure $ Prd mempty arg bdy
       where
-        parg :: Parser (OptBind Text ParsedCore)
+        parg :: ParserT m (OptBind Text ParsedCore)
         parg = annarg <||> ty_only
 
-        annarg :: Parser (OptBind Text ParsedCore)
+        annarg :: ParserT m (OptBind Text ParsedCore)
         annarg = between (symbol "(") (symbol ")") $
           (\n t -> OptBind (Just n, Just t)) <$> anyvar <*> (symbol ":" *> (core precs))
 
-        ty_only :: Parser (OptBind Text ParsedCore)
+        ty_only :: ParserT m (OptBind Text ParsedCore)
         ty_only = (\t -> OptBind (Nothing, Just t)) <$> choice' [plam, pexpr]
 
 
-    pexpr :: Parser ParsedCore
+    pexpr :: ParserT m ParsedCore
     pexpr = mixfix patom (core precs) precs
       where 
         patom = choice' [puniv]
       --   no_mixfix = choice' [plam, pprod]
 
-    puniv :: Parser ParsedCore
+    puniv :: ParserT m ParsedCore
     puniv = (single '𝒰' *> (Uni mempty <$> subscript_int))
-      <||> (const (Uni mempty 0) <$> symbol "𝒰")
+      <||> const (Uni mempty 0) <$> symbol "𝒰"
 
 
 {------------------------------ RUNNING A PARSER -------------------------------}
 
+parse :: MonadError GlyphDoc m => ParserT m a -> Text -> Text -> m a
+parse p file input = do
+  result <- Megaparsec.runParserT p (Text.unpack file) input 
+  case result of 
+    Left err -> throwError $ pretty $ errorBundlePretty err
+    Right val -> pure val
 
 runParser :: Parser a -> Text -> Text -> Either (Doc ann) a
 runParser p file input = case Megaparsec.runParser p (Text.unpack file) input of

@@ -261,7 +261,7 @@ parse_def precs =
             Test name $ Just $ "got: " <> pretty val <+> "expected" <+> pretty out
         Left msg -> Test name $ Just msg
 
-parse_mod :: ([PortDef] -> Precedences) -> TestGroup
+parse_mod :: ([ImportDef] -> Precedences) -> TestGroup
 parse_mod env = 
   TestGroup "module" $ Right
     [ mod_test "empty"
@@ -281,7 +281,7 @@ parse_mod env =
   where
     mod_test :: Text -> Text -> ParsedModule -> Test
     mod_test name text out =  
-      case runParser (mod env) name text of  
+      case runParser (mod (\_ i -> pure (env i))) name text of  
         Right val ->
           if αeq val out then
             Test name Nothing
@@ -313,5 +313,5 @@ pi = flip (foldr (Prdχ mempty)) . fmap (OptBind . bimap Just Just)
 vdef :: Text -> ParsedCore -> ParsedDef
 vdef name val = Mutualχ mempty [(OptBind (Just name, Nothing), val)]
 
-modul :: [Text] -> [PortDef] -> [PortDef] -> [ParsedDef] -> ParsedModule
+modul :: [Text] -> [ImportDef] -> [ExportDef] -> [ParsedDef] -> ParsedModule
 modul = Module 

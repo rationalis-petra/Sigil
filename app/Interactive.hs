@@ -3,16 +3,16 @@ module Interactive
   , interactive ) where
 
 
-import Prelude hiding (getLine, putStr)
+import Prelude hiding (mod, getLine, putStr, readFile)
 
 import Control.Monad.Except (MonadError, throwError, catchError)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Data.Text
+import Data.Text (Text, unpack)
 import Data.Text.IO
-import System.IO hiding (getLine, putStr)
+import System.IO hiding (getLine, putStr, readFile)
 
-import Text.Megaparsec hiding (runParser)
+import Text.Megaparsec hiding (parse, runParser)
 import Prettyprinter
 import Prettyprinter.Render.Glyph
 
@@ -26,7 +26,7 @@ import Glyph.Concrete.Internal
 
 
 data InteractiveOpts = InteractiveOpts
-  { ifile :: String
+  { ifile :: Text
   }
   deriving (Show, Read, Eq)
 
@@ -45,15 +45,19 @@ default_precs = Precedences
 
 interactive :: forall m e s t. (MonadError GlyphDoc m, MonadGen m, Environment Name e)
   => Interpreter m (e (Maybe InternalCore, InternalCore)) s t -> InteractiveOpts -> IO ()
-interactive (Interpreter {..}) = loop start_state
+interactive (Interpreter {..}) opts = do
+    s <- eval_file (ifile opts) start_state
+    loop s opts 
   where
     loop :: s -> InteractiveOpts -> IO ()
     loop state opts =  do
       putStr "> "
       hFlush stdout
       line <- getLine
-      if (should_quit line) then do
+      if not (should_quit line) then do
+        putStr "doing eval_line.."
         (result, state') <- run state $ eval_line line 
+        putStr "evaluated line.."
         case result of
           Right (val, ty) -> do
             putDocLn $ "final value:" <+> nest 2 (pretty val)
@@ -61,15 +65,15 @@ interactive (Interpreter {..}) = loop start_state
           Left err -> putDocLn err
         loop state' opts
       else
-        (run state stop) >> pure ()
-    
+        run state stop >> pure ()
+   
     should_quit :: Text -> Bool
     should_quit ":q" = True
     should_quit _ = False
 
     eval_line :: Text -> m (InternalCore, InternalCore)
     eval_line line = do
-      env <- get_env Nothing 
+      env <- get_env Nothing []
       parsed <- parseToErr (core default_precs <* eof) "console-in" line 
       resolved <- resolve_closed parsed
         `catchError` (throwError . (<+>) "Resolution:")
@@ -85,3 +89,26 @@ interactive (Interpreter {..}) = loop start_state
       val' <- reify val
       result <- eval env ty' val'
       reflect result 
+
+    eval_file :: Text -> s -> IO s
+    eval_file filename state = do
+      text <- readFile (unpack filename)
+      (result, state') <- run state $ eval_mod filename text 
+      case result of
+        Right modul -> do
+          putDocLn $ "module:" <+> nest 2 (pretty modul)
+        Left err -> putDocLn err
+      pure state'
+
+    eval_mod :: Text -> Text -> m InternalModule
+    eval_mod filename file = do
+      env <- get_env Nothing []
+      parsed <- parse (mod (\_ _ -> pure default_precs) <* eof) filename file 
+        `catchError` (throwError . (<+>) "Parse:")
+      resolved <- resolve_closed parsed
+        `catchError` (throwError . (<+>) "Resolution:")
+      term <- check_module interp_eval env resolved
+        `catchError` (throwError . (<+>) "Inference:")
+      -- norm <- interp_eval env ty term
+      --   `catchError` (throwError . (<+>) "Normalization:")
+      pure term

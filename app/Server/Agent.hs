@@ -25,11 +25,13 @@ import Data.Aeson.Types hiding (Parser)
 
 data InMessage
   = EvalExpr Int [Text] Text
+  deriving (Eq, Show)
   -- | LoadModule Int [Text] Text
 
 data OutMessage
   = OutResult Int Text
   | OutError Int Text
+  deriving (Eq, Show)
 
 -- doMessage :: InMessage -> AgentState -> IO (OutMessage, AgentState)
 

@@ -154,7 +154,7 @@ run_gen :: Gen a -> a
 run_gen = fst . flip runState 0 . ungen
 
 fresh_var :: MonadGen m => Text -> m Name
-fresh_var s = fresh_id >>= pure . Name . Right . flip (,) s
+fresh_var s = fresh_id >>= pure . Name . Right . (, s)
 
 freshen :: MonadGen m => Name -> m Name
 freshen (Name (Right (_, s))) = fresh_var s

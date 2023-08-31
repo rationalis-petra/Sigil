@@ -30,7 +30,8 @@ import Data.List.NonEmpty
 import Prettyprinter.Render.Glyph (GlyphDoc)  
 
 import Glyph.Abstract.Environment
---import Glyph.Abstract.Unify
+import Glyph.Abstract.Syntax (ImportDef)
+import Glyph.Parse.Mixfix (Precedences)
 --import Glyph.Abstract.Substitution
 import Glyph.Concrete.Internal
 
@@ -52,15 +53,17 @@ insert_at_path path a (World subtree) =
           subworld' = insert_at_path (t :| ts) a subworld
       Just (v, Nothing) -> World $ Map.insert p (v, Just subworld) subtree
         where 
-          subworld = insert_at_path (t :| ts) a (World $ Map.empty)
+          subworld = insert_at_path (t :| ts) a (World Map.empty)
       Nothing -> World $ Map.insert p (Nothing, Just subworld) subtree
         where 
-          subworld = insert_at_path (t :| ts) a (World $ Map.empty)
+          subworld = insert_at_path (t :| ts) a (World Map.empty)
 
 data Image a = Image (World a) (Restarts a)
 
 type Restarts a = [IO a]
 
+-- TODO: Interpreter 
+-- 
 -- m = monad
 -- e = environment
 -- s = state
@@ -80,7 +83,8 @@ data Interpreter m e s t = Interpreter
   -- environment manipulation
   -- load a module into the interpreter's state
   , intern_module :: Path Text -> InternalModule -> m ()
-  , get_env :: Maybe (Path Text) -> m e
+  , get_env :: Maybe (Path Text) -> [ImportDef] -> m e
+  , get_precs :: [Text] -> [ImportDef] -> m Precedences
 
   -- The Monad m
   , run :: forall a. s -> m a -> IO (Either GlyphDoc a, s)
@@ -109,3 +113,8 @@ data ArithFun = Add | Sub | Mul | Div
 --     (Just (), (x:xs))
 --     (Just (), _)
 --     (Nothing, _)
+
+-- Helper functions that can be used when working with an interpreter.
+-- make_module :: MonadError Doc m => Text -> Text -> m InbuiltModule
+-- make_module = 
+-- make

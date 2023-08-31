@@ -65,7 +65,7 @@ instance Checkable Name InternalCore InternalCore where
 
       i <- check_lvl aty
       j <- check_lvl bty
-      pure $ (Prd (AnnBind (n, a')) b', Uni (max i j))
+      pure (Prd (AnnBind (n, a')) b', Uni (max i j))
   
     _ -> throwError $ "infer not implemented for term:" <+> pretty term
   
@@ -100,14 +100,14 @@ instance Checkable Name ResolvedCore InternalCore where
   infer normalize env term = case term of
     Varχ _ n -> do
       ty <- snd <$> lookup_err n env
-      pure $ (Var n, ty)
-    Uniχ _ j -> pure $ (Uni j, Uni (j + 1))
+      pure (Var n, ty)
+    Uniχ _ j -> pure (Uni j, Uni (j + 1))
     Appχ _ l r -> do
       (l', lty) <- infer normalize env l
       (AnnBind (n, arg_ty), ret_ty) <- check_prod lty
       r' <- check normalize env r arg_ty
       rnorm <- normalize env arg_ty r'
-      pure $ (App l' r', subst (n ↦ rnorm) ret_ty)
+      pure (App l' r', subst (n ↦ rnorm) ret_ty)
   
     Absχ _ (OptBind (Just n, Just a)) body -> do
       (a', aty) <- infer normalize env a
@@ -127,7 +127,7 @@ instance Checkable Name ResolvedCore InternalCore where
 
       i <- check_lvl aty
       j <- check_lvl bty
-      pure $ (Prd (AnnBind (n, a')) b', Uni (max i j))
+      pure (Prd (AnnBind (n, a')) b', Uni (max i j))
     _ -> throwError $ "infer not implemented for term:" <+> pretty term
   
   

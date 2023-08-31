@@ -63,13 +63,14 @@ default_precs = Precedences
 server :: forall m e s t. (MonadError GlyphDoc m, MonadGen m, Environment Name e) =>
   Interpreter m (e (Maybe InternalCore, InternalCore)) s t -> ServerOpts -> IO ()
 server interpreter opts = do
+  putStrLn "starting server!"
   runTCPServer Nothing (show $ port opts) (threadWorker interpreter)
 
 -- start a server which listens for incoming bytestrings
 -- from the "network-run" package.
 
 runTCPServer :: Maybe HostName -> ServiceName -> (Socket -> IO a) -> IO a
-runTCPServer mhost port threadWorker = withSocketsDo $ do
+runTCPServer mhost port worker = withSocketsDo $ do
     addr <- resolve
     Ex.bracket (open addr) close loop
   where
@@ -90,12 +91,12 @@ runTCPServer mhost port threadWorker = withSocketsDo $ do
             -- but 'E.bracketOnError' above will be necessary if some
             -- non-atomic setups (e.g. spawning a subprocess to handle
             -- @conn@) before proper cleanup of @conn@ is your case
-            forkFinally (threadWorker conn) (const $ gracefulClose conn 5000)
+            forkFinally (worker conn) (const $ gracefulClose conn 5000)
 
 
 threadWorker :: forall m e s t. (MonadError GlyphDoc m, MonadGen m, Environment Name e)
   => Interpreter m (e (Maybe InternalCore, InternalCore)) s t -> Socket -> IO ()
-threadWorker interpreter socket = loop (packetProducer socket) (start_state interpreter)
+threadWorker interpreter socket = putStrLn "worker started!" >> loop (packetProducer socket) (start_state interpreter)
   where
     loop :: Producer Bs.ByteString IO () -> s -> IO ()
     loop p state = do
@@ -121,14 +122,15 @@ processMessage (Interpreter {..}) state socket = \case
     let object = case result of
           Right (val, _) -> toJSON $ OutResult uid (renderStrict (layoutPretty defaultLayoutOptions (pretty val)))
           Left err -> toJSON $ OutError uid (renderStrict (layoutPretty defaultLayoutOptions err))
-    sendAll socket (Bs.toStrict $ encode $ object)
+    sendAll socket (Bs.toStrict $ encode object)
+    putDocLn (either id (pretty . fst) result)
     sendAll socket "\n"
     pure state'
    
   where 
     eval_msg :: Text -> m (InternalCore, InternalCore)
     eval_msg line = do
-      env <- get_env Nothing 
+      env <- get_env Nothing []
       parsed <- parseToErr (core default_precs <* eof) "server-in" line 
       resolved <- resolve_closed parsed
         `catchError` (throwError . (<+>) "Resolution:")
