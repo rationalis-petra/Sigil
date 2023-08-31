@@ -4,14 +4,14 @@ import Control.Monad (when, join, unless)
 import Data.Text.IO (putStrLn)
 
 import Prettyprinter
-import Prettyprinter.Render.Glyph
+import Prettyprinter.Render.Sigil
 import Options.Applicative
 
 import TestFramework
-import Spec.Glyph.Abstract
-import Spec.Glyph.Parse
-import Spec.Glyph.Interpret
-import Spec.Glyph.Analysis
+import Spec.Sigil.Abstract
+import Spec.Sigil.Parse
+import Spec.Sigil.Interpret
+import Spec.Sigil.Analysis
 
 
 data Verbosity = Errors | Groups | Verbose
@@ -25,8 +25,8 @@ main = runall tests =<< execParser opts
   where 
     opts = info (config <**> helper)
       ( fullDesc
-      <> progDesc "Run all tests for Glyph"
-      <> header "Glyph test suite" )
+      <> progDesc "Run all tests for Sigil."
+      <> header "Sigil. test suite" )
 
 config :: Parser Config  
 config = Config
@@ -51,7 +51,7 @@ runall group config = do
     putStrLn "\nErrors:"
     mapM_ (putDocLn . indent 2) errors
   where
-    rungroup :: Int -> TestGroup-> IO [Doc GlyphStyle]
+    rungroup :: Int -> TestGroup-> IO [Doc SigilStyle]
     rungroup nesting (TestGroup name children)  = do
       when (verbosity config >= Groups)
         (putDocLn $ indent (nesting * 2) $ pretty name)
@@ -60,7 +60,7 @@ runall group config = do
           Right tests ->
             map ((annotate (fg_colour red) $ pretty name <> ".") <>) <$> runtests (nesting + 1) tests
     
-    runtests :: Int -> [Test] -> IO [Doc GlyphStyle]
+    runtests :: Int -> [Test] -> IO [Doc SigilStyle]
     runtests nesting tests = join <$> mapM runtest tests where
       runtest (Test name Nothing) = do
         when (verbosity config >= Verbose) $

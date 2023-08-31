@@ -193,7 +193,7 @@
     { background-color: #ffff00; color: #000000; font-weight: bold; }
   .org-svg { width: 90%; }
 </style>
-<link rel="stylesheet" href="../glyph-style.css" type="text/css"/>
+<link rel="stylesheet" href="../sigil-style.css" type="text/css"/>
 <script type="text/x-mathjax-config">
     MathJax.Hub.Config({
         displayAlign: "center",
@@ -221,7 +221,7 @@
 <h1 class="title">Tutorial: Abstractions</h1>
 <div style="text-align:right">
 <p>
-<a href="../index.html">Glyph</a> / <a href="index.html">Tutorials</a> / Abstractions
+<a href="../index.html">sigil</a> / <a href="index.html">Tutorials</a> / Abstractions
 </p>
 </div>
 
@@ -254,7 +254,7 @@ we can be confident the output will be sorted.</li>
 </ul>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>insert : &#8484; &#8594; <span style="color: #d24b83;">List &#8484;</span> &#8594; <span style="color: #d24b83;">List &#8484;</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>insert : &#8484; &#8594; <span style="color: #d24b83;">List &#8484;</span> &#8594; <span style="color: #d24b83;">List &#8484;</span><span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span>insert n l &#8796;
   <span style="color: #9d81ba;">(</span><span style="color: #738FD7;">match</span> l
     <span style="color: #4d9391;">(</span>nil &#8594; n :: nil<span style="color: #4d9391;">)</span>
@@ -276,7 +276,7 @@ re-write as:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>str-insert : <span style="color: #d24b83;">String</span> &#8594; <span style="color: #d24b83;">List String</span> &#8594; <span style="color: #d24b83;">List String</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>str-insert : <span style="color: #d24b83;">String</span> &#8594; <span style="color: #d24b83;">List String</span> &#8594; <span style="color: #d24b83;">List String</span><span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span>str-insert s l &#8796;
   <span style="color: #9d81ba;">(</span><span style="color: #738FD7;">match</span> l
     <span style="color: #4d9391;">(</span>nil &#8594; s :: nil<span style="color: #4d9391;">)</span>
@@ -305,7 +305,7 @@ function to compare the elements with.
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>abs-insert : &#8704; <span style="color: #9d81ba;">{</span><span style="color: #d24b83;">A</span><span style="color: #9d81ba;">}</span> &#8594; <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">Bool</span><span style="color: #9d81ba;">)</span> &#8594; <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">List A</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>abs-insert : &#8704; <span style="color: #9d81ba;">{</span><span style="color: #d24b83;">A</span><span style="color: #9d81ba;">}</span> &#8594; <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">Bool</span><span style="color: #9d81ba;">)</span> &#8594; <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">List A</span><span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span>abs-insert _&#8804;_ v l &#8796;
   <span style="color: #9d81ba;">(</span><span style="color: #738FD7;">match</span> l
     <span style="color: #4d9391;">(</span>nil &#8594; v :: nil<span style="color: #4d9391;">)</span>
@@ -332,7 +332,7 @@ order:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>sort <span style="color: #d24b83;">String</span> <span style="color: #9d81ba;">(</span>data.string._&#8805;_<span style="color: #9d81ba;">)</span> <span style="color: #9d81ba;">(</span>list <span style="color: #7CF083;">"a"</span> <span style="color: #7CF083;">"c"</span> <span style="color: #7CF083;">"d"</span> <span style="color: #7CF083;">"b"</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>sort <span style="color: #d24b83;">String</span> <span style="color: #9d81ba;">(</span>data.string._&#8805;_<span style="color: #9d81ba;">)</span> <span style="color: #9d81ba;">(</span>list <span style="color: #7CF083;">"a"</span> <span style="color: #7CF083;">"c"</span> <span style="color: #7CF083;">"d"</span> <span style="color: #7CF083;">"b"</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">outputs (list "d" "c" "b" "a")</span>
 
 <span style="color: #807f96;">(</span>sort &#8484; <span style="color: #9d81ba;">(</span>num.int._&#8805;_<span style="color: #9d81ba;">)</span> <span style="color: #9d81ba;">(</span>list <span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
@@ -353,7 +353,7 @@ type - like the ability to order them:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #d24b83;">Ord</span> : &#119984; &#8594; &#119984;<span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #d24b83;">Ord</span> : &#119984; &#8594; &#119984;<span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span><span style="color: #738FD7;">signature</span> <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">Ord A</span><span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>_=_ : <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">Bool</span><span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>_&lt;_ : <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">Bool</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
@@ -366,7 +366,7 @@ types A - for example, <code>Int</code> and <code>String</code>:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #738FD7;">structure</span> <span style="color: #9d81ba;">(</span>num-ord : <span style="color: #d24b83;">Ord Int</span><span style="color: #9d81ba;">)</span> 
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #738FD7;">structure</span> <span style="color: #9d81ba;">(</span>num-ord : <span style="color: #d24b83;">Ord Int</span><span style="color: #9d81ba;">)</span> 
   <span style="color: #9d81ba;">(</span>x = y &#8796;  num.int._=_ x y<span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>x &lt; y &#8796;  num.int._&lt;_ x y<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 
@@ -381,7 +381,7 @@ We can then give the <code>sort</code> function an alternative definition:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>sort : &#8704; <span style="color: #9d81ba;">{</span><span style="color: #d24b83;">A</span><span style="color: #9d81ba;">}</span> &#8594; <span style="color: #d24b83;">Ord A</span> &#8594; <span style="color: #d24b83;">List A</span> &#8594; <span style="color: #d24b83;">List A</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>sort : &#8704; <span style="color: #9d81ba;">{</span><span style="color: #d24b83;">A</span><span style="color: #9d81ba;">}</span> &#8594; <span style="color: #d24b83;">Ord A</span> &#8594; <span style="color: #d24b83;">List A</span> &#8594; <span style="color: #d24b83;">List A</span><span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span>sort ord list &#8796; <span style="color: #738FD7;">match</span> list
     <span style="color: #9d81ba;">(</span>nil &#8594; nil<span style="color: #9d81ba;">)</span>
     <span style="color: #9d81ba;">(</span>x :: xs &#8594; abs-insert ord._&#8804;_ x <span style="color: #4d9391;">(</span>sort ord xs<span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
@@ -393,7 +393,7 @@ And use it like so:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>sort str-ord <span style="color: #9d81ba;">(</span>list  <span style="color: #7CF083;">"acb"</span> <span style="color: #7CF083;">"bac"</span> <span style="color: #7CF083;">"abc"</span><span style="color: #9d81ba;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>sort str-ord <span style="color: #9d81ba;">(</span>list  <span style="color: #7CF083;">"acb"</span> <span style="color: #7CF083;">"bac"</span> <span style="color: #7CF083;">"abc"</span><span style="color: #9d81ba;">)</span>
 <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">returns (list  "abc" "acb" "bac")</span>
 
 <span style="color: #9d81ba;">(</span>sort int-ord <span style="color: #4d9391;">(</span>list <span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">2</span><span style="color: #4d9391;">)</span>
@@ -408,7 +408,7 @@ A good starting point might be something like:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #738FD7;">structure</span> <span style="color: #9d81ba;">(</span>list-ord <span style="color: #4d9391;">{</span><span style="color: #d24b83;">A</span><span style="color: #4d9391;">}</span> : <span style="color: #d24b83;">Ord</span> <span style="color: #4d9391;">(</span><span style="color: #d24b83;">List A</span><span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #738FD7;">structure</span> <span style="color: #9d81ba;">(</span>list-ord <span style="color: #4d9391;">{</span><span style="color: #d24b83;">A</span><span style="color: #4d9391;">}</span> : <span style="color: #d24b83;">Ord</span> <span style="color: #4d9391;">(</span><span style="color: #d24b83;">List A</span><span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>x = y &#8796; <span style="color: #738FD7;">match</span> <span style="color: #4d9391;">(</span>x, y<span style="color: #4d9391;">)</span>
     <span style="color: #4d9391;">(</span><span style="color: #a0586c;">(</span>x:xs, y:ys<span style="color: #a0586c;">)</span> &#8594; ??<span style="color: #4d9391;">)</span>
     <span style="color: #4d9391;">(</span>_ &#8594; <span style="color: #d24b83;">False</span><span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span>
@@ -427,7 +427,7 @@ ordering for A to be taken as an argument:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #738FD7;">structure</span> <span style="color: #9d81ba;">(</span>list-ord <span style="color: #4d9391;">{</span><span style="color: #d24b83;">A</span><span style="color: #4d9391;">}</span> <span style="color: #4d9391;">(</span>ord : <span style="color: #d24b83;">Ord A</span><span style="color: #4d9391;">)</span> : <span style="color: #d24b83;">Ord</span> <span style="color: #4d9391;">(</span><span style="color: #d24b83;">List A</span><span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #738FD7;">structure</span> <span style="color: #9d81ba;">(</span>list-ord <span style="color: #4d9391;">{</span><span style="color: #d24b83;">A</span><span style="color: #4d9391;">}</span> <span style="color: #4d9391;">(</span>ord : <span style="color: #d24b83;">Ord A</span><span style="color: #4d9391;">)</span> : <span style="color: #d24b83;">Ord</span> <span style="color: #4d9391;">(</span><span style="color: #d24b83;">List A</span><span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>x = y &#8796; <span style="color: #738FD7;">match</span> <span style="color: #4d9391;">(</span>x, y<span style="color: #4d9391;">)</span>
     <span style="color: #4d9391;">(</span><span style="color: #a0586c;">(</span>x:xs, y:ys<span style="color: #a0586c;">)</span> &#8594; <span style="color: #738FD7;">if</span> <span style="color: #a0586c;">(</span>ord._=_ x y<span style="color: #a0586c;">)</span> <span style="color: #a0586c;">(</span>xs = ys<span style="color: #a0586c;">)</span> <span style="color: #d24b83;">False</span><span style="color: #4d9391;">)</span>
     <span style="color: #4d9391;">(</span>_ &#8594; <span style="color: #d24b83;">False</span><span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span>
@@ -444,7 +444,7 @@ We can now sort lists of values:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>sort <span style="color: #9d81ba;">(</span>list-ord int-ord<span style="color: #9d81ba;">)</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #4d9391;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span><span style="color: #4d9391;">&#10648;</span> <span style="color: #4d9391;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">1</span><span style="color: #4d9391;">&#10648;</span> <span style="color: #4d9391;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">1</span><span style="color: #4d9391;">&#10648;</span><span style="color: #9d81ba;">&#10648;</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>sort <span style="color: #9d81ba;">(</span>list-ord int-ord<span style="color: #9d81ba;">)</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #4d9391;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span><span style="color: #4d9391;">&#10648;</span> <span style="color: #4d9391;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">1</span><span style="color: #4d9391;">&#10648;</span> <span style="color: #4d9391;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">1</span><span style="color: #4d9391;">&#10648;</span><span style="color: #9d81ba;">&#10648;</span><span style="color: #807f96;">)</span>
 <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">returns &#10647;&#10647;1 1&#10648; &#10647;1 2&#10648; &#10647;2 1&#10648;&#10648;</span>
 </pre>
 </div>
@@ -504,25 +504,25 @@ Consider again the code to sort a list of lists
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>sort <span style="color: #9d81ba;">(</span>list-ord int-ord<span style="color: #9d81ba;">)</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #4d9391;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span><span style="color: #4d9391;">&#10648;</span> <span style="color: #4d9391;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">1</span><span style="color: #4d9391;">&#10648;</span> <span style="color: #4d9391;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">1</span><span style="color: #4d9391;">&#10648;</span><span style="color: #9d81ba;">&#10648;</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>sort <span style="color: #9d81ba;">(</span>list-ord int-ord<span style="color: #9d81ba;">)</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #4d9391;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span><span style="color: #4d9391;">&#10648;</span> <span style="color: #4d9391;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">1</span><span style="color: #4d9391;">&#10648;</span> <span style="color: #4d9391;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">1</span><span style="color: #4d9391;">&#10648;</span><span style="color: #9d81ba;">&#10648;</span><span style="color: #807f96;">)</span>
 <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">returns &#10647;&#10647;1 1&#10648; &#10647;1 2&#10648; &#10647;2 1&#10648;&#10648;</span>
 </pre>
 </div>
 
 <p>
 While this does look (and indeed is) a bit cumbersome, in the typeclasses
-tutorial we'll look at ways to give hints to Glyph so it can 'figure out' which
+tutorial we'll look at ways to give hints to sigil so it can 'figure out' which
 structure to add. This is very similar to the idea of an implicit argument. As a
 sneak-peak, you can look at the code below to get an idea of how it might work:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #545c5e;">;; </span><span style="color: #545c5e;">the &#10627;&#10628; brackets can be combined with hints to let glyph 'figure out' what to</span>
+<pre class="src src-sigil"><span style="color: #545c5e;">;; </span><span style="color: #545c5e;">the &#10627;&#10628; brackets can be combined with hints to let sigil 'figure out' what to</span>
 <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">give as an argument</span>
 <span style="color: #807f96;">(</span>sort : <span style="color: #9d81ba;">{</span><span style="color: #d24b83;">A</span><span style="color: #9d81ba;">}</span> &#8594; <span style="color: #9d81ba;">&#10627;</span><span style="color: #d24b83;">Ord A</span><span style="color: #9d81ba;">&#10628;</span> &#8594; <span style="color: #d24b83;">List A</span> &#8594; <span style="color: #d24b83;">List A</span><span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span>sort <span style="color: #9d81ba;">&#10627;</span>ord<span style="color: #9d81ba;">&#10628;</span> list &#8796; ...<span style="color: #807f96;">)</span>
 
-<span style="color: #545c5e;">;; </span><span style="color: #545c5e;">glyph can now figure out an appropriate value for the ord argument</span>
+<span style="color: #545c5e;">;; </span><span style="color: #545c5e;">sigil can now figure out an appropriate value for the ord argument</span>
 <span style="color: #807f96;">(</span>sort <span style="color: #9d81ba;">(</span>list <span style="color: #4d9391;">(</span>list <span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span><span style="color: #4d9391;">)</span> <span style="color: #4d9391;">(</span>list <span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">1</span><span style="color: #4d9391;">)</span> <span style="color: #4d9391;">(</span>list <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">1</span><span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span>
 
 <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">We can also explicitly provide the value (same as with implicit arguments)</span>
@@ -542,7 +542,7 @@ our <code>Ord</code> signature from earlier:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #738FD7;">signature</span> <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">Ord</span> <span style="color: #4d9391;">(</span><span style="color: #d24b83;">A</span> : &#119984;<span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #738FD7;">signature</span> <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">Ord</span> <span style="color: #4d9391;">(</span><span style="color: #d24b83;">A</span> : &#119984;<span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>_=_ : <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">Bool</span><span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>_&lt;_ : <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">Bool</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 </pre>
@@ -557,7 +557,7 @@ complex signature with <i>default</i> values:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #d24b83;">Ord</span> : <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">A</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #d24b83;">Ord</span> : <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">A</span><span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span><span style="color: #738FD7;">signature</span> <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">Ord A</span><span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>_=_ : <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">Bool</span><span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>x = y &#8796; not <span style="color: #4d9391;">(</span>x &#8800; y<span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span>
@@ -583,32 +583,32 @@ complex signature with <i>default</i> values:
 </div>
 
 <p>
-This means this allows us to provide a minimal set of functions, and have Glyph
+This means this allows us to provide a minimal set of functions, and have sigil
 "figure out" the rest - for example, consider the below definitions:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #545c5e;">;; </span><span style="color: #545c5e;">valid : Glyph can figure out all values </span>
+<pre class="src src-sigil"><span style="color: #545c5e;">;; </span><span style="color: #545c5e;">valid : sigil can figure out all values </span>
 <span style="color: #807f96;">(</span><span style="color: #738FD7;">structure</span> <span style="color: #9d81ba;">(</span>int-ord : <span style="color: #d24b83;">Ord Int</span><span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>_=_ &#8796;  num.int._=_<span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>_&lt;_ &#8796;  num.int._=_<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 
-<span style="color: #545c5e;">;; </span><span style="color: #545c5e;">valid : Glyph can figure out all values </span>
+<span style="color: #545c5e;">;; </span><span style="color: #545c5e;">valid : sigil can figure out all values </span>
 <span style="color: #807f96;">(</span><span style="color: #738FD7;">structure</span> <span style="color: #9d81ba;">(</span>int-ord : <span style="color: #d24b83;">Ord Int</span><span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>_&#8800;_ &#8796;  num.int._&#8800;_<span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>_&gt;_ &#8796;  num.int._&gt;_<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 
-<span style="color: #545c5e;">;; </span><span style="color: #545c5e;">valid : Glyph can figure out all values </span>
+<span style="color: #545c5e;">;; </span><span style="color: #545c5e;">valid : sigil can figure out all values </span>
 <span style="color: #807f96;">(</span><span style="color: #738FD7;">structure</span> <span style="color: #9d81ba;">(</span>int-ord : <span style="color: #d24b83;">Ord Int</span><span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>_&#8800;_ &#8796;  num.int._&#8800;_<span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>_&gt;_ &#8796;  num.int._&gt;_<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 
-<span style="color: #545c5e;">;; </span><span style="color: #545c5e;">invalid : defaults for = and &#8800; depend on each other, so glyph needs at least one.</span>
+<span style="color: #545c5e;">;; </span><span style="color: #545c5e;">invalid : defaults for = and &#8800; depend on each other, so sigil needs at least one.</span>
 <span style="color: #807f96;">(</span><span style="color: #738FD7;">structure</span> <span style="color: #9d81ba;">(</span>int-ord : <span style="color: #d24b83;">Ord Int</span><span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>_&#8805;_ &#8796;  num.int._&#8805;_<span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>_&gt;_ &#8796;  num.int._&gt;_<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 
-<span style="color: #545c5e;">;; </span><span style="color: #545c5e;">invalid : defaults for &lt; and &gt; depend on each other, so glyph needs at least one.</span>
+<span style="color: #545c5e;">;; </span><span style="color: #545c5e;">invalid : defaults for &lt; and &gt; depend on each other, so sigil needs at least one.</span>
 <span style="color: #807f96;">(</span><span style="color: #738FD7;">structure</span> <span style="color: #9d81ba;">(</span>int-ord : <span style="color: #d24b83;">Ord Int</span><span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>_&#8805;_ &#8796;  num.int._&#8805;_<span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>_=_ &#8796;  num.int._=_<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
@@ -625,7 +625,7 @@ And so on.
 <h2 id="org9f40a04">Common Signatures</h2>
 <div class="outline-text-2" id="text-org9f40a04">
 <p>
-Glyph has a set of common signatures in its' standard library. Here, I present
+sigil has a set of common signatures in its' standard library. Here, I present
 three, primarily to demonstrate 
 </p>
 </div>
@@ -638,7 +638,7 @@ three, primarily to demonstrate
 <h4 id="orgedba281">Definition</h4>
 <div class="outline-text-4" id="text-orgedba281">
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #738FD7;">signature</span> <span style="color: #d24b83;">Functor</span> <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">F</span> : &#119984; &#8594; &#119984;<span style="color: #9d81ba;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #738FD7;">signature</span> <span style="color: #d24b83;">Functor</span> <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">F</span> : &#119984; &#8594; &#119984;<span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>map : <span style="color: #4d9391;">{</span><span style="color: #d24b83;">A B</span><span style="color: #4d9391;">}</span> &#8594; <span style="color: #4d9391;">(</span><span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">B</span><span style="color: #4d9391;">)</span> &#8594; <span style="color: #d24b83;">F A</span> &#8594; <span style="color: #d24b83;">F B</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 </pre>
 </div>
@@ -664,7 +664,7 @@ an error message).
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #738FD7;">induct</span> <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">Err</span> <span style="color: #4d9391;">(</span><span style="color: #d24b83;">A</span> : &#119984;<span style="color: #4d9391;">)</span> : &#119984;<span style="color: #9d81ba;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #738FD7;">induct</span> <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">Err</span> <span style="color: #4d9391;">(</span><span style="color: #d24b83;">A</span> : &#119984;<span style="color: #4d9391;">)</span> : &#119984;<span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">Ok</span> : <span style="color: #d24b83;">A</span><span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">Error</span> : <span style="color: #d24b83;">String</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 </pre>
@@ -714,7 +714,7 @@ A monoid
 </ul>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #738FD7;">signature</span> <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">Monoid</span> <span style="color: #4d9391;">(</span><span style="color: #d24b83;">A</span> : &#119984;<span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #738FD7;">signature</span> <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">Monoid</span> <span style="color: #4d9391;">(</span><span style="color: #d24b83;">A</span> : &#119984;<span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>_&#8901;_ : <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">A</span><span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>&#9068; : <span style="color: #d24b83;">A</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 </pre>
@@ -773,7 +773,7 @@ Signatures are
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #738FD7;">signature</span> <span style="color: #d24b83;">Point</span> &#8278;inductive
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #738FD7;">signature</span> <span style="color: #d24b83;">Point</span> &#8278;inductive
   <span style="color: #9d81ba;">(</span>x : &#8484;<span style="color: #9d81ba;">)</span> <span style="color: #9d81ba;">(</span>x : &#8484;<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 </pre>
 </div>

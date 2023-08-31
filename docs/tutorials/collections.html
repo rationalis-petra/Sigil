@@ -193,14 +193,14 @@
     { background-color: #ffff00; color: #000000; font-weight: bold; }
   .org-svg { width: 90%; }
 </style>
-<link rel="stylesheet" href="../glyph-style.css" type="text/css"/>
+<link rel="stylesheet" href="../sigil-style.css" type="text/css"/>
 </head>
 <body>
 <div id="content" class="content">
 <h1 class="title">Tutorial: Collections</h1>
 <div style="text-align:right">
 <p>
-<a href="../index.html">Glyph</a> / <a href="index.html">Tutorials</a> / Projects
+<a href="../index.html">sigil</a> / <a href="index.html">Tutorials</a> / Projects
 </p>
 </div>
 
@@ -210,15 +210,15 @@
 <h2 id="org0e8d534">Types and Arrays</h2>
 <div class="outline-text-2" id="text-org0e8d534">
 <p>
-Glyph is a statically typed language. What this means is that it assigns a
+sigil is a statically typed language. What this means is that it assigns a
 type to everything in your program, and uses this to check for errors before
 your program runs. A type is like a category of values - for example, <code>ℤ</code> (which
 you read 'Integer') is the type of values which are whole numbers. An equally
 common type is <code>String</code>, which is a sequence of Characters. For example, "hello"
-and "my name is chris" are both Strings. Glyph uses types to catch errors
+and "my name is chris" are both Strings. sigil uses types to catch errors
 before you run your program. As an example, suppose you write <code>pi + 2</code>,
 expecting <code>pi</code> to hold the value <code>3.14159...</code>. However, someone decided to set
-it to the string "pi". In this case, Glyph will report a <i>type error</i>,
+it to the string "pi". In this case, sigil will report a <i>type error</i>,
 because + expects both inputs to have the type <code>ℤ</code>, but you gave it a
 <code>String</code>.
 </p>
@@ -247,7 +247,7 @@ us. Below is a very simple function which adds 1 to a number - I've called it
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; next n &#8796; n + <span style="color: #cea2ca;">1</span>
+<pre class="src src-sigil">&gt; next n &#8796; n + <span style="color: #cea2ca;">1</span>
 </pre>
 </div>
 
@@ -267,7 +267,7 @@ otherwise could have type <code>ℤ → Bool</code>.
 <h3 id="org059f734">Type Annotation</h3>
 <div class="outline-text-3" id="text-org059f734">
 <p>
-Sometimes it is useful to <i>annotate</i> values, which tells Glyph what we're
+Sometimes it is useful to <i>annotate</i> values, which tells sigil what we're
 expecting the types to be. This is done for two reasons:
 </p>
 <ul class="org-ul">
@@ -286,7 +286,7 @@ input? Take for example the <code>add</code> function:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; add n m &#8796; n + m
+<pre class="src src-sigil">&gt; add n m &#8796; n + m
 </pre>
 </div>
 
@@ -322,20 +322,20 @@ Sometimes, simple types can be too restrictive. Take for instance the function
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; id x &#8796; x
+<pre class="src src-sigil">&gt; id x &#8796; x
 </pre>
 </div>
 
 <p>
 What is the type of id? We could give it the type <code>ℤ → ℤ</code>, but we could also
 give it the type <code>String → String</code>, or <code>Array ℤ → Array ℤ</code>. In fact, for any
-type <code>A</code>, we can give <code>id</code> the type <code>A → A</code>. Fortunately, Glyph lets us do
+type <code>A</code>, we can give <code>id</code> the type <code>A → A</code>. Fortunately, sigil lets us do
 just this - we can add an argument <code>A</code>, which has the type <code>𝒰</code> (𝒰 for Universe, 
-the type of types), then tell Glyph that the type of <code>x</code> is A.
+the type of types), then tell sigil that the type of <code>x</code> is A.
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; id <span style="color: #807f96;">(</span><span style="color: #d24b83;">A</span> : &#119984;<span style="color: #807f96;">)</span> <span style="color: #807f96;">(</span>x : <span style="color: #d24b83;">A</span><span style="color: #807f96;">)</span> &#8796; x
+<pre class="src src-sigil">&gt; id <span style="color: #807f96;">(</span><span style="color: #d24b83;">A</span> : &#119984;<span style="color: #807f96;">)</span> <span style="color: #807f96;">(</span>x : <span style="color: #d24b83;">A</span><span style="color: #807f96;">)</span> &#8796; x
 </pre>
 </div>
 
@@ -344,7 +344,7 @@ Then, we can apply the function <code>id</code> to a type and a value of that ty
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; id &#8484; <span style="color: #cea2ca;">2</span>
+<pre class="src src-sigil">&gt; id &#8484; <span style="color: #cea2ca;">2</span>
 <span style="color: #cea2ca;">2</span>
 &gt; id <span style="color: #d24b83;">String</span> <span style="color: #7CF083;">"hello"</span>
 <span style="color: #7CF083;">"hello"</span>
@@ -358,13 +358,13 @@ type error: expecting type <span style="color: #d24b83;">Bool</span>, but got ty
 <p>
 While quite useful, this can quickly get annoying: clearly, the type of "hello"
 is <code>String</code>, so it seems somewhat pointless to write <code>id String "hello"</code>.
-Fortunately, Glyph has a feature called implicit arguments, which is a way
+Fortunately, sigil has a feature called implicit arguments, which is a way
 of telling it to 'figure out' a specific input. Implicit arguments are denoted by
 curly-braces (<code>{}</code>), so write:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; id <span style="color: #807f96;">{</span><span style="color: #d24b83;">A</span> : &#119984;<span style="color: #807f96;">}</span> <span style="color: #807f96;">(</span>x : <span style="color: #d24b83;">A</span><span style="color: #807f96;">)</span> &#8796; x 
+<pre class="src src-sigil">&gt; id <span style="color: #807f96;">{</span><span style="color: #d24b83;">A</span> : &#119984;<span style="color: #807f96;">}</span> <span style="color: #807f96;">(</span>x : <span style="color: #d24b83;">A</span><span style="color: #807f96;">)</span> &#8796; x 
 </pre>
 </div>
 
@@ -373,7 +373,7 @@ With this new definition for <code>x</code>, the following all typecheck nicely.
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; id <span style="color: #cea2ca;">2</span>
+<pre class="src src-sigil">&gt; id <span style="color: #cea2ca;">2</span>
 <span style="color: #cea2ca;">2</span>
 &gt; id <span style="color: #7CF083;">"hello"</span>
 hello
@@ -407,7 +407,7 @@ type A, yielding <code>{A} → Array A → Array A → Array A</code>.
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; append <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span>
+<pre class="src src-sigil">&gt; append <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span>
 <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span>
 </pre>
 </div>
@@ -417,7 +417,7 @@ Append can also be written as an operator <code>⋅</code> (code <code>;*</code>
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; <span style="color: #807f96;">&#10647;</span><span style="color: #7CF083;">"apple"</span> <span style="color: #7CF083;">"banana"</span><span style="color: #807f96;">&#10648;</span> &#8901; <span style="color: #807f96;">&#10647;</span><span style="color: #7CF083;">"cherry"</span><span style="color: #807f96;">&#10648;</span>
+<pre class="src src-sigil">&gt; <span style="color: #807f96;">&#10647;</span><span style="color: #7CF083;">"apple"</span> <span style="color: #7CF083;">"banana"</span><span style="color: #807f96;">&#10648;</span> &#8901; <span style="color: #807f96;">&#10647;</span><span style="color: #7CF083;">"cherry"</span><span style="color: #807f96;">&#10648;</span>
 <span style="color: #807f96;">&#10647;</span><span style="color: #7CF083;">"apple"</span> <span style="color: #7CF083;">"banana"</span> <span style="color: #7CF083;">"cherry"</span><span style="color: #807f96;">&#10648;</span>
 </pre>
 </div>
@@ -436,7 +436,7 @@ in an array:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; add1 x &#8796; x + <span style="color: #cea2ca;">1</span>
+<pre class="src src-sigil">&gt; add1 x &#8796; x + <span style="color: #cea2ca;">1</span>
 &gt; map add1 <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
 <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span><span style="color: #807f96;">&#10648;</span>
 
@@ -456,7 +456,7 @@ booleans:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; map even? <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span><span style="color: #807f96;">&#10648;</span>
+<pre class="src src-sigil">&gt; map even? <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span><span style="color: #807f96;">&#10648;</span>
 <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">false</span> <span style="color: #cea2ca;">true</span> <span style="color: #cea2ca;">false</span> <span style="color: #cea2ca;">true</span><span style="color: #807f96;">&#10648;</span>
 </pre>
 </div>
@@ -472,7 +472,7 @@ elements of the output array.</li>
 </ul>
 
 <div class="org-src-container">
-<pre class="src src-glyph">map : <span style="color: #807f96;">{</span><span style="color: #d24b83;">A</span> : &#119984;<span style="color: #807f96;">}</span> &#8594; <span style="color: #807f96;">{</span><span style="color: #d24b83;">B</span> : &#119984;<span style="color: #807f96;">}</span> &#8594; <span style="color: #807f96;">(</span><span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">B</span><span style="color: #807f96;">)</span> &#8594; <span style="color: #d24b83;">Array A</span> &#8594; <span style="color: #d24b83;">Array B</span>
+<pre class="src src-sigil">map : <span style="color: #807f96;">{</span><span style="color: #d24b83;">A</span> : &#119984;<span style="color: #807f96;">}</span> &#8594; <span style="color: #807f96;">{</span><span style="color: #d24b83;">B</span> : &#119984;<span style="color: #807f96;">}</span> &#8594; <span style="color: #807f96;">(</span><span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">B</span><span style="color: #807f96;">)</span> &#8594; <span style="color: #d24b83;">Array A</span> &#8594; <span style="color: #d24b83;">Array B</span>
 </pre>
 </div>
 
@@ -483,7 +483,7 @@ convey the same information by chopping that part out entirely: the type
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">map : <span style="color: #807f96;">(</span><span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">B</span><span style="color: #807f96;">)</span> &#8594; <span style="color: #d24b83;">Array A</span> &#8594; <span style="color: #d24b83;">Array B</span>
+<pre class="src src-sigil">map : <span style="color: #807f96;">(</span><span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">B</span><span style="color: #807f96;">)</span> &#8594; <span style="color: #d24b83;">Array A</span> &#8594; <span style="color: #d24b83;">Array B</span>
 </pre>
 </div>
 
@@ -496,7 +496,7 @@ us the more compact type:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">map : &#8704; <span style="color: #807f96;">{</span><span style="color: #d24b83;">A B</span><span style="color: #807f96;">}</span> &#8594; <span style="color: #807f96;">(</span><span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">B</span><span style="color: #807f96;">)</span> &#8594; <span style="color: #d24b83;">Array A</span> &#8594; <span style="color: #d24b83;">Array B</span>
+<pre class="src src-sigil">map : &#8704; <span style="color: #807f96;">{</span><span style="color: #d24b83;">A B</span><span style="color: #807f96;">}</span> &#8594; <span style="color: #807f96;">(</span><span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">B</span><span style="color: #807f96;">)</span> &#8594; <span style="color: #d24b83;">Array A</span> &#8594; <span style="color: #d24b83;">Array B</span>
 </pre>
 </div>
 
@@ -541,18 +541,18 @@ function returns <code>true</code>.
 <h3 id="org5abdf41">Fold</h3>
 <div class="outline-text-3" id="text-org5abdf41">
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; foldl _+_ <span style="color: #cea2ca;">0</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
+<pre class="src src-sigil">&gt; foldl _+_ <span style="color: #cea2ca;">0</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
 <span style="color: #cea2ca;">6</span>
 </pre>
 </div>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; <span style="color: #807f96;">(</span>+ / <span style="color: #cea2ca;">0</span><span style="color: #807f96;">)</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
+<pre class="src src-sigil">&gt; <span style="color: #807f96;">(</span>+ / <span style="color: #cea2ca;">0</span><span style="color: #807f96;">)</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
 </pre>
 </div>
 
 <div class="org-src-container">
-<pre class="src src-glyph">foldl : &#8704; <span style="color: #807f96;">{</span><span style="color: #d24b83;">A B</span><span style="color: #807f96;">}</span> &#8594; <span style="color: #807f96;">(</span><span style="color: #d24b83;">B</span> &#8594; <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">B</span><span style="color: #807f96;">)</span> &#8594; <span style="color: #d24b83;">Array A</span> &#8594; <span style="color: #d24b83;">B</span> &#8594; <span style="color: #d24b83;">B</span>
+<pre class="src src-sigil">foldl : &#8704; <span style="color: #807f96;">{</span><span style="color: #d24b83;">A B</span><span style="color: #807f96;">}</span> &#8594; <span style="color: #807f96;">(</span><span style="color: #d24b83;">B</span> &#8594; <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">B</span><span style="color: #807f96;">)</span> &#8594; <span style="color: #d24b83;">Array A</span> &#8594; <span style="color: #d24b83;">B</span> &#8594; <span style="color: #d24b83;">B</span>
 </pre>
 </div>
 </div>

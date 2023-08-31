@@ -193,14 +193,14 @@
     { background-color: #ffff00; color: #000000; font-weight: bold; }
   .org-svg { width: 90%; }
 </style>
-<link rel="stylesheet" href="../glyph-style.css" type="text/css"/>
+<link rel="stylesheet" href="../sigil-style.css" type="text/css"/>
 </head>
 <body>
 <div id="content" class="content">
 <h1 class="title">Tutorial: Propositions</h1>
 <div style="text-align:right">
 <p>
-<a href="../index.html">Glyph</a> / <a href="index.html">Tutorials</a> / Propositions
+<a href="../index.html">sigil</a> / <a href="index.html">Tutorials</a> / Propositions
 </p>
 </div>
 
@@ -212,12 +212,12 @@ True
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #738FD7;">induct</span> <span style="color: #d24b83;">True</span> <span style="color: #9d81ba;">(</span>&#9671; : <span style="color: #d24b83;">True</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #738FD7;">induct</span> <span style="color: #d24b83;">True</span> <span style="color: #9d81ba;">(</span>&#9671; : <span style="color: #d24b83;">True</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 </pre>
 </div>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #738FD7;">induct</span> <span style="color: #d24b83;">False</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #738FD7;">induct</span> <span style="color: #d24b83;">False</span><span style="color: #807f96;">)</span>
 </pre>
 </div>
 
@@ -226,13 +226,13 @@ Conjunction
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #738FD7;">induct</span> _&#8743;_ : <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">A</span> : &#119984;<span style="color: #9d81ba;">)</span> &#8594; <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">B</span> : &#119984;<span style="color: #9d81ba;">)</span> &#8594; &#119984;
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #738FD7;">induct</span> _&#8743;_ : <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">A</span> : &#119984;<span style="color: #9d81ba;">)</span> &#8594; <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">B</span> : &#119984;<span style="color: #9d81ba;">)</span> &#8594; &#119984;
   <span style="color: #9d81ba;">(</span><span style="color: #4d9391;">&#10216;</span>_,_<span style="color: #4d9391;">&#10217;</span> : <span style="color: #4d9391;">{</span><span style="color: #d24b83;">A B</span><span style="color: #4d9391;">}</span> &#8594; <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">B</span> &#8594; <span style="color: #d24b83;">A</span> &#8743; <span style="color: #d24b83;">B</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 </pre>
 </div>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>tandt : <span style="color: #d24b83;">True</span> &#8743; <span style="color: #d24b83;">True</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>tandt : <span style="color: #d24b83;">True</span> &#8743; <span style="color: #d24b83;">True</span><span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span>tandt &#8796; <span style="color: #9d81ba;">&#10216;</span>&#9671;, &#9671;<span style="color: #9d81ba;">&#10217;</span><span style="color: #807f96;">)</span>
 
 <span style="color: #807f96;">(</span>tandf : <span style="color: #d24b83;">True</span> &#8743; <span style="color: #d24b83;">False</span><span style="color: #807f96;">)</span>
@@ -245,14 +245,14 @@ Disjunction
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #738FD7;">induct</span> _&#8744;_ : <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">A</span> : &#119984;<span style="color: #9d81ba;">)</span> &#8594; <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">B</span> : &#119984;<span style="color: #9d81ba;">)</span> &#8594; &#119984;
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #738FD7;">induct</span> _&#8744;_ : <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">A</span> : &#119984;<span style="color: #9d81ba;">)</span> &#8594; <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">B</span> : &#119984;<span style="color: #9d81ba;">)</span> &#8594; &#119984;
   <span style="color: #9d81ba;">(</span>left : <span style="color: #4d9391;">{</span><span style="color: #d24b83;">A B</span><span style="color: #4d9391;">}</span> &#8594; <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">A</span> &#8743; <span style="color: #d24b83;">B</span><span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>right : <span style="color: #4d9391;">{</span><span style="color: #d24b83;">A B</span><span style="color: #4d9391;">}</span> &#8594; <span style="color: #d24b83;">B</span> &#8594; <span style="color: #d24b83;">A</span> &#8743; <span style="color: #d24b83;">B</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 </pre>
 </div>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>tort : <span style="color: #d24b83;">True</span> &#8744; <span style="color: #d24b83;">True</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>tort : <span style="color: #d24b83;">True</span> &#8744; <span style="color: #d24b83;">True</span><span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span>tort &#8796; left &#9671;<span style="color: #807f96;">)</span>
 
 <span style="color: #807f96;">(</span>torf : <span style="color: #d24b83;">True</span> &#8744; <span style="color: #d24b83;">False</span><span style="color: #807f96;">)</span>
@@ -265,13 +265,13 @@ Implication
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>t-or-f-is-t : <span style="color: #d24b83;">True</span> &#8743; <span style="color: #d24b83;">True</span> &#8594; <span style="color: #d24b83;">True</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>t-or-f-is-t : <span style="color: #d24b83;">True</span> &#8743; <span style="color: #d24b83;">True</span> &#8594; <span style="color: #d24b83;">True</span><span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span>t-or-f-is-t <span style="color: #9d81ba;">&#10216;</span>t1, _<span style="color: #9d81ba;">&#10217;</span> &#8796; t1<span style="color: #807f96;">)</span>
 </pre>
 </div>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>t-or-f-is-t : <span style="color: #d24b83;">True</span> &#8744; <span style="color: #d24b83;">False</span> &#8594; <span style="color: #d24b83;">True</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>t-or-f-is-t : <span style="color: #d24b83;">True</span> &#8744; <span style="color: #d24b83;">False</span> &#8594; <span style="color: #d24b83;">True</span><span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span>t-or-f-is-t t-or-f &#8796; <span style="color: #738FD7;">match</span> t-or-f
   <span style="color: #9d81ba;">(</span>left &#9671; &#8594; &#9671;<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 </pre>
@@ -288,7 +288,7 @@ if A ∧ B then A
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>fst : <span style="color: #9d81ba;">{</span><span style="color: #d24b83;">A B</span><span style="color: #9d81ba;">}</span> &#8594; <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">A</span> &#8743; <span style="color: #d24b83;">B</span><span style="color: #9d81ba;">)</span> &#8594; <span style="color: #d24b83;">A</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>fst : <span style="color: #9d81ba;">{</span><span style="color: #d24b83;">A B</span><span style="color: #9d81ba;">}</span> &#8594; <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">A</span> &#8743; <span style="color: #d24b83;">B</span><span style="color: #9d81ba;">)</span> &#8594; <span style="color: #d24b83;">A</span><span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span>fst <span style="color: #9d81ba;">&#10216;</span>l, _<span style="color: #9d81ba;">&#10217;</span> &#8796; l<span style="color: #807f96;">)</span>
 
 <span style="color: #807f96;">(</span>snd : <span style="color: #9d81ba;">{</span><span style="color: #d24b83;">A B</span><span style="color: #9d81ba;">}</span> &#8594; <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">A</span> &#8743; <span style="color: #d24b83;">B</span><span style="color: #9d81ba;">)</span> &#8594; <span style="color: #d24b83;">B</span><span style="color: #807f96;">)</span>
@@ -306,7 +306,7 @@ if (A ∨ B) and A → B and B → C then C
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>&#8744;-elim : <span style="color: #9d81ba;">{</span><span style="color: #d24b83;">A B C</span><span style="color: #9d81ba;">}</span> &#8594; <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">A</span> &#8743; <span style="color: #d24b83;">B</span><span style="color: #9d81ba;">)</span> &#8594; <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">C</span><span style="color: #9d81ba;">)</span> &#8594; <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">B</span> &#8594; <span style="color: #d24b83;">C</span><span style="color: #9d81ba;">)</span> &#8594; <span style="color: #d24b83;">C</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>&#8744;-elim : <span style="color: #9d81ba;">{</span><span style="color: #d24b83;">A B C</span><span style="color: #9d81ba;">}</span> &#8594; <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">A</span> &#8743; <span style="color: #d24b83;">B</span><span style="color: #9d81ba;">)</span> &#8594; <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">C</span><span style="color: #9d81ba;">)</span> &#8594; <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">B</span> &#8594; <span style="color: #d24b83;">C</span><span style="color: #9d81ba;">)</span> &#8594; <span style="color: #d24b83;">C</span><span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span>&#8744;-elim aorb atoc btoc &#8796; <span style="color: #738FD7;">match</span> aorb
   <span style="color: #9d81ba;">(</span>left a &#8594; atoc a<span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>right b &#8594; btoc b<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
@@ -318,7 +318,7 @@ if (A ∨ A) then A
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>&#8744;-simplify : <span style="color: #9d81ba;">{</span><span style="color: #d24b83;">A</span><span style="color: #9d81ba;">}</span> &#8594; <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">A</span> &#8743; <span style="color: #d24b83;">A</span><span style="color: #9d81ba;">)</span> &#8594; <span style="color: #d24b83;">A</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>&#8744;-simplify : <span style="color: #9d81ba;">{</span><span style="color: #d24b83;">A</span><span style="color: #9d81ba;">}</span> &#8594; <span style="color: #9d81ba;">(</span><span style="color: #d24b83;">A</span> &#8743; <span style="color: #d24b83;">A</span><span style="color: #9d81ba;">)</span> &#8594; <span style="color: #d24b83;">A</span><span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span>&#8744;-simplify aora &#8796; &#8744;-elim aora id id<span style="color: #807f96;">)</span>
 </pre>
 </div>
@@ -342,7 +342,7 @@ something like:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>0-id : <span style="color: #9d81ba;">(</span>n : &#8469;<span style="color: #9d81ba;">)</span> &#8594; <span style="color: #9d81ba;">(</span>n + <span style="color: #cea2ca;">0</span> &#8801; n<span style="color: #9d81ba;">)</span> &#8743; <span style="color: #9d81ba;">(</span><span style="color: #cea2ca;">0</span> + n &#8801; n<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>0-id : <span style="color: #9d81ba;">(</span>n : &#8469;<span style="color: #9d81ba;">)</span> &#8594; <span style="color: #9d81ba;">(</span>n + <span style="color: #cea2ca;">0</span> &#8801; n<span style="color: #9d81ba;">)</span> &#8743; <span style="color: #9d81ba;">(</span><span style="color: #cea2ca;">0</span> + n &#8801; n<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 </pre>
 </div>
 

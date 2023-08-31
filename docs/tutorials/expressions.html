@@ -193,7 +193,7 @@
     { background-color: #ffff00; color: #000000; font-weight: bold; }
   .org-svg { width: 90%; }
 </style>
-<link rel="stylesheet" href="../glyph-style.css" type="text/css"/>
+<link rel="stylesheet" href="../sigil-style.css" type="text/css"/>
 <script type="text/x-mathjax-config">
     MathJax.Hub.Config({
         displayAlign: "center",
@@ -221,7 +221,7 @@
 <h1 class="title">Tutorial: Expressions</h1>
 <div style="text-align:right">
 <p>
-<a href="../index.html">Glyph</a> / <a href="index.html">Tutorials</a> / Expressions
+<a href="../index.html">sigil</a> / <a href="index.html">Tutorials</a> / Expressions
 </p>
 </div>
 
@@ -233,13 +233,13 @@
 <h3 id="org2c32e70">Introduction, The REPL</h3>
 <div class="outline-text-3" id="text-org2c32e70">
 <p>
-We'll start learning Glyph by the REPL, short for Read Eval Print Loop. You can
-type some code into the REPL, press Enter and Glyph will evaluate that
+We'll start learning sigil by the REPL, short for Read Eval Print Loop. You can
+type some code into the REPL, press Enter and sigil will evaluate that
 expression and output the result - try these simple examples: 
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; <span style="color: #cea2ca;">2</span> + <span style="color: #cea2ca;">3</span>
+<pre class="src src-sigil">&gt; <span style="color: #cea2ca;">2</span> + <span style="color: #cea2ca;">3</span>
 <span style="color: #cea2ca;">5</span>
 &gt; <span style="color: #cea2ca;">6</span> - <span style="color: #cea2ca;">5</span>
 <span style="color: #cea2ca;">1</span>
@@ -256,7 +256,7 @@ What about multiplication and division? We can do those, too.
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; <span style="color: #cea2ca;">1.5</span> &#215; <span style="color: #cea2ca;">2.0</span>
+<pre class="src src-sigil">&gt; <span style="color: #cea2ca;">1.5</span> &#215; <span style="color: #cea2ca;">2.0</span>
 <span style="color: #cea2ca;">3.0</span>
 &gt; <span style="color: #cea2ca;">5.0</span> &#247; <span style="color: #cea2ca;">2.5</span>
 <span style="color: #cea2ca;">2.0</span>
@@ -264,7 +264,7 @@ What about multiplication and division? We can do those, too.
 </div>
 
 <p>
-You'll notice that × and ÷ aren't available on your keyboard!. In Glyph, you can
+You'll notice that × and ÷ aren't available on your keyboard!. In sigil, you can
 type these characters in with special 'keycodes'. For the multiplication (×)
 sign, there are two keycodes: ';x' and ':times'. For division, you can type in
 ':divide' or ';:-'. Most characters have two different keycodes:
@@ -295,7 +295,7 @@ use the formula \(\pi \times r ^ 2\). Using '^' for exponentiation, this is writ
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; <span style="color: #cea2ca;">3.14159</span> &#215; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">2.5</span> ^ <span style="color: #cea2ca;">2</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil">&gt; <span style="color: #cea2ca;">3.14159</span> &#215; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">2.5</span> ^ <span style="color: #cea2ca;">2</span><span style="color: #807f96;">)</span>
 <span style="color: #cea2ca;">19.6349375</span>
 </pre>
 </div>
@@ -306,7 +306,7 @@ circumference: \(2 \times \pi \times r\). This is
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; <span style="color: #cea2ca;">2</span> &#215; <span style="color: #cea2ca;">3.14159</span> &#215; <span style="color: #cea2ca;">2.5</span>
+<pre class="src src-sigil">&gt; <span style="color: #cea2ca;">2</span> &#215; <span style="color: #cea2ca;">3.14159</span> &#215; <span style="color: #cea2ca;">2.5</span>
 <span style="color: #cea2ca;">15.70795</span>
 </pre>
 </div>
@@ -318,7 +318,7 @@ symbol (;^= or :def-equal).
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; pi &#8796; <span style="color: #cea2ca;">3.14159</span>
+<pre class="src src-sigil">&gt; pi &#8796; <span style="color: #cea2ca;">3.14159</span>
 </pre>
 </div>
 
@@ -327,7 +327,7 @@ Now, we can re-write the previous calculations using <code>pi</code>:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; pi &#215; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">2.5</span> ^ <span style="color: #cea2ca;">2</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil">&gt; pi &#215; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">2.5</span> ^ <span style="color: #cea2ca;">2</span><span style="color: #807f96;">)</span>
 <span style="color: #cea2ca;">19.6349375</span>
 &gt; <span style="color: #cea2ca;">2</span> &#215; pi &#215; <span style="color: #cea2ca;">2.5</span>
 <span style="color: #cea2ca;">15.70795</span>
@@ -340,7 +340,7 @@ circumference and area of a circle with radius 3.2
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; pi &#215; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">3.2</span> ^ <span style="color: #cea2ca;">2</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil">&gt; pi &#215; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">3.2</span> ^ <span style="color: #cea2ca;">2</span><span style="color: #807f96;">)</span>
 <span style="color: #cea2ca;">32.2722816</span>
 &gt; <span style="color: #cea2ca;">2</span> &#215; pi &#215; <span style="color: #cea2ca;">3.2</span>
 <span style="color: #cea2ca;">20.106176</span>
@@ -389,7 +389,7 @@ false. The easiest way to get a boolean is to just write <code>true</code> or <c
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; <span style="color: #cea2ca;">true</span>
+<pre class="src src-sigil">&gt; <span style="color: #cea2ca;">true</span>
 <span style="color: #cea2ca;">true</span>
 &gt; <span style="color: #cea2ca;">false</span>
 <span style="color: #cea2ca;">false</span>
@@ -401,7 +401,7 @@ More often, booleans are be obtained via comparison operations like <code>&lt;</
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">2</span> &lt; <span style="color: #cea2ca;">3</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">less than</span>
+<pre class="src src-sigil">&gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">2</span> &lt; <span style="color: #cea2ca;">3</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">less than</span>
 <span style="color: #cea2ca;">true</span>
 &gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">2</span> &#8804; <span style="color: #cea2ca;">3</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">less than or equal to (;&lt;= :less-or-equal)</span>
 <span style="color: #cea2ca;">true</span>
@@ -422,7 +422,7 @@ There are also several ways of combining booleans, but the most useful are 'or'
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">true</span> &#8744; <span style="color: #cea2ca;">false</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">or (;v, :or) is true if either argument is true  </span>
+<pre class="src src-sigil">&gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">true</span> &#8744; <span style="color: #cea2ca;">false</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">or (;v, :or) is true if either argument is true  </span>
 <span style="color: #cea2ca;">true</span>
 &gt; <span style="color: #807f96;">(</span><span style="color: #cea2ca;">true</span> &#8743; <span style="color: #cea2ca;">false</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">and (;^, :and) is true only when both arguments ar etrue</span>
 <span style="color: #cea2ca;">false</span>
@@ -436,7 +436,7 @@ something to return when the condition is false.
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; <span style="color: #807f96;">(</span><span style="color: #738FD7;">if</span> <span style="color: #cea2ca;">true</span> <span style="color: #7CF083;">"true is true"</span> <span style="color: #7CF083;">"logic is broken! true is false"</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil">&gt; <span style="color: #807f96;">(</span><span style="color: #738FD7;">if</span> <span style="color: #cea2ca;">true</span> <span style="color: #7CF083;">"true is true"</span> <span style="color: #7CF083;">"logic is broken! true is false"</span><span style="color: #807f96;">)</span>
 <span style="color: #cea2ca;">true</span> is <span style="color: #cea2ca;">true</span>
 &gt; <span style="color: #807f96;">(</span><span style="color: #738FD7;">if</span> <span style="color: #9d81ba;">(</span><span style="color: #cea2ca;">3</span> &lt; <span style="color: #cea2ca;">2</span><span style="color: #9d81ba;">)</span> <span style="color: #7CF083;">"math is broken! 3 is less than 2"</span> <span style="color: #7CF083;">"3 is not less than 2"</span><span style="color: #807f96;">)</span>
 <span style="color: #cea2ca;">3</span> is not less than <span style="color: #cea2ca;">2</span>
@@ -449,7 +449,7 @@ number is positive or negative (keep in mind that 0 is neither positive or negat
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; <span style="color: #807f96;">(</span>sign n &#8796; <span style="color: #738FD7;">if</span> <span style="color: #9d81ba;">(</span>n = <span style="color: #cea2ca;">0</span><span style="color: #9d81ba;">)</span> <span style="color: #7CF083;">"neither"</span> <span style="color: #9d81ba;">(</span><span style="color: #738FD7;">if</span> <span style="color: #4d9391;">(</span>n &lt; <span style="color: #cea2ca;">0</span><span style="color: #4d9391;">)</span> <span style="color: #7CF083;">"negative"</span> <span style="color: #7CF083;">"positive"</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil">&gt; <span style="color: #807f96;">(</span>sign n &#8796; <span style="color: #738FD7;">if</span> <span style="color: #9d81ba;">(</span>n = <span style="color: #cea2ca;">0</span><span style="color: #9d81ba;">)</span> <span style="color: #7CF083;">"neither"</span> <span style="color: #9d81ba;">(</span><span style="color: #738FD7;">if</span> <span style="color: #4d9391;">(</span>n &lt; <span style="color: #cea2ca;">0</span><span style="color: #4d9391;">)</span> <span style="color: #7CF083;">"negative"</span> <span style="color: #7CF083;">"positive"</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 &gt; sign <span style="color: #cea2ca;">2</span>
 <span style="color: #7CF083;">"positive"</span>
 &gt; sign -1

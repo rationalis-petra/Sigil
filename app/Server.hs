@@ -26,16 +26,16 @@ import Pipes.Aeson (DecodingError)
 import Network.Socket
 import Network.Socket.ByteString (recv, sendAll)
 import Prettyprinter
-import Prettyprinter.Render.Glyph
+import Prettyprinter.Render.Sigil
 import Prettyprinter.Render.Text
 
-import Glyph.Abstract.Environment hiding (bind)
-import Glyph.Concrete.Internal
-import Glyph.Parse.Mixfix
-import Glyph.Parse
-import Glyph.Analysis.NameResolution
-import Glyph.Analysis.Typecheck
-import Glyph.Interpret.Interpreter
+import Sigil.Abstract.Environment hiding (bind)
+import Sigil.Concrete.Internal
+import Sigil.Parse.Mixfix
+import Sigil.Parse
+import Sigil.Analysis.NameResolution
+import Sigil.Analysis.Typecheck
+import Sigil.Interpret.Interpreter
 
 import Server.Agent
 
@@ -60,7 +60,7 @@ default_precs = Precedences
    ])
   "sum" "ppd" "ppd" "close"
 
-server :: forall m e s t. (MonadError GlyphDoc m, MonadGen m, Environment Name e) =>
+server :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
   Interpreter m (e (Maybe InternalCore, InternalCore)) s t -> ServerOpts -> IO ()
 server interpreter opts = do
   putStrLn "starting server!"
@@ -94,7 +94,7 @@ runTCPServer mhost port worker = withSocketsDo $ do
             forkFinally (worker conn) (const $ gracefulClose conn 5000)
 
 
-threadWorker :: forall m e s t. (MonadError GlyphDoc m, MonadGen m, Environment Name e)
+threadWorker :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e)
   => Interpreter m (e (Maybe InternalCore, InternalCore)) s t -> Socket -> IO ()
 threadWorker interpreter socket = putStrLn "worker started!" >> loop (packetProducer socket) (start_state interpreter)
   where
@@ -114,7 +114,7 @@ threadWorker interpreter socket = putStrLn "worker started!" >> loop (packetProd
       = either (>> pure state) id .  bimap (putStrLn . ("Error: " <>) . pack . show) (processMessage interpreter state socket)
 
 
-processMessage :: forall m e s t. (MonadError GlyphDoc m, MonadGen m, Environment Name e)
+processMessage :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e)
   => Interpreter m (e (Maybe InternalCore, InternalCore)) s t -> s -> Socket -> InMessage -> IO s
 processMessage (Interpreter {..}) state socket = \case
   EvalExpr uid _ code -> do -- TODO: update to use path!

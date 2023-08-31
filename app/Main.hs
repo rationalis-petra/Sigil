@@ -8,12 +8,12 @@ import Data.Text.IO
 import Data.Text (pack)
 
 import Options.Applicative
-import Prettyprinter.Render.Glyph
+import Prettyprinter.Render.Sigil
 
-import Glyph.Abstract.Environment (Environment, Env, Name, MonadGen)
-import Glyph.Interpret.Interpreter 
-import Glyph.Interpret.Canonical 
-import Glyph.Concrete.Internal
+import Sigil.Abstract.Environment (Environment, Env, Name, MonadGen)
+import Sigil.Interpret.Interpreter 
+import Sigil.Interpret.Canonical 
+import Sigil.Concrete.Internal
 import Interactive
 import Server
 
@@ -73,20 +73,20 @@ data Command
   | ServerCommand (ServerOpts, Backend)
   deriving (Show, Read, Eq)
 
-glyph_opts :: Parser Command
-glyph_opts = subparser $ 
-  command "compile" (info (CompileCommand <$> compile_opts) (progDesc "Compile a Glyph program"))
+sigil_opts :: Parser Command
+sigil_opts = subparser $ 
+  command "compile" (info (CompileCommand <$> compile_opts) (progDesc "Compile a Sigil program"))
   <>
-  command "server" (info (ServerCommand <$> server_opts) (progDesc "Launch the Glyph language server"))
+  command "server" (info (ServerCommand <$> server_opts) (progDesc "Launch the Sigil language server"))
   <>
-  command "interactive" (info (InteractiveCommand <$> interactive_opts) (progDesc "Launch Glyph in interactive mode"))
+  command "interactive" (info (InteractiveCommand <$> interactive_opts) (progDesc "Launch Sigil in interactive mode"))
 
 main :: IO ()
 main = do
-  command <- execParser $ info (glyph_opts <**> helper) 
+  command <- execParser $ info (sigil_opts <**> helper)
     ( fullDesc 
-    <> progDesc "Compile, Run or Develop a Glyph Program"
-    <> header "An implementation of the Glyph Language" )
+    <> progDesc "Compile, Run or Develop a Sigil Program"
+    <> header "An implementation of the Sigil Language" )
   case command of 
     InteractiveCommand (c, backend) -> run_with_backend backend interactive c
     ServerCommand (s, backend) -> run_with_backend backend server s
@@ -95,7 +95,7 @@ main = do
 
 run_with_backend ::
   Backend
-  -> (forall m e s t. (MonadError GlyphDoc m, MonadGen m, Environment Name e) =>
+  -> (forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
       Interpreter m (e (Maybe InternalCore, InternalCore)) s t -> a -> IO ())
   -> a -> IO ()
 run_with_backend backend func val = case backend of

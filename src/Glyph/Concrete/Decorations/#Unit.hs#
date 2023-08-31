@@ -1,6 +1,0 @@
-module Glyph.Concrete.Decorations.Unit where
-
-data Unit = U 
-
-instance AlphaEq Name U where
-

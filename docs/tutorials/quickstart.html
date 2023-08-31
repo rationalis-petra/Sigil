@@ -6,7 +6,7 @@
 <!-- 2023-01-30 Mon 11:00 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Glyph Quickstart Guide</title>
+<title>sigil Quickstart Guide</title>
 <meta name="author" content="Connor Redfern" />
 <meta name="generator" content="Org Mode" />
 <style>
@@ -193,14 +193,14 @@
     { background-color: #ffff00; color: #000000; font-weight: bold; }
   .org-svg { width: 90%; }
 </style>
-<link rel="stylesheet" href="../glyph-style.css" type="text/css"/>
+<link rel="stylesheet" href="../sigil-style.css" type="text/css"/>
 </head>
 <body>
 <div id="content" class="content">
-<h1 class="title">Glyph Quickstart Guide</h1>
+<h1 class="title">sigil Quickstart Guide</h1>
 <div style="text-align:right">
 <p>
-<a href="../index.html">Glyph</a> / <a href="index.html">Tutorials</a> / Quickstart
+<a href="../index.html">sigil</a> / <a href="index.html">Tutorials</a> / Quickstart
 </p>
 </div>
 
@@ -214,11 +214,11 @@ contains a bunch of small programs for you to try.
 <h2 id="orgabc0bbe">Actions: Hello, World!</h2>
 <div class="outline-text-2" id="text-orgabc0bbe">
 <p>
-The Glyph hello world should be unsurprising to most programmers:
+The sigil hello world should be unsurprising to most programmers:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #738FD7;">module</span> main
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #738FD7;">module</span> main
   <span style="color: #9d81ba;">(</span><span style="color: #738FD7;">import</span>
     sys.console.&#8278;all<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">&#8278;all is like the wildcard import '*'</span>
 
@@ -228,7 +228,7 @@ The Glyph hello world should be unsurprising to most programmers:
 </div>
 
 <p>
-However, Glyph is a pure functional language. This means it distinguishes
+However, sigil is a pure functional language. This means it distinguishes
 between <i>actions</i>, which are things that have an effect (print to the console,
 send some data to a socket etc.), and <i>functions</i> or <i>expressions</i>, which simply
 compute some value but have no observable effects.
@@ -241,7 +241,7 @@ actions we want to perform:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #738FD7;">module</span> main
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #738FD7;">module</span> main
   <span style="color: #9d81ba;">(</span><span style="color: #738FD7;">import</span> sys.console.&#8278;all<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 
 <span style="color: #807f96;">(</span>main : <span style="color: #d24b83;">IO Unit</span><span style="color: #807f96;">)</span>
@@ -258,14 +258,14 @@ actions we want to perform:
 <h2 id="org19c0ca6">Palindromes</h2>
 <div class="outline-text-2" id="text-org19c0ca6">
 <p>
-I mentioned above that glyph distinguishes between <i>actions</i>, which have an
+I mentioned above that sigil distinguishes between <i>actions</i>, which have an
 effect, and <i>functions</i>, which do not. As <code>main</code> is an action, we'll define our
 first function. It will take a word and return true if that word is a
 palindrome, i.e. equal to itself in reverse
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #738FD7;">module</span> main
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #738FD7;">module</span> main
   <span style="color: #9d81ba;">(</span><span style="color: #738FD7;">import</span> 
     prelude.&#8278;all<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 
@@ -283,7 +283,7 @@ You can try this function out by right-clicking on it's definition and selecting
 
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #738FD7;">module</span> main
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #738FD7;">module</span> main
   <span style="color: #9d81ba;">(</span><span style="color: #738FD7;">import</span>
     prelude.&#8278;all
     sys.console.&#8278;all<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
@@ -306,7 +306,7 @@ You can try this function out by right-clicking on it's definition and selecting
 <h2 id="org426f91b">Caesar Cipher</h2>
 <div class="outline-text-2" id="text-org426f91b">
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>caesar word k &#8796;
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>caesar word k &#8796;
   <span style="color: #9d81ba;">(</span><span style="color: #738FD7;">let</span> <span style="color: #4d9391;">[</span>_+|_ &#8796; <span style="color: #a0586c;">(</span>mod-ring <span style="color: #cea2ca;">27</span><span style="color: #a0586c;">)</span>._+_<span style="color: #4d9391;">]</span>
        <span style="color: #4d9391;">[</span>encode c &#8796; <span style="color: #a0586c;">(</span>ord c - ord 'a' +| k + ord 'a'<span style="color: #a0586c;">)</span><span style="color: #4d9391;">]</span>
    <span style="color: #4d9391;">(</span>map encode <span style="color: #a0586c;">(</span>to-lower word<span style="color: #a0586c;">)</span><span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
@@ -349,7 +349,7 @@ We can perform this calculation with the below code
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>balanced : <span style="color: #d24b83;">String</span> &#8594; <span style="color: #d24b83;">Bool</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>balanced : <span style="color: #d24b83;">String</span> &#8594; <span style="color: #d24b83;">Bool</span><span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span>balanced str &#8796;
   <span style="color: #9d81ba;">(</span><span style="color: #738FD7;">let</span> <span style="color: #4d9391;">[</span>to-num char &#8796; <span style="color: #738FD7;">match</span> char
          <span style="color: #a0586c;">(</span><span style="color: #7CF083;">"("</span> &#8594;  <span style="color: #cea2ca;">1</span><span style="color: #a0586c;">)</span>
@@ -405,7 +405,7 @@ elements together</li>
 <h2 id="orgd7b9876">Representing JSON</h2>
 <div class="outline-text-2" id="text-orgd7b9876">
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #738FD7;">induct</span> <span style="color: #d24b83;">JSON</span> : &#119984;
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #738FD7;">induct</span> <span style="color: #d24b83;">JSON</span> : &#119984;
   <span style="color: #9d81ba;">(</span>object : <span style="color: #d24b83;">List</span> <span style="color: #4d9391;">(</span><span style="color: #d24b83;">String</span>, <span style="color: #d24b83;">JSON</span><span style="color: #4d9391;">)</span> &#8594; <span style="color: #d24b83;">JSON</span><span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>array  : <span style="color: #d24b83;">List JSON</span> &#8594; <span style="color: #d24b83;">JSON</span><span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>number : <span style="color: #d24b83;">Float</span> &#8594; <span style="color: #d24b83;">JSON</span><span style="color: #9d81ba;">)</span>
@@ -423,7 +423,7 @@ elements together</li>
 </div>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>object
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>object
   <span style="color: #9d81ba;">[</span><span style="color: #4d9391;">(</span><span style="color: #7CF083;">"x"</span>, number <span style="color: #cea2ca;">2</span><span style="color: #4d9391;">)</span>
    <span style="color: #4d9391;">(</span><span style="color: #7CF083;">"arr"</span>, array <span style="color: #a0586c;">[</span><span style="color: #53859d;">(</span>number <span style="color: #cea2ca;">1</span><span style="color: #53859d;">)</span> <span style="color: #53859d;">(</span>number <span style="color: #cea2ca;">2</span><span style="color: #53859d;">)</span> <span style="color: #53859d;">(</span>bool <span style="color: #cea2ca;">true</span><span style="color: #53859d;">)</span><span style="color: #a0586c;">]</span><span style="color: #4d9391;">)</span>
    <span style="color: #4d9391;">(</span><span style="color: #7CF083;">"obj"</span>, object <span style="color: #a0586c;">[</span><span style="color: #53859d;">(</span><span style="color: #7CF083;">"p"</span>, string <span style="color: #7CF083;">"hello"</span><span style="color: #53859d;">)</span> <span style="color: #53859d;">(</span><span style="color: #7CF083;">"q"</span>, string <span style="color: #7CF083;">"world"</span><span style="color: #53859d;">)</span><span style="color: #a0586c;">]</span><span style="color: #4d9391;">)</span>
@@ -432,7 +432,7 @@ elements together</li>
 </div>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #545c5e;">;; </span><span style="color: #545c5e;">add the following import to your module header</span>
+<pre class="src src-sigil"><span style="color: #545c5e;">;; </span><span style="color: #545c5e;">add the following import to your module header</span>
 <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">(import list.assoc.(get))</span>
 
 <span style="color: #807f96;">(</span>get-field : <span style="color: #d24b83;">JSON</span> &#8594; <span style="color: #d24b83;">String</span> &#8594; <span style="color: #d24b83;">Maybe JSON</span><span style="color: #807f96;">)</span>

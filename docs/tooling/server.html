@@ -6,7 +6,7 @@
 <!-- 2022-12-13 Tue 12:54 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>The Glyph Server</title>
+<title>The sigil Server</title>
 <meta name="author" content="Connor Redfern" />
 <meta name="generator" content="Org Mode" />
 <style>
@@ -193,14 +193,14 @@
     { background-color: #ffff00; color: #000000; font-weight: bold; }
   .org-svg { width: 90%; }
 </style>
-<link rel="stylesheet" href="../glyph-style.css" type="text/css"/>
+<link rel="stylesheet" href="../sigil-style.css" type="text/css"/>
 </head>
 <body>
 <div id="content" class="content">
-<h1 class="title">The Glyph Server</h1>
+<h1 class="title">The sigil Server</h1>
 <div style="text-align:right">
 <p>
-<a href="../index.html">Glyph</a> / <a href="index.html">Tooling</a> / The Glyph Server
+<a href="../index.html">sigil</a> / <a href="index.html">Tooling</a> / The sigil Server
 </p>
 </div>
 
@@ -208,14 +208,14 @@
 <h2 id="org474183b">Who this is For</h2>
 <div class="outline-text-2" id="text-org474183b">
 <p>
-This section details the Glyph Server, with the intent it is used to implement
+This section details the sigil Server, with the intent it is used to implement
 clients in various text-editors.  
 </p>
 </div>
 </div>
 
 <div id="outline-container-orgbbd261f" class="outline-2">
-<h2 id="orgbbd261f">Why the Glyph Server isn't a LSP/DAP server</h2>
+<h2 id="orgbbd261f">Why the sigil Server isn't a LSP/DAP server</h2>
 <div class="outline-text-2" id="text-orgbbd261f">
 <p>
 The idea of a language sever is nothing new: The idea is to decouple common
@@ -226,12 +226,12 @@ language tasks like syntax highlighting, autocomplete etc. into two parts:
 <li>The server, which handles the business logic</li>
 </ul>
 <p>
-This is seen in language server protocols like lsp and dap. However the glyph
+This is seen in language server protocols like lsp and dap. However the sigil
 server implements neither of these protocols. 
 </p>
 
 <p>
-The Glyph server is designed with the following two goals in mind:
+The sigil server is designed with the following two goals in mind:
 </p>
 <ul class="org-ul">
 <li>Shrink time between you <i>making changes</i> to your code and actually <i>seeing</i>
@@ -268,7 +268,7 @@ is running), add variable watch/breakpoints and much more.
 <h3 id="orgd65c6b0">Body</h3>
 <div class="outline-text-3" id="text-orgd65c6b0">
 <div class="org-src-container">
-<pre class="src src-glyph">⦗⁖id &lt;num&gt;
+<pre class="src src-sigil">⦗⁖id &lt;num&gt;
  ⁖type &lt;tag&gt;
  ⁖content &lt;content&gt;⦘
 </pre>

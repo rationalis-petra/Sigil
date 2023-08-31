@@ -1,6 +1,6 @@
-name:                glyph
+name:                sigil
 version:             0.2.0.0
-github:              "rationalis-petra/glyph"
+github:              "rationalis-petra/sigil"
 license:             BSD3
 author:              "Connor Redfern"
 maintainer:          "connor.redfern@optunset.com.au"
@@ -17,7 +17,7 @@ extra-source-files:
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/rationalis-petra/glyph#readme>
+description:         Please see the README on GitHub at <https://github.com/rationalis-petra/sigil#readme>
 
 dependencies:
 - base >= 4.7 && < 5
@@ -77,7 +77,7 @@ library:
   source-dirs: src
 
 executables:
-  glyph:
+  sigil:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
@@ -85,10 +85,10 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - glyph
+    - sigil
 
 tests:
-  glyph-test:
+  sigil-test:
     main:                Spec.hs
     source-dirs:         test
     ghc-options:
@@ -96,4 +96,4 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - glyph
+    - sigil

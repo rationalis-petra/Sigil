@@ -193,14 +193,14 @@
     { background-color: #ffff00; color: #000000; font-weight: bold; }
   .org-svg { width: 90%; }
 </style>
-<link rel="stylesheet" href="../glyph-style.css" type="text/css"/>
+<link rel="stylesheet" href="../sigil-style.css" type="text/css"/>
 </head>
 <body>
 <div id="content" class="content">
 <h1 class="title">Tutorial: Seuth</h1>
 <div style="text-align:right">
 <p>
-<a href="../index.html">Glyph</a> / <a href="index.html">Tutorials</a> / Seuth
+<a href="../index.html">sigil</a> / <a href="index.html">Tutorials</a> / Seuth
 </p>
 </div>
 
@@ -208,11 +208,11 @@
 <h2 id="orge85f813">A Brief Intro to Seuth</h2>
 <div class="outline-text-2" id="text-orge85f813">
 <p>
-Seuth is a second programming language embedded within Glyph, but it is a very
-different type of language: While Glyph is mostly about buliding functions which
+Seuth is a second programming language embedded within sigil, but it is a very
+different type of language: While sigil is mostly about buliding functions which
 perform some kind of computation, Seuth is all about solving equations and
 answering questions. While programming, your Seuth code will have access to all
-your Glyph code and vice-versa. 
+your sigil code and vice-versa. 
 </p>
 
 <p>
@@ -220,7 +220,7 @@ We can build a simple seith query with the below code:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>main : <span style="color: #d24b83;">IO Unit</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>main : <span style="color: #d24b83;">IO Unit</span><span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span>main &#8796; <span style="color: #738FD7;">do</span>
   <span style="color: #9d81ba;">(</span><span style="color: #738FD7;">let</span> <span style="color: #4d9391;">(</span>x &#8796; seuth.query <span style="color: #a0586c;">(</span>&#8707; <span style="color: #d24b83;">A</span>. '<span style="color: #d24b83;">A</span> + <span style="color: #cea2ca;">2</span> &#8801; <span style="color: #cea2ca;">3</span><span style="color: #a0586c;">)</span><span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span> <span style="color: #545c5e;">;; </span><span style="color: #545c5e;">TODO: figure out embedding syntax</span>
   <span style="color: #9d81ba;">(</span>print <span style="color: #4d9391;">(</span>head x<span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
@@ -242,14 +242,14 @@ a solution, but all Seuth programs are structured as questions of this form.
 <h2 id="org99f5850">Uses</h2>
 <div class="outline-text-2" id="text-org99f5850">
 <p>
-Seuth is considered an advanced part of the Glyph language, and understanding it
+Seuth is considered an advanced part of the sigil language, and understanding it
 properly is generally not necessary when writing programs. It is nevertheless
 useful in several areas:  
 </p>
 
 <dl class="org-dl">
-<dt>Typeclasses</dt><dd>Typeclasses are a features of many programming languages, Glyph
-included, however they are implemented in Glyph as Seuth queries. To learn
+<dt>Typeclasses</dt><dd>Typeclasses are a features of many programming languages, sigil
+included, however they are implemented in sigil as Seuth queries. To learn
 more about typeclasses, you can read the <a href="typeclasses.html"> ext</a> tutorial in this series.</dd>
 
 <dt>Metaprogramming</dt><dd>A metaprogramm is a program which writes another
@@ -274,7 +274,7 @@ constraint logic programming.</dd>
 <div class="outline-text-2" id="text-orgc52b718">
 <p>
 Seuth has its' own tutorial series, which you can find on the <a href="index.html">tutorials</a> page
-below the Glyph tutorials.
+below the sigil tutorials.
 </p>
 </div>
 </div>

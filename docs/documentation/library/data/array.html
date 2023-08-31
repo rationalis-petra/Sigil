@@ -193,14 +193,14 @@
     { background-color: #ffff00; color: #000000; font-weight: bold; }
   .org-svg { width: 90%; }
 </style>
-<link rel="stylesheet" href="../../../glyph-style.css" type="text/css"/>
+<link rel="stylesheet" href="../../../sigil-style.css" type="text/css"/>
 </head>
 <body>
 <div id="content" class="content">
 <h1 class="title">Library: Data / Array</h1>
 <div style="text-align:right">
 <p>
-<a href="../../../index.html">Glyph</a> / <a href="../../index.html">Documentation</a> / <a href="../index.html">Library</a> / <a href="index.html">Data Structures</a> / Array
+<a href="../../../index.html">sigil</a> / <a href="../../index.html">Documentation</a> / <a href="../index.html">Library</a> / <a href="index.html">Data Structures</a> / Array
 </p>
 </div>
 
@@ -265,7 +265,7 @@ Map (binary <code>¨</code>)
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; map <span style="color: #807f96;">(</span>+ <span style="color: #cea2ca;">1</span><span style="color: #807f96;">)</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
+<pre class="src src-sigil">&gt; map <span style="color: #807f96;">(</span>+ <span style="color: #cea2ca;">1</span><span style="color: #807f96;">)</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
 <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span><span style="color: #807f96;">&#10648;</span>
 </pre>
 </div>
@@ -280,13 +280,13 @@ Array is an applicative, and so implements <code>pure</code> and <code>apply</co
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; pure <span style="color: #cea2ca;">3</span> 
+<pre class="src src-sigil">&gt; pure <span style="color: #cea2ca;">3</span> 
 <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
 </pre>
 </div>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; apply <span style="color: #807f96;">&#10647;</span><span style="color: #9d81ba;">(</span>+1<span style="color: #9d81ba;">)</span> <span style="color: #9d81ba;">(</span>-1<span style="color: #9d81ba;">)</span><span style="color: #807f96;">&#10648;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
+<pre class="src src-sigil">&gt; apply <span style="color: #807f96;">&#10647;</span><span style="color: #9d81ba;">(</span>+1<span style="color: #9d81ba;">)</span> <span style="color: #9d81ba;">(</span>-1<span style="color: #9d81ba;">)</span><span style="color: #807f96;">&#10648;</span> <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #807f96;">&#10648;</span>
 <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">0</span> <span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span><span style="color: #807f96;">&#10648;</span>
 </pre>
 </div>
@@ -305,7 +305,7 @@ Join
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; join <span style="color: #807f96;">&#10647;</span><span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">7</span> <span style="color: #cea2ca;">8</span> <span style="color: #cea2ca;">9</span><span style="color: #9d81ba;">&#10648;</span><span style="color: #807f96;">&#10648;</span>
+<pre class="src src-sigil">&gt; join <span style="color: #807f96;">&#10647;</span><span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span><span style="color: #9d81ba;">&#10648;</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #cea2ca;">7</span> <span style="color: #cea2ca;">8</span> <span style="color: #cea2ca;">9</span><span style="color: #9d81ba;">&#10648;</span><span style="color: #807f96;">&#10648;</span>
 <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span> <span style="color: #cea2ca;">7</span> <span style="color: #cea2ca;">8</span> <span style="color: #cea2ca;">9</span><span style="color: #807f96;">&#10648;</span>
 </pre>
 </div>
@@ -315,7 +315,7 @@ Bind
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph">&gt; <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span> &gt;&gt;= <span style="color: #807f96;">(</span><span style="color: #738FD7;">&#955;</span> <span style="color: #9d81ba;">[</span>x<span style="color: #9d81ba;">]</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #4d9391;">(</span>x + <span style="color: #cea2ca;">1</span><span style="color: #4d9391;">)</span> <span style="color: #4d9391;">(</span>x + <span style="color: #cea2ca;">2</span><span style="color: #4d9391;">)</span> <span style="color: #4d9391;">(</span>x + <span style="color: #cea2ca;">3</span><span style="color: #4d9391;">)</span><span style="color: #9d81ba;">&#10648;</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil">&gt; <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">6</span><span style="color: #807f96;">&#10648;</span> &gt;&gt;= <span style="color: #807f96;">(</span><span style="color: #738FD7;">&#955;</span> <span style="color: #9d81ba;">[</span>x<span style="color: #9d81ba;">]</span> <span style="color: #9d81ba;">&#10647;</span><span style="color: #4d9391;">(</span>x + <span style="color: #cea2ca;">1</span><span style="color: #4d9391;">)</span> <span style="color: #4d9391;">(</span>x + <span style="color: #cea2ca;">2</span><span style="color: #4d9391;">)</span> <span style="color: #4d9391;">(</span>x + <span style="color: #cea2ca;">3</span><span style="color: #4d9391;">)</span><span style="color: #9d81ba;">&#10648;</span><span style="color: #807f96;">)</span>
 <span style="color: #807f96;">&#10647;</span><span style="color: #cea2ca;">1</span> <span style="color: #cea2ca;">2</span> <span style="color: #cea2ca;">3</span> <span style="color: #cea2ca;">4</span> <span style="color: #cea2ca;">5</span> <span style="color: #cea2ca;">6</span> <span style="color: #cea2ca;">7</span> <span style="color: #cea2ca;">8</span> <span style="color: #cea2ca;">9</span><span style="color: #807f96;">&#10648;</span>
 </pre>
 </div>

@@ -193,14 +193,14 @@
     { background-color: #ffff00; color: #000000; font-weight: bold; }
   .org-svg { width: 90%; }
 </style>
-<link rel="stylesheet" href="../../../../glyph-style.css" type="text/css"/>
+<link rel="stylesheet" href="../../../../sigil-style.css" type="text/css"/>
 </head>
 <body>
 <div id="content" class="content">
 <h1 class="title">Library: Abs / Data / Applicative</h1>
 <div style="text-align:right">
 <p>
-<a href="../../../../index.html">Glyph</a> / <a href="../../../index.html">Documentation</a> / <a href="../../index.html">Library</a> / <a href="../index.html">Abstractions</a> / <a href="index.html">Data</a> / Applicative
+<a href="../../../../index.html">sigil</a> / <a href="../../../index.html">Documentation</a> / <a href="../../index.html">Library</a> / <a href="../index.html">Abstractions</a> / <a href="index.html">Data</a> / Applicative
 </p>
 </div>
 
@@ -213,7 +213,7 @@ definition:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #d24b83;">Applicative</span> : <span style="color: #9d81ba;">(</span>&#119984; &#8594; &#119984;<span style="color: #9d81ba;">)</span> &#8594; &#119984;<span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #d24b83;">Applicative</span> : <span style="color: #9d81ba;">(</span>&#119984; &#8594; &#119984;<span style="color: #9d81ba;">)</span> &#8594; &#119984;<span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span><span style="color: #738FD7;">signature</span> <span style="color: #d24b83;">Applicative</span> <span style="color: #9d81ba;">[</span><span style="color: #d24b83;">F</span><span style="color: #9d81ba;">]</span> 
   <span style="color: #9d81ba;">(</span>map : &#8704; <span style="color: #4d9391;">{</span><span style="color: #d24b83;">A B</span><span style="color: #4d9391;">}</span> &#8594; <span style="color: #d24b83;">F A</span> &#8594; <span style="color: #4d9391;">(</span><span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">B</span><span style="color: #4d9391;">)</span> &#8594; <span style="color: #d24b83;">F B</span><span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>_&lt;*&gt;_ : &#8704; <span style="color: #4d9391;">{</span><span style="color: #d24b83;">A B</span><span style="color: #4d9391;">}</span> &#8594; <span style="color: #d24b83;">F</span> <span style="color: #4d9391;">(</span><span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">B</span><span style="color: #4d9391;">)</span> &#8594; <span style="color: #d24b83;">F A</span> &#8594;  <span style="color: #d24b83;">F B</span><span style="color: #9d81ba;">)</span>

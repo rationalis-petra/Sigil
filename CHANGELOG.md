@@ -1,4 +1,4 @@
-# Changelog for `glyph`
+# Changelog for `sigil`
 
 All notable changes to this project will be documented in this file.
 

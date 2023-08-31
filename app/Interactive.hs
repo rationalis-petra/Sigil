@@ -14,15 +14,15 @@ import System.IO hiding (getLine, putStr, readFile)
 
 import Text.Megaparsec hiding (parse, runParser)
 import Prettyprinter
-import Prettyprinter.Render.Glyph
+import Prettyprinter.Render.Sigil
 
-import Glyph.Abstract.Environment
-import Glyph.Parse  
-import Glyph.Parse.Mixfix
-import Glyph.Analysis.NameResolution
-import Glyph.Analysis.Typecheck
-import Glyph.Interpret.Interpreter
-import Glyph.Concrete.Internal
+import Sigil.Abstract.Environment
+import Sigil.Parse  
+import Sigil.Parse.Mixfix
+import Sigil.Analysis.NameResolution
+import Sigil.Analysis.Typecheck
+import Sigil.Interpret.Interpreter
+import Sigil.Concrete.Internal
 
 
 data InteractiveOpts = InteractiveOpts
@@ -43,7 +43,7 @@ default_precs = Precedences
    ])
   "sum" "ppd" "ppd" "close"
 
-interactive :: forall m e s t. (MonadError GlyphDoc m, MonadGen m, Environment Name e)
+interactive :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e)
   => Interpreter m (e (Maybe InternalCore, InternalCore)) s t -> InteractiveOpts -> IO ()
 interactive (Interpreter {..}) opts = do
     s <- eval_file (ifile opts) start_state

@@ -193,14 +193,14 @@
     { background-color: #ffff00; color: #000000; font-weight: bold; }
   .org-svg { width: 90%; }
 </style>
-<link rel="stylesheet" href="../../../../glyph-style.css" type="text/css"/>
+<link rel="stylesheet" href="../../../../sigil-style.css" type="text/css"/>
 </head>
 <body>
 <div id="content" class="content">
 <h1 class="title">Library: Abs / Data /  Foldable</h1>
 <div style="text-align:right">
 <p>
-<a href="../../../../index.html">Glyph</a> / <a href="../../../index.html">Documentation</a> / <a href="../../index.html">Library</a> / <a href="../index.html">Abstractions</a> / <a href="index.html">Data</a> / Foldable
+<a href="../../../../index.html">sigil</a> / <a href="../../../index.html">Documentation</a> / <a href="../../index.html">Library</a> / <a href="../index.html">Abstractions</a> / <a href="index.html">Data</a> / Foldable
 </p>
 </div>
 
@@ -270,7 +270,7 @@ Expected to be efficient</dd>
 <dt>at/! {A} → ℕ → T A</dt><dd>equivalent to</dd>
 </dl>
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #738FD7;">defn</span> at <span style="color: #9d81ba;">{</span><span style="color: #d24b83;">A</span><span style="color: #9d81ba;">}</span> <span style="color: #9d81ba;">[</span>idx foldable<span style="color: #9d81ba;">]</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #738FD7;">defn</span> at <span style="color: #9d81ba;">{</span><span style="color: #d24b83;">A</span><span style="color: #9d81ba;">}</span> <span style="color: #9d81ba;">[</span>idx foldable<span style="color: #9d81ba;">]</span>
   <span style="color: #9d81ba;">(</span>foldl
     <span style="color: #4d9391;">(</span><span style="color: #738FD7;">&#955;</span> <span style="color: #a0586c;">[</span>elem <span style="color: #53859d;">(</span>n, mres<span style="color: #53859d;">)</span><span style="color: #a0586c;">]</span>
       <span style="color: #a0586c;">(</span><span style="color: #738FD7;">match</span> mres

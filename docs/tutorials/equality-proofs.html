@@ -193,14 +193,14 @@
     { background-color: #ffff00; color: #000000; font-weight: bold; }
   .org-svg { width: 90%; }
 </style>
-<link rel="stylesheet" href="../glyph-style.css" type="text/css"/>
+<link rel="stylesheet" href="../sigil-style.css" type="text/css"/>
 </head>
 <body>
 <div id="content" class="content">
 <h1 class="title">Tutorial: Equality</h1>
 <div style="text-align:right">
 <p>
-<a href="../index.html">Glyph</a> / <a href="index.html">Tutorials</a> / Equality
+<a href="../index.html">sigil</a> / <a href="index.html">Tutorials</a> / Equality
 </p>
 </div>
 
@@ -221,7 +221,7 @@ the same, so how do we do this? We do this by taking advantage of the
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #738FD7;">induct</span> <span style="color: #9d81ba;">(</span>_&#8801;_ : <span style="color: #4d9391;">{</span><span style="color: #d24b83;">A</span><span style="color: #4d9391;">}</span> &#8594; <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">A</span> &#8594; &#119984;<span style="color: #9d81ba;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #738FD7;">induct</span> <span style="color: #9d81ba;">(</span>_&#8801;_ : <span style="color: #4d9391;">{</span><span style="color: #d24b83;">A</span><span style="color: #4d9391;">}</span> &#8594; <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">A</span> &#8594; &#119984;<span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>refl : <span style="color: #4d9391;">{</span><span style="color: #d24b83;">A</span><span style="color: #4d9391;">}</span> &#8594; <span style="color: #4d9391;">(</span>x : <span style="color: #d24b83;">A</span><span style="color: #4d9391;">)</span> &#8594; x &#8801; x<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 </pre>
 </div>
@@ -231,13 +231,13 @@ This means we can construct values of the type <code>3 - 1 ≡ 1 + 1</code>
 </p>
 
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>twoeq : <span style="color: #cea2ca;">3</span> - <span style="color: #cea2ca;">1</span> &#8801; <span style="color: #cea2ca;">1</span> + <span style="color: #cea2ca;">1</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>twoeq : <span style="color: #cea2ca;">3</span> - <span style="color: #cea2ca;">1</span> &#8801; <span style="color: #cea2ca;">1</span> + <span style="color: #cea2ca;">1</span><span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span>twoeq &#8796; refl <span style="color: #cea2ca;">2</span><span style="color: #807f96;">)</span>
 </pre>
 </div>
 
 <p>
-Glyph will accept this code, because when comparing 2 and 1 + 1, it will first
+sigil will accept this code, because when comparing 2 and 1 + 1, it will first
 fully evaluate the term - as both <code>3 - 1</code> and <code>1 + 1</code> evaluate to <code>2</code>, the type
 checker accepts our definition, and we have a proof that <code>3 - 1</code> equals <code>1 +
 1</code>. 
@@ -252,7 +252,7 @@ checker accepts our definition, and we have a proof that <code>3 - 1</code> equa
 <h4 id="org160fc4b">Symmetry</h4>
 <div class="outline-text-4" id="text-org160fc4b">
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>sym : <span style="color: #9d81ba;">{</span><span style="color: #d24b83;">A</span><span style="color: #9d81ba;">}</span> &#8594; <span style="color: #9d81ba;">{</span>x y : <span style="color: #d24b83;">A</span><span style="color: #9d81ba;">}</span> &#8594; x &#8801; y &#8594; y &#8801; x<span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>sym : <span style="color: #9d81ba;">{</span><span style="color: #d24b83;">A</span><span style="color: #9d81ba;">}</span> &#8594; <span style="color: #9d81ba;">{</span>x y : <span style="color: #d24b83;">A</span><span style="color: #9d81ba;">}</span> &#8594; x &#8801; y &#8594; y &#8801; x<span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span>sym refl &#8796; refl<span style="color: #807f96;">)</span>
 </pre>
 </div>
@@ -263,7 +263,7 @@ checker accepts our definition, and we have a proof that <code>3 - 1</code> equa
 <h4 id="org7d1b938">Transitivity</h4>
 <div class="outline-text-4" id="text-org7d1b938">
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>trans : <span style="color: #9d81ba;">{</span><span style="color: #d24b83;">A</span><span style="color: #9d81ba;">}</span> &#8594; <span style="color: #9d81ba;">{</span>x y z : <span style="color: #d24b83;">A</span><span style="color: #9d81ba;">}</span> &#8594; x &#8801; y &#8594; y &#8801; z &#8594; x &#8801; z<span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>trans : <span style="color: #9d81ba;">{</span><span style="color: #d24b83;">A</span><span style="color: #9d81ba;">}</span> &#8594; <span style="color: #9d81ba;">{</span>x y z : <span style="color: #d24b83;">A</span><span style="color: #9d81ba;">}</span> &#8594; x &#8801; y &#8594; y &#8801; z &#8594; x &#8801; z<span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span>trans refl refl &#8796; refl<span style="color: #807f96;">)</span>
 </pre>
 </div>
@@ -274,7 +274,7 @@ checker accepts our definition, and we have a proof that <code>3 - 1</code> equa
 <h4 id="org9b78be5">Congruence</h4>
 <div class="outline-text-4" id="text-org9b78be5">
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span>cong : <span style="color: #9d81ba;">{</span><span style="color: #d24b83;">A B</span><span style="color: #9d81ba;">}</span> &#8594; <span style="color: #9d81ba;">{</span>x y : <span style="color: #d24b83;">A</span><span style="color: #9d81ba;">}</span> &#8594; <span style="color: #9d81ba;">(</span>f : <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">B</span><span style="color: #9d81ba;">)</span> &#8594; <span style="color: #9d81ba;">(</span>x &#8801; y<span style="color: #9d81ba;">)</span> &#8594; <span style="color: #9d81ba;">(</span>f x &#8801; f y<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span>cong : <span style="color: #9d81ba;">{</span><span style="color: #d24b83;">A B</span><span style="color: #9d81ba;">}</span> &#8594; <span style="color: #9d81ba;">{</span>x y : <span style="color: #d24b83;">A</span><span style="color: #9d81ba;">}</span> &#8594; <span style="color: #9d81ba;">(</span>f : <span style="color: #d24b83;">A</span> &#8594; <span style="color: #d24b83;">B</span><span style="color: #9d81ba;">)</span> &#8594; <span style="color: #9d81ba;">(</span>x &#8801; y<span style="color: #9d81ba;">)</span> &#8594; <span style="color: #9d81ba;">(</span>f x &#8801; f y<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 <span style="color: #807f96;">(</span>cong f refl &#8796; refl<span style="color: #807f96;">)</span>
 </pre>
 </div>
@@ -291,7 +291,7 @@ checker accepts our definition, and we have a proof that <code>3 - 1</code> equa
 <h3 id="org38b11c3">Application: 0 as an Identity</h3>
 <div class="outline-text-3" id="text-org38b11c3">
 <div class="org-src-container">
-<pre class="src src-glyph"><span style="color: #807f96;">(</span><span style="color: #738FD7;">induct</span> <span style="color: #9d81ba;">(</span>&#8469; : &#119984;<span style="color: #9d81ba;">)</span>
+<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #738FD7;">induct</span> <span style="color: #9d81ba;">(</span>&#8469; : &#119984;<span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>zero : &#8469;<span style="color: #9d81ba;">)</span>
   <span style="color: #9d81ba;">(</span>succ : &#8469; &#8594; &#8469;<span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
 
