@@ -1,7 +1,7 @@
 module Sigil.Abstract.Syntax
   ( Core(..)
   , Module(..)
-  , Definition(..)
+  , Entry(..)
   , ImportModifier(..)
   , ExportModifier(..)
   , ImportDef
@@ -16,18 +16,17 @@ module Sigil.Abstract.Syntax
   , Absχ
   , Appχ
   , Mutualχ
-  , SigDefχ
-  , IndDefχ
+  , Singleχ
 
   -- lenses
   , module_header
   , module_imports
   , module_exports
-  , module_defs
+  , module_entries
 
   -- Adapters/utility
   , pretty_core_builder
-  , pretty_def_builder
+  , pretty_entry_builder
   , pretty_mod_builder
   ) where
 
@@ -156,7 +155,7 @@ data Module b v χ
   = Module { _module_header :: [Text]
            , _module_imports :: [ImportDef]
            , _module_exports :: [ExportDef]
-           , _module_defs :: [Definition b v χ]
+           , _module_entries :: [Entry b v χ]
            } 
 
 data ImportModifier
@@ -181,15 +180,13 @@ type ExportDef = (NonEmpty Text, ExportModifier)
 data IndType = Inductive | Coinductive  
   deriving (Eq, Ord, Show)
 
-data Definition b n χ
-  = Mutualχ (Mutualχ χ) [(b n (Core b n χ), Core b n χ)]
-  | SigDefχ (SigDefχ χ) IndType (b n (Core b n χ)) [b n (Core b n χ)]
-  | IndDefχ (IndDefχ χ) IndType (b n (Core b n χ)) [b n (Core b n χ)]
-  -- | SctDef (b n (Core b n χ)) [(b n (Core b n χ))]
+-- TODO: add fields!
+data Entry b n χ
+  = Singleχ (Singleχ χ) (b n (Core b n χ)) (Core b n χ)
+  | Mutualχ (Mutualχ χ) [(n, Core b n χ, Core b n χ)]
 
+type family Singleχ χ
 type family Mutualχ χ 
-type family SigDefχ χ
-type family IndDefχ χ 
 
 $(makeLenses ''Module)
 
@@ -201,15 +198,14 @@ $(makeLenses ''Module)
 {-------------------------------------------------------------------------------}
 
 
-instance (Forall Eq b n χ) --Eq (b n (Core b n χ)), Eq n, Forallχ Eq χ, Eq (Coreχ b n χ))
-          => Eq (Definition b n χ) where
+instance (Forall Eq b n χ) => Eq (Entry b n χ) where
   v1 == v2 = case (v1, v2) of 
-    (Mutualχ _ defs, Mutualχ _ defs') -> defs == defs'
-    (SigDefχ _ itype bind fields, SigDefχ _  itype' bind' fields') ->
-      itype == itype' && bind == bind' && fields == fields'
-    (IndDefχ _ itype bind terms, IndDefχ _ itype' bind' terms') ->
-      itype == itype' && bind == bind' && terms == terms'
-    (_, _) -> False
+    (Singleχ _ name tipe, Singleχ _ name' tipe') ->
+      name == name' && tipe == tipe'
+    (Mutualχ _ lst, Mutualχ _ lst') ->
+      and (zipWith (==) lst lst')
+    _ -> False
+
 
 instance Forall Eq b n χ --(Eq (b n (Core b n χ)), Eq n, Forallχ Eq χ, Eq (Coreχ b n χ))
          => Eq (Core b n χ) where
@@ -257,7 +253,7 @@ pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
   
     Varχ _ name -> pretty_name name
       
-    Prdχ _ _ _ -> align $ sep $ head tel : zipWith (<+>) (repeat "→") (tail tel)
+    Prdχ {} -> align $ sep $ head tel : zipWith (<+>) (repeat "→") (tail tel)
       where
         tel = telescope c
         
@@ -290,21 +286,21 @@ pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
         unwind (Appχ _ l r) = unwind l <> [r]
         unwind t = [t]
 
+pretty_entry_builder :: (n -> Doc ann) -> (b n (Core b n χ) -> Doc ann) -> (Core b n χ -> Doc ann) -> Entry b n χ -> Doc ann
+pretty_entry_builder pretty_name pretty_bind pretty_core entry =
+  case entry of
+    (Singleχ _ bind val) -> pretty_bind bind <+> "≜" <+> align (pretty_core val)
+    (Mutualχ _ entries) ->
+      vsep $
+        fmap pretty_decl entries <> fmap pretty_def entries
+      where 
+        pretty_decl (n, t, _) = pretty_name n <+> "⮜" <+> pretty_core t
+        pretty_def (n, _, v) = pretty_name n <+> "≜" <+> pretty_core v
 
-pretty_def_builder :: (b n (Core b n χ) -> Doc ann) -> (n -> Doc ann) -> (Coreχ b n χ -> Doc ann) -> Definition b n χ -> Doc ann
-pretty_def_builder pretty_bind pretty_name pretty_coreχ d =
-  case d of
-    (Mutualχ _ [def]) -> pretty_bind (fst def) <+> "≜" <+> pretty_core (snd def)
-    (Mutualχ _ defs)  -> vsep (fmap (pretty_bind . fst) defs) <+> vsep (fmap (\v -> pretty_bind (fst v) <+> "≜" <+> pretty_core (snd v)) defs)
-    (SigDefχ _ _ _ _) -> "Signature"
-    (IndDefχ _ _ _ _) -> "Co/Inductive type def"
-    where
-      pretty_core = pretty_core_builder pretty_bind pretty_name pretty_coreχ
 
-
-pretty_mod_builder :: (Definition b n χ -> Doc ann) -> Module b n χ -> Doc ann
-pretty_mod_builder pretty_def m =
+pretty_mod_builder :: (Entry b n χ -> Doc ann) -> Module b n χ -> Doc ann
+pretty_mod_builder pretty_entry m =
   -- TOOD: account for imports/exports
   vsep $
     ("module" <+> (foldl' (<>) "" . zipWith (<>) ("" : repeat ".") . fmap pretty $ (m^.module_header)))
-    : fmap pretty_def (m^.module_defs)
+    : fmap (align . pretty_entry) (m^.module_entries)

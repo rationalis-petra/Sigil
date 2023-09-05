@@ -77,7 +77,7 @@ parse_spec = TestGroup "parsing" $ Left
   [ parse_lit precs
   , parse_mixfix precs
   , parse_expr precs
-  , parse_def precs
+  , parse_entry precs
   , parse_mod (const precs)
   ]
       
@@ -202,18 +202,18 @@ parse_expr graph =
 
     -- Lambda: Annotations, multiple arguments etc.
     , expr_test "lam-ann"
-      "λ (A : 𝒰) → A"
+      "λ (A ⮜ 𝒰) → A"
       (lam [("A", 𝓊 0)] (var "A"))
     , expr_test "lam-many"
-      "λ (A : 𝒰) (B : 𝒰) → A"
+      "λ (A ⮜ 𝒰) (B ⮜ 𝒰) → A"
       (lam [("A", 𝓊 0), ("B", 𝓊 0)] (var "A"))
     , expr_test "lam-dep"
-      "λ (A : 𝒰) (x : A) → x"
+      "λ (A ⮜ 𝒰) (x ⮜ A) → x"
       (lam [("A", 𝓊 0), ("x", var "A")] (var "x"))
 
     -- Product: Annotations, multiple arguments etc.
     , expr_test "prd-ann"
-      "(A : 𝒰) → A"
+      "(A ⮜ 𝒰) → A"
       (pi [("A", 𝓊 0)] (var "A"))
     , expr_test "prd-noann"
       "𝒰 → 𝒰"
@@ -231,29 +231,29 @@ parse_expr graph =
         Left msg -> Test name $ Just msg
 
 
-parse_def :: Precedences -> TestGroup
-parse_def precs = 
+parse_entry :: Precedences -> TestGroup
+parse_entry precs = 
   TestGroup "definition" $ Right
-    [ def_test "literal"
+    [ entry_test "literal"
       "x ≜ true"
-      (vdef "x" (var "true"))
-    , def_test "recursive"
+      (sentry "x" (var "true"))
+    , entry_test "recursive"
       "x ≜ x"
-      (vdef "x" (var "x"))
-    , def_test "parameter"
+      (sentry "x" (var "x"))
+    , entry_test "parameter"
       "id y ≜ y"
-      (vdef "id" (abs ["y"] (var "y")))
-    , def_test "infix-param"
+      (sentry "id" (abs ["y"] (var "y")))
+    , entry_test "infix-param"
       "twice _*_ y ≜ y * y"
-      (vdef "twice" (abs ["_*_", "y"] (var "_*_" ⋅ var "y" ⋅ var "y")))
-    , def_test "posfix-param"
+      (sentry "twice" (abs ["_*_", "y"] (var "_*_" ⋅ var "y" ⋅ var "y")))
+    , entry_test "posfix-param"
       "post-app x _~ ≜ x ~"
-      (vdef "post-app" (abs ["x", "_~"] (var "_~" ⋅ var "x")))
+      (sentry "post-app" (abs ["x", "_~"] (var "_~" ⋅ var "x")))
     ]
   where
-    def_test :: Text -> Text -> Definition OptBind Text Parsed -> Test
-    def_test name text out =  
-      case runParser (def precs) name text of  
+    entry_test :: Text -> Text -> Entry OptBind Text Parsed -> Test
+    entry_test name text out =  
+      case runParser (entry precs) name text of  
         Right val ->
           if αeq val out then
             Test name Nothing
@@ -271,12 +271,22 @@ parse_mod env =
       mod_test "single-def"
       "module single-def \n\
       \x ≜ true"
-      (modul ["single-def"] [] [] [(vdef "x" (var "true"))]),
+      (modul ["single-def"] [] [] [sentry "x" (var "true")]),
+
       mod_test "multi-def"
       "module multi-def \n\
       \x ≜ true\n\
       \y ≜ false"
-      (modul ["multi-def"] [] [] [(vdef "x" (var "true")), (vdef "y" (var "false"))])
+      (modul ["multi-def"] [] [] [sentry "x" (var "true"), sentry "y" (var "false")]),
+
+      mod_test "complex-modul"
+      "module complex-modul \n\
+      \fn ≜ λ (A ⮜ 𝒰₁) (x ⮜ A) → A\n\
+      \val ≜ fn 𝒰"
+      (modul ["complex-modul"] [] []
+       [ sentry "fn" (lam [("A", 𝓊 1), ("x", var "A")] (var "A"))
+       , sentry "val" (var "fn" ⋅ 𝓊 0)
+       ])
     ]
   where
     mod_test :: Text -> Text -> ParsedModule -> Test
@@ -310,8 +320,8 @@ pi = flip (foldr (Prdχ mempty)) . fmap (OptBind . bimap Just Just)
 (⋅) :: ParsedCore -> ParsedCore -> ParsedCore
 (⋅) = Appχ mempty
 
-vdef :: Text -> ParsedCore -> ParsedDef
-vdef name val = Mutualχ mempty [(OptBind (Just name, Nothing), val)]
+sentry :: Text -> ParsedCore -> ParsedEntry
+sentry name val = Singleχ mempty (OptBind (Just name, Nothing)) val
 
-modul :: [Text] -> [ImportDef] -> [ExportDef] -> [ParsedDef] -> ParsedModule
+modul :: [Text] -> [ImportDef] -> [ExportDef] -> [ParsedEntry] -> ParsedModule
 modul = Module 

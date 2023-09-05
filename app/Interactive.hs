@@ -5,6 +5,7 @@ module Interactive
 
 import Prelude hiding (mod, getLine, putStr, readFile)
 
+import Control.Monad (void)
 import Control.Monad.Except (MonadError, throwError, catchError)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -25,7 +26,7 @@ import Sigil.Interpret.Interpreter
 import Sigil.Concrete.Internal
 
 
-data InteractiveOpts = InteractiveOpts
+newtype InteractiveOpts = InteractiveOpts
   { ifile :: Text
   }
   deriving (Show, Read, Eq)
@@ -65,7 +66,7 @@ interactive (Interpreter {..}) opts = do
           Left err -> putDocLn err
         loop state' opts
       else
-        run state stop >> pure ()
+        void $ run state stop
    
     should_quit :: Text -> Bool
     should_quit ":q" = True
@@ -107,8 +108,8 @@ interactive (Interpreter {..}) opts = do
         `catchError` (throwError . (<+>) "Parse:")
       resolved <- resolve_closed parsed
         `catchError` (throwError . (<+>) "Resolution:")
-      term <- check_module interp_eval env resolved
+      check_module interp_eval env resolved
         `catchError` (throwError . (<+>) "Inference:")
       -- norm <- interp_eval env ty term
       --   `catchError` (throwError . (<+>) "Normalization:")
-      pure term
+      -- pure term

@@ -1,7 +1,7 @@
 module Sigil.Concrete.Parsed
   ( Parsed
   , ParsedCore
-  , ParsedDef
+  , ParsedEntry
   , ParsedModule
   , PUnit(..)
   , range
@@ -42,10 +42,9 @@ type instance Appχ Parsed = Range
 type ParsedCore = Core OptBind Text Parsed
 
 type instance Mutualχ Parsed = Range
-type instance SigDefχ Parsed = Range
-type instance IndDefχ Parsed = Range
+type instance Singleχ Parsed = Range
 
-type ParsedDef = Definition OptBind Text Parsed
+type ParsedEntry = Entry OptBind Text Parsed
 
 type ParsedModule = Module OptBind Text Parsed
 
@@ -91,9 +90,9 @@ instance Pretty ParsedCore where
   pretty =
     pretty_core_builder pretty pretty pretty
   
-instance Pretty ParsedDef where
+instance Pretty ParsedEntry where
   pretty =
-    pretty_def_builder pretty pretty pretty
+    pretty_entry_builder pretty pretty pretty
 
 instance Pretty ParsedModule where
   pretty =

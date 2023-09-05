@@ -1,7 +1,7 @@
 module Sigil.Concrete.Internal
   ( Internal
   , InternalCore
-  , InternalDef
+  , InternalEntry
   , InternalModule
   , pattern Uni
   , pattern Var
@@ -30,13 +30,14 @@ type instance IAbsχ Internal = ()
 type instance IPrdχ Internal = ()
 type instance TyConχ Internal = ()
 
+type instance Singleχ Internal = ()
+type instance Mutualχ Internal = ()
+
 type InternalCore = Core AnnBind Name Internal
 
 type instance Mutualχ Internal = ()
-type instance SigDefχ Internal = ()
-type instance IndDefχ Internal = ()
 
-type InternalDef = Definition AnnBind Name Internal
+type InternalEntry = Entry AnnBind Name Internal
 
 type InternalModule = Module AnnBind Name Internal  
 
@@ -148,8 +149,8 @@ instance Pretty (ImplCore AnnBind Name Internal) where
     IPrdχ _ b body -> "⟨" <> pretty b <> "⟩" <+> "→" <+> pretty body
     TyConχ _ n body -> "[" <> pretty n <+> "<:" <+> pretty body <> "]"   -- Constrains named type n  
 
-instance Pretty InternalDef where
-  pretty = pretty_def_builder pretty pretty pretty
+instance Pretty InternalEntry where
+  pretty = pretty_entry_builder pretty pretty pretty
 
 instance Pretty InternalModule where
   pretty = pretty_mod_builder pretty

@@ -37,8 +37,8 @@ betweenM :: Monad m => Vector (ParserT m b) -> ParserT m a -> ParserT m [a]
 betweenM vec p = case length vec of 
   0 -> pure []
   1 -> head vec *> pure []
-  2 -> between (head vec) (last vec) ((\x -> [x]) <$> p)
-  _ -> (head vec) *> ((:) <$> p <*> betweenM (tail vec) p)
+  2 -> between (head vec) (last vec) ((: []) <$> p)
+  _ -> head vec *> ((:) <$> p <*> betweenM (tail vec) p)
 
 -- Parse many of an element (min 1) 
 many1 :: ParserT m a -> ParserT m [a]
@@ -48,7 +48,7 @@ thread :: Monad m => (a -> ParserT m a) -> a -> ParserT m a
 thread p val = (p val >>= thread p) <||> pure val
 
 thread1 :: Monad m => (a -> ParserT m a) -> a -> ParserT m a   
-thread1 p val = (p val >>= thread p)
+thread1 p val = p val >>= thread p
 
 -- choice with backtracking
 choice' :: [ParserT m a] -> ParserT m a

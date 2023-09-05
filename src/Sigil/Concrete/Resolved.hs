@@ -1,7 +1,7 @@
 module Sigil.Concrete.Resolved
   ( Resolved
   , ResolvedCore
-  , ResolvedDef
+  , ResolvedEntry
   , ResolvedModule
   ) where
 
@@ -24,8 +24,9 @@ type instance Appχ Resolved = Range
 type ResolvedCore = Core OptBind Name Resolved
 
 type instance Mutualχ Resolved = Range
+type instance Singleχ Resolved = Range
 
-type ResolvedDef = Definition OptBind Name Resolved
+type ResolvedEntry = Entry OptBind Name Resolved
   
 --type instance Appχ Resolved = Range
 type ResolvedModule = Module OptBind Name Resolved

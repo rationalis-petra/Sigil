@@ -217,7 +217,7 @@ instance Environment Name Env where
   lookup_err n@(Name (Right _)) env = case Map.lookup n (env^.env_binds) of 
     Nothing -> throwError ("variable not in scope: " <> pretty n)
     Just (x, _) -> pure x
-  lookup_err (Name (Left _)) _ = throwError "cannot lookup global var!"
+  lookup_err (Name (Left v)) _ = throwError ("cannot lookup global var!" <+> pretty v)
 
   lookup n@(Name (Right _)) env = case Map.lookup n (env^.env_binds) of 
     Nothing -> Nothing

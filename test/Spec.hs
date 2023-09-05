@@ -8,6 +8,7 @@ import Prettyprinter.Render.Sigil
 import Options.Applicative
 
 import TestFramework
+
 import Spec.Sigil.Abstract
 import Spec.Sigil.Parse
 import Spec.Sigil.Interpret
@@ -17,7 +18,7 @@ import Spec.Sigil.Analysis
 data Verbosity = Errors | Groups | Verbose
   deriving (Read, Show, Eq, Ord)
 
-data Config = Config
+newtype Config = Config
   { verbosity :: Verbosity }
 
 main :: IO ()

@@ -1,6 +1,7 @@
 module Spec.Sigil.Abstract.CoreUD
   ( CoreUD
-  , DefinitionUD
+  , EntryUD
+  , ModuleUD
   , UD
   , void ) where
 
@@ -24,9 +25,11 @@ type instance Prdχ UD = Void
 type instance Absχ UD = Void
 type instance Appχ UD = Void
 type instance Mutualχ UD = Void
+type instance Singleχ UD = Void
 
 type CoreUD = Core OptBind Name UD
-type DefinitionUD = Definition OptBind Name UD
+type EntryUD = Entry OptBind Name UD
+type ModuleUD = Module OptBind Name UD
 
 instance Eq Void where  
   _ == _ = True

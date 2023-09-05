@@ -34,6 +34,26 @@ alphaeq_tests =
 
   , eq_test "def-eq" (idn 0 "x" ≜ 𝓊 0) (idn 0 "x" ≜ 𝓊 0) True
   , eq_test "def-neq" (idn 0 "x" ≜ 𝓊 0) (idn 0 "x" ≜ 𝓊 1) False
+
+  , eq_test "mod-empty-eq"
+    (modul ["empty"] [] [] [])
+    (modul ["empty"] [] [] []) True
+
+  , eq_test "mod-single-eq"
+    (modul ["empty"] [] [] [idn 0 "x" ≜ 𝓊 0])
+    (modul ["empty"] [] [] [idn 0 "x" ≜ 𝓊 0]) True
+
+  , eq_test "mod-length-neq"
+    (modul ["empty"] [] [] [idn 0 "x" ≜ 𝓊 0])
+    (modul ["empty"] [] [] []) False
+
+  , eq_test "mod-length-neq"
+    (modul ["empty"] [] [] [])
+    (modul ["empty"] [] [] [idn 0 "x" ≜ 𝓊 0]) False
+
+  , eq_test "mod-single-neq"
+    (modul ["empty"] [] [] [idn 0 "x" ≜ 𝓊 0])
+    (modul ["empty"] [] [] [idn 0 "x" ≜ 𝓊 1]) False
   -- Testing Definitions for Alpha Equality
   ]
 
@@ -62,5 +82,8 @@ idv n t = Varχ void $ Name $ Right (n, t)
 idn :: Integer -> Text -> Name
 idn n t = Name $ Right (n, t)
 
-(≜) :: Name -> CoreUD -> DefinitionUD
-n ≜ val = Mutualχ void [(OptBind (Just n, Nothing), val)]
+(≜) :: Name -> CoreUD -> EntryUD
+n ≜ val = Singleχ void (OptBind (Just n, Nothing)) val
+
+modul :: [Text] -> [ImportDef] -> [ExportDef] -> [EntryUD] -> ModuleUD
+modul = Module

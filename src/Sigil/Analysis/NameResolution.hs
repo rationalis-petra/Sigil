@@ -8,6 +8,7 @@ import Prelude hiding (lookup)
 import Control.Lens
 import Data.Map (Map, lookup, insert, empty)
 import Data.Text (Text)
+import Data.Foldable (foldl')
 
 import Sigil.Abstract.Syntax
 import Sigil.Abstract.Environment hiding (Environment(..)) 
@@ -25,10 +26,8 @@ import Sigil.Concrete.Resolved
 class ResolveTo a b | a -> b where
   resolve :: MonadGen m => Map Text Integer -> a -> m b
 
-
 resolve_closed :: (MonadGen m, ResolveTo a b) => a -> m b
 resolve_closed = resolve empty
-  
 
 instance ResolveTo ParsedCore ResolvedCore where
   resolve vars term = case term of 
@@ -53,29 +52,55 @@ instance ResolveTo ParsedCore ResolvedCore where
     App rn l r -> Appχ rn <$> resolve vars l <*> resolve vars r
 
 
-instance ResolveTo ParsedDef ResolvedDef where
-  resolve vars def = case def of 
-    Mutualχ rn defs -> do
-      (binds', vars') <- resolve_binds vars (map fst defs)
-      defs' <- mapM (resolve vars' . snd) defs
+instance ResolveTo ParsedEntry ResolvedEntry where
+  resolve vars entry = case entry of
+    Singleχ rn (OptBind (t,a)) val -> do
+      id <- fresh_id 
+      let n = Name . Right . (id,) <$> t
+          vars' = maybe vars (\t -> insert t id vars) t
+      a' <- mapM (resolve vars) a
+      val' <- resolve vars' val
+      pure $ Singleχ rn (OptBind (n, a')) val'
+
+    Mutualχ rn terms -> do
+      (vars', binds) <- resolve_types vars terms
+      terms' <- mapM (\((_,val,_),(n',type')) -> do
+                         val' <- resolve vars' val
+                         pure (n', val', type'))
+                       (zip terms binds)
       
-      pure $ Mutualχ rn (zip binds' defs')
+      pure $ Mutualχ rn terms'
       where 
-        resolve_binds :: MonadGen m => Map Text Integer -> [OptBind Text ParsedCore] -> m ([OptBind Name ResolvedCore], Map Text Integer)
-        resolve_binds vars ((OptBind (t, a)):bs) =  do
+        resolve_types :: MonadGen m => Map Text Integer -> [(Text, ParsedCore, ParsedCore)] -> m (Map Text Integer, [(Name, ResolvedCore)])
+        resolve_types vars ((n, t, _) : ts) = do
           id <- fresh_id
-          let  n = Name . Right . (id, ) <$> t
-               vars' = maybe vars (\t -> insert t id vars) t
-          a' <- mapM (resolve vars) a
-          (bs', vars'') <- resolve_binds vars' bs
-          pure (OptBind (n, a') : bs', vars'')
-        resolve_binds vars [] = pure ([], vars)
-      
-    SigDefχ {} -> error "have not implemented ResolveTo for SigDefχ"
-    IndDefχ {} -> error "have not implemented ResolveTo for IndDefχ"
+          let n' = Name $ Right (id, n)
+              vars' = insert n id vars
+          t' <- resolve vars t
+          (vars', binds') <- resolve_types vars' ts
+          pure (vars', (n',t') : binds')
+        resolve_types vars [] = pure (vars, [])
 
 instance ResolveTo ParsedModule ResolvedModule where
   -- TODO: interface with environment somehow? (based on imports/exports)
   resolve vars modul = do
-    defs' <- mapM (resolve vars) (modul^.module_defs)
-    pure $ (module_defs .~ defs') modul
+    entries' <- resolve_entries vars (modul^.module_entries)
+    pure $ (module_entries .~ entries') modul
+
+    where 
+      resolve_entries :: MonadGen m => Map Text Integer -> [ParsedEntry] -> m [ResolvedEntry]
+      resolve_entries _ [] = pure []
+      resolve_entries vars (e:es) = do
+        e' <- resolve vars e
+        let vars' = update_vars vars e'
+        (e' :) <$> resolve_entries vars' es 
+
+      update_vars vars entry = case entry of 
+        Singleχ _ (OptBind (n,_)) _ -> do
+          maybe vars (\(id, text) -> insert text id vars) (get_local_name =<< n)
+        Mutualχ _ mutuals -> do
+          foldl' (\vars (n,_,_) -> maybe vars (\(id,text) -> insert text id vars) (get_local_name n)) vars mutuals
+          --maybe vars (\(id,text) -> Map.insert n id vars) ((,) <$> get_id n <*> get_text n)
+
+      get_local_name (Name (Right p)) = Just p
+      get_local_name _ = Nothing

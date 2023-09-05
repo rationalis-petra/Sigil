@@ -3,7 +3,7 @@ module Sigil.Parse
   ( Range
   , Parsed
   , core
-  , def
+  , entry
   , mod
   , parse
   , runParser
@@ -18,6 +18,7 @@ module Sigil.Parse
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
+-- import Debug.Trace
 
 import Prelude hiding (head, last, tail, mod)
 import Control.Monad (join)
@@ -52,12 +53,11 @@ import Sigil.Parse.Lexer
 
 -- precs_from_module :: OptBind Text ParsedCore -> Precedences
 -- precs_from_module b =
-update_precs_def :: Precedences -> ParsedDef -> Precedences
+update_precs_def :: Precedences -> ParsedEntry -> Precedences
 update_precs_def precs def =
   case def of 
-    Mutualχ _ mutuals -> update_precs (join $ map (maybeToList . name . fst) mutuals) precs
-    SigDefχ _ _ _ _ -> error "Haven't implemented update_precs_def for SigDef"
-    IndDefχ _ _ _ _ -> error "Haven't implemented update_precs_def for IndDef"
+    Singleχ _ bind _ -> update_precs (maybeToList . name $ bind) precs
+    Mutualχ _ mutuals -> update_precs (map (\(n,_,_) -> n) mutuals) precs
   
 
 -- Parase a module 
@@ -70,9 +70,9 @@ mod get_precs = do
 
   body <-
     let go precs =
-          try (do d <- L.nonIndented scn (def precs)
+          try (do d <- L.nonIndented scn (entry precs)
                   let precs' = update_precs_def precs d
-                  (d :) <$> go precs') <|> pure [] 
+                  (d :) <$> go precs') <|> (scn *> pure [])
     in go precs
       
   pure $ Module title imports exports body
@@ -126,11 +126,16 @@ mod get_precs = do
 {-------------------------------------------------------------------------------}      
 
 
-def :: forall m. Monad m => Precedences -> ParserT m ParsedDef
-def precs = choice' [mutual]
+entry :: forall m. Monad m => Precedences -> ParserT m ParsedEntry
+entry precs = choice' [mutual]
   where 
-    mutual :: ParserT m ParsedDef
+    mutual :: ParserT m ParsedEntry
     mutual = do
+      -- TODO: parse declaration
+      -- name <- anyvar
+      -- _ <- symbol "⮜"
+      -- tipe <- core precs
+      
       args <- many1 anyvar
       _ <- symbol "≜"
       val <- core (update_precs args precs)
@@ -140,7 +145,7 @@ def precs = choice' [mutual]
 
       case args of 
         [] -> error "impossible!"
-        (x:xs) -> pure $ Mutualχ mempty [(OptBind (Just x, Nothing), tofn xs val)]
+        (x:xs) -> pure $ Singleχ mempty (OptBind (Just x, Nothing)) (tofn xs val)
 
 
 {--------------------------------- CORE PARSER ---------------------------------}
@@ -167,7 +172,7 @@ core precs = choice' [plam, pprod, pexpr]
 
           tyarg :: Precedences -> ParserT m (OptBind Text ParsedCore)
           tyarg precs = between (symbol "(") (symbol ")") $
-                    (\n t -> OptBind (Just n, Just t)) <$> anyvar <*> (symbol ":" *> (core precs))
+                    (\n t -> OptBind (Just n, Just t)) <$> anyvar <*> (symbol "⮜" *> (core precs))
 
           arg :: ParserT m (OptBind Text ParsedCore)
           arg =  notFollowedBy (symbol "→") *> (flip (curry OptBind) Nothing . Just  <$> anyvar)
@@ -190,7 +195,7 @@ core precs = choice' [plam, pprod, pexpr]
 
         annarg :: ParserT m (OptBind Text ParsedCore)
         annarg = between (symbol "(") (symbol ")") $
-          (\n t -> OptBind (Just n, Just t)) <$> anyvar <*> (symbol ":" *> (core precs))
+          (\n t -> OptBind (Just n, Just t)) <$> anyvar <*> (symbol "⮜" *> (core precs))
 
         ty_only :: ParserT m (OptBind Text ParsedCore)
         ty_only = (\t -> OptBind (Nothing, Just t)) <$> choice' [plam, pexpr]

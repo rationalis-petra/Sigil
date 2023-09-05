@@ -1,6 +1,6 @@
 module Sigil.Analysis.Typecheck
   ( Checkable(..)
-  , check_def
+  , check_entry
   , check_module
   ) where
 
@@ -148,7 +148,7 @@ instance Checkable Name ResolvedCore InternalCore where
     (Absχ _ (OptBind (Just n, Nothing)) body, Prd (AnnBind (_,a')) ret_ty) -> do
       body' <- check normalize (insert n (Nothing, a') env) body ret_ty
       pure $ Abs (AnnBind (n, a')) body'
-    (Absχ _ _ _, _) -> throwError $ "expected λ-term to have Π-type, got" <+> pretty ty
+    (Absχ {}, _) -> throwError $ "expected λ-term to have Π-type, got" <+> pretty ty
   
     (Prdχ _ (OptBind (Just n, Just a)) b, _) -> do
       -- TODO: normalization??
@@ -156,49 +156,64 @@ instance Checkable Name ResolvedCore InternalCore where
       b' <- check normalize (insert n (Nothing, a') env) b ty
       pure $ Prd (AnnBind (n, a')) b'
                             
-    (Prdχ _ _ _, _) -> throwError $ "expected Π-term to have a named binding, did not!" <+> pretty term
+    (Prdχ {}, _) -> throwError $ "expected Π-term to have a named binding, did not!" <+> pretty term
   
     _ -> do
       (term', ty') <- infer normalize env term
       check_eq ty ty'
       pure term'
 
-check_def :: (Environment Name e, MonadError SigilDoc m, MonadGen m) => Evaluator m e InternalCore -> e (Maybe InternalCore, InternalCore) -> ResolvedDef -> m InternalDef
-check_def normalize env mod = case mod of 
-  Mutualχ _ defs -> do
-    binds <- mapM (check_bind env) (map fst defs)
-    let env' = foldl' (\env (n, ty) -> insert n (Nothing, ty) env) env binds
-    vals <- mapM (uncurry (check normalize env')) (zip (map snd defs) (map snd binds))
-    pure $ Mutualχ () (zip (map AnnBind binds) vals)
-    where 
-      -- check_bind :: (Environment Name e, MonadError SigilDoc m, MonadGen m) => e (Maybe InternalCore,InternalCore) -> [OptBind Name ResolvedCore] -> m  [(Name, InternalCore)]
-      check_bind env b = case b of 
-        OptBind (Just n, Just a) -> do
-          (a_typd, a_ty) <- infer normalize env a
-          a_normal <- normalize env a_ty a_typd
-          pure (n, a_normal)
-        _ -> throwError "Expecting bind in definition to have name & type"
+check_entry :: (Environment Name e, MonadError SigilDoc m, MonadGen m) => Evaluator m e InternalCore -> e (Maybe InternalCore, InternalCore)
+  -> ResolvedEntry -> m InternalEntry
+check_entry normalize env mod = case mod of 
+  Singleχ _ bind val -> do
+    case bind of 
+      OptBind (Just n, Just a) -> do
+        (a_typd, a_ty) <- infer normalize env a
+        a_normal <- normalize env a_ty a_typd
+        val' <- check normalize env val a_normal
+        pure (Singleχ () (AnnBind (n, a_normal)) val')
+      OptBind (Just n, Nothing) -> do
+        (val_typd, val_ty) <- infer normalize env val
+        val_normal <- normalize env val_ty val_typd
+        pure (Singleχ () (AnnBind (n, val_ty)) val_normal)
+      OptBind (Nothing, _) -> throwError "Expecting Single definition to have a name"
     
-  SigDefχ {} -> throwError "check_def for Signatures not implemented"
-  IndDefχ {} -> throwError "check_def for Induction not implemented"
+  Mutualχ _ terms -> do
+    types <- mapM check_ty terms
+    let env' = foldl' (\env (n, ty) -> insert n (Nothing, ty) env) env types
+    terms' <- mapM (check_term env') (zip terms (map snd types))
+    pure $ Mutualχ () terms'
+    where 
+      check_ty (n,a,_) = do
+        (a_typd, a_ty) <- infer normalize env a
+        a_normal <- normalize env a_ty a_typd
+        pure (n, a_normal)
+      
+      check_term env ((n,_,val), tipe) = do
+        val' <- check normalize env val tipe
+        pure (n, val', tipe)
     
 
 
 -- TODO: swap environment → world?
 check_module :: (Environment Name e, MonadError SigilDoc m, MonadGen m) => Evaluator m e InternalCore -> e (Maybe InternalCore, InternalCore) -> ResolvedModule -> m InternalModule
 check_module normalize env mod = do
-  defs' <- check_defs env (mod^.module_defs)
-  pure $ set module_defs defs' mod 
+  defs' <- check_entries env (mod^.module_entries)
+  pure $ set module_entries defs' mod 
   where 
-    check_defs _ [] = pure []
-    check_defs env (d:ds) = do
-      d' <- check_def normalize env d
+    check_entries _ [] = pure []
+    check_entries env (d:ds) = do
+      d' <- check_entry normalize env d
       case d' of
         Mutualχ () defs -> do
-          let env' = foldl' (\env (AnnBind (n, ty), val) -> insert n (Just val, ty) env) env defs
-          ds' <- check_defs env' ds
+          let env' = foldl' (\env (n, ty, val) -> insert n (Just val, ty) env) env defs
+          ds' <- check_entries env' ds
           pure (d' : ds')
-        _ -> throwError "check_module for Signatures/Structures/Induction not implementd"
+        Singleχ () (AnnBind (n, ty)) val -> do
+          let env' = insert n (Just val, ty) env
+          ds' <- check_entries env' ds
+          pure (d' : ds')
   
 
 -- TODO: replace with check_sub!!

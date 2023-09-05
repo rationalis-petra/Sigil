@@ -2,18 +2,6 @@ module Sigil.Abstract.AlphaEq
   ( AlphaEq(..)
   , αeq ) where
 
-{-------------------------------- αEQ INSTANCE ---------------------------------}
-{-                                                                             -}
-{-                                                                             -}
-{-                                                                             -}
-{-                                                                             -}
-{-------------------------------------------------------------------------------}
-
-import Control.Lens
-import qualified Data.Map as Map
-import Data.Map (Map)
-import Data.Foldable (foldl')
-
 
 {------------------------------- Alpha Equality --------------------------------}
 {-                                                                             -}
@@ -21,7 +9,12 @@ import Data.Foldable (foldl')
 {-                                                                             -}
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
-  
+
+
+import Control.Lens
+import qualified Data.Map as Map
+import Data.Map (Map)
+import Data.Foldable (foldl')
 
 import Sigil.Abstract.Syntax
 import Sigil.Abstract.Environment
@@ -55,24 +48,26 @@ class AlphaEq n a | a -> n where
 αeq :: AlphaEq n a => a -> a -> Bool
 αeq = αequal (Map.empty, Map.empty)
 
-instance (Ord n, Binding b, AlphaEq n (Core b n χ), AlphaEq n (b n (Core b n χ))) => AlphaEq n (Definition b n χ) where
+instance (Ord n, Binding b, AlphaEq n (Core b n χ), AlphaEq n (b n (Core b n χ))) => AlphaEq n (Entry b n χ) where
   αequal rename v1 v2 = case (v1, v2) of 
-    (Mutualχ _ defs, Mutualχ _ defs') -> is_eq . gather_rename rename $ (zip defs defs')
-      where 
-        is_eq (rename, defs) = foldl' (&&) True $ map (uncurry $ αequal rename) defs
-
-        gather_rename rename [] = (rename, [])
-        gather_rename rename (((b, v), (b', v')) : xs) = 
-          (_2 %~ (:) (v, v')) $ gather_rename rename' xs
-          where rename' =
-                  ( maybe (fst rename) (\n -> Map.insert n (name b') (fst rename)) (name b)
+    (Singleχ _ b val, Singleχ _ b' val') -> αequal rename' val val'
+      where
+        rename' = ( maybe (fst rename) (\n -> Map.insert n (name b') (fst rename)) (name b)
                   , maybe (snd rename) (\n -> Map.insert n (name b) (snd rename)) (name b'))
+
+    (Mutualχ _ terms, Mutualχ _ terms') -> defs_eq rename' terms terms'
+      where
+        rename' =
+          foldl' (\r ((n,_,_), (n',_,_)) ->
+                    bimap (Map.insert n (Just n')) (Map.insert n' (Just n)) r)
+                        rename
+                        (zip terms terms')
+
+        defs_eq _ [] [] = True
+        defs_eq r ((_,ty,val) : terms) ((_,ty',val') : terms') =
+          αequal r ty ty' && αequal r val val' && defs_eq r terms terms'
+        defs_eq _ _ _ = False
           
-    -- TODO: other definition types!
-    -- (SigDef itype bind fields, SigDef itype' bind' fields') ->
-    --   itype == itype' && bind == bind' && fields == fields'
-    -- (IndDef itype bind terms, IndDef itype' bind' terms') ->
-    --   itype == itype' && bind == bind' && terms == terms'
     (_, _) -> False
 
 instance (Ord n, Binding b, AlphaEq n (b n (Core b n χ)), AlphaEq n (Coreχ b n χ)) => AlphaEq n (Core b n χ) where
@@ -81,7 +76,7 @@ instance (Ord n, Binding b, AlphaEq n (b n (Core b n χ)), AlphaEq n (Coreχ b n
       αequal rename r r'
     (Uniχ _ n, Uniχ _ n') -> n == n'
     (Varχ _ n, Varχ _ n') ->
-      case (Map.lookup n (fst rename), Map.lookup n' (snd rename)) of
+      case bimap (Map.lookup n) (Map.lookup n') rename of
         (Just (Just r), Just (Just r')) -> r == n' && r' == n
         (Nothing, Nothing) -> n == n'
         _ -> False
@@ -113,7 +108,7 @@ instance (Ord n, Binding b, AlphaEq n (b n (Core b n χ)), AlphaEq n (Coreχ b n
     (m^.module_header == m'^.module_header) &&
     (m^.module_exports == m'^.module_exports) &&
     (m^.module_imports == m'^.module_imports) &&
-    go rename (m^.module_defs) (m'^.module_defs)
+    go rename (m^.module_entries) (m'^.module_entries)
     where
       go rename (d:ds) (d':ds')= 
         αequal rename d d' && go rename' ds ds'
