@@ -27,6 +27,7 @@ pretty_group = TestGroup "pretty" $ Right
   , pretty_test "nested-app" (𝓊 0 ⋅ (𝓊 1 ⋅ idv 0 "hello")) "𝒰₀ (𝒰₁ hello)"
   , pretty_test "abs" ([idn 0 "x"] ⇒ idv 0 "x") "λ x → x"
   , pretty_test "abs-tel" ([idn 0 "x"] ⇒ (idv 0 "x" ⋅ idv 0 "x")) "λ x → (x x)"
+  , pretty_test "abs-tel" ([idn 0 "x", idn 1 "y"] ⇒ (idv 0 "x" ⋅ idv 0 "x")) "λ x y → (x x)"
   , pretty_test "prd" ([idn 0 "A"] → (idv 0 "A")) "A → A"
   , pretty_test "prd" ([idn 0 "A", idn 0 "B"] → (idv 0 "A")) "A → B → A"
   ]

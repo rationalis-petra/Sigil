@@ -107,8 +107,10 @@ read_nf (Normal ty val) = case (ty, val) of
     pure $ Abs (bind name a') f'
   (SUni _, SUni i) -> pure $ Uni i
   (SUni k, SPrd name a b) -> do
+    let neua :: Sem e 
+        neua = Neutral a $ NeuVar name
     a' <- (read_nf $ Normal (SUni k) a)
-    b' <- (read_nf $ Normal (SPrd name a (SUni k)) b)
+    b' <- (read_nf =<< Normal (SUni k) <$> (b `app` neua)) -- THIS IS BUGGY!!!
     pure $ Prd (bind name a') b'
         
   (_, Neutral _ e) -> read_ne e 
@@ -193,7 +195,22 @@ throw doc = throwError $ ?lift_err doc
 
 instance Pretty (Sem e) where
   pretty sem = case sem of 
-    SUni n -> "𝒰" <> pretty n
+    SUni n -> "𝒰" <> pretty_subscript n
+      where
+        pretty_subscript =
+          pretty . fmap to_subscript . show
+        to_subscript c = case c of 
+          '0' -> '₀' 
+          '1' -> '₁'
+          '2' -> '₂'
+          '3' -> '₃'
+          '4' -> '₄'
+          '5' -> '₅'
+          '6' -> '₆'
+          '7' -> '₇'
+          '8' -> '₈'
+          '9' -> '₉'
+          _ -> c
     SPrd n a b -> pretty n <> " : " <> pretty a <+> "→" <+> pretty b
     SAbs n body _ -> "λ (" <> pretty n <> ")" <+> pretty body
     Neutral _ n -> pretty n

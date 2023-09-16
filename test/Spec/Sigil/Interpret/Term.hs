@@ -1,6 +1,6 @@
 module Spec.Sigil.Interpret.Term (term_spec) where
 
-import Control.Monad.Except hiding (void)
+import Control.Monad.Except
 import Data.Text (Text)
 
 import Prettyprinter
@@ -62,7 +62,7 @@ eq_tests =
   where 
     eq_test :: Text -> InternalCore -> InternalCore -> InternalCore -> Bool -> Test
     eq_test name ty l r expected = 
-      Test name $ case runNormM $ equiv default_env ty l r of 
+      Test name $ case runNormM $ equiv id default_env ty l r of 
         Right b | b == expected -> Nothing
                 | otherwise -> Just "eq-test error: term equality different to expected"
         Left e -> Just $ "equiv failed - message:" <+> e
@@ -70,20 +70,27 @@ eq_tests =
 
 norm_tests :: [Test]            
 norm_tests =
-  [ -- 𝒰 → 𝒰
+  [ -- 𝒰 ↦ 𝒰
     norm_test "𝒰0-const" (𝓊 1) (𝓊 0) (𝓊 0)
 
-    -- (λ (A:𝒰₁) A) 𝒰 → 𝒰
+    -- (λ (A:𝒰₁) A) 𝒰 ↝ 𝒰
   , norm_test "id-app" (𝓊 1) (([(idn 0 "A", 𝓊 1)] ⇒ idv 0 "A") ⋅ 𝓊 0) (𝓊 0)
+
+    -- (A:𝒰₀) → 𝒰₀ ↝ (A:𝒰₀) → 𝒰₀
+  , norm_test "pi-const" (𝓊 0) ([(idn 0 "A", 𝓊 0)] → 𝓊 0) ([(idn 0 "A", 𝓊 0)] → 𝓊 0)
 
   ]
   
   where
     norm_test :: Text -> InternalCore -> InternalCore -> InternalCore -> Test
     norm_test name ty a expected = 
-      Test name $ case runNormM $ normalize default_env ty a of 
+      Test name $ case runNormM $ normalize id default_env ty a of 
         Right result | result == expected -> Nothing
-                     | otherwise -> Just "norm-test error: result different to value"
+                     | otherwise ->
+                         Just $ vsep [ "norm-test error: result different to value."
+                                     , "result:" <+> pretty result 
+                                     , "expected:" <+> pretty expected
+                                     ] 
         Left e -> Just $ "normalization err:" <+> e
 
 -- var :: n -> Core b n UD

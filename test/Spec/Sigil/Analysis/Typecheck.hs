@@ -1,6 +1,6 @@
 module Spec.Sigil.Analysis.Typecheck (type_spec) where
 
-import Control.Monad.Except hiding (void)
+import Control.Monad.Except
 import Data.Text (Text)
 
 import Prettyprinter
@@ -57,7 +57,7 @@ check_tests =
   where 
     check_test :: Text -> InternalCore -> InternalCore -> Bool -> Test
     check_test name term ty succ = 
-      Test name $ case runCheckM $ check normalize default_env term ty of 
+      Test name $ case runCheckM $ check normalize spretty default_env term ty of 
         Right _
           | succ -> Nothing
           | otherwise -> Just "checker passed, expected to fail"
@@ -93,7 +93,7 @@ infer_tests =
   where
     infer_test :: Text -> InternalCore -> InternalCore -> Test
     infer_test name term ty = 
-      Test name $ case runCheckM $ infer normalize default_env term of 
+      Test name $ case runCheckM $ infer normalize spretty default_env term of 
         Right (_, ty')
           | ty == ty' -> Nothing
           | otherwise -> Just $ "expected type:" <+> pretty ty <+> "got" <+> pretty ty'

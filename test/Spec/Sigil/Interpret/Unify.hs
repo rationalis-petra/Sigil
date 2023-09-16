@@ -1,6 +1,6 @@
 module Spec.Sigil.Interpret.Unify (unify_spec) where
 
-import Control.Monad.Except hiding (void)
+import Control.Monad.Except
 import Data.Text (Text)
 
 import Prettyprinter
