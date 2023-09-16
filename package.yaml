@@ -26,6 +26,7 @@ dependencies:
 - stm
 - lens
 - mtl
+- transformers
 - pipes
 - pipes-parse
 - pipes-aeson
@@ -43,6 +44,7 @@ ghc-options:
 - -Wall
 - -Werror
 - -Wno-name-shadowing
+- -Wno-missing-signatures
 - -Wcompat
 - -Widentities
 - -Wincomplete-record-updates

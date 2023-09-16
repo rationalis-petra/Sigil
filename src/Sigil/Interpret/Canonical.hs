@@ -20,7 +20,7 @@ import qualified Data.Map as Map
 --import Data.Text (Text)
 
 --import Prettyprinter  
-import Prettyprinter.Render.Sigil
+--import Prettyprinter.Render.Sigil (SigilDoc0
 
 import Sigil.Parse.Mixfix
 import Sigil.Abstract.Environment
@@ -30,45 +30,29 @@ import Sigil.Interpret.Interpreter
 import Sigil.Interpret.Term
 
 newtype Context = Context { world :: World InternalModule } -- threads :: ??
-  
-type CanonM = StateT (World InternalModule) (ExceptT SigilDoc Gen)
 
-canonical_interpreter :: Environment Name e => Interpreter CanonM (e (Maybe InternalCore, InternalCore)) (World InternalModule) InternalCore
-canonical_interpreter = Interpreter
-  -- reify_term :: e -> InternalCore -> m t
+type CanonM err = StateT (World InternalModule) (ExceptT err Gen)
+
+canonical_interpreter :: Environment Name e => (InterpreterErr -> err)
+  -> Interpreter (CanonM err) err (e (Maybe InternalCore, InternalCore)) (World InternalModule) InternalCore
+canonical_interpreter liftErr = Interpreter
   { reify = pure
   , reflect = pure
-  -- , reflect_term :: t -> m InternalCore
 
-
-  -- eval :: Path Name -> InternalCore -> InternalCore -> m InternalCore
   , eval = \env ty term -> do
-      normalize env ty term
+      normalize (liftErr . EvalErr) env ty term
 
-  -- norm_eq :: Path Name -> InternalCore -> InternalCore -> InternalCore -> m Bool
   , norm_eq = \env ty a b -> do
-      equiv env ty a b
+      equiv (liftErr . EvalErr) env ty a b
 
-  -- solve :: Path Name -> Formula InternalCore -> m (Substitution InternalCore) 
-  --, solve_formula = \_ formula -> do
-      -- TODO: solve needs to depend on path!
-      -- env <- build_eval_env_from path
-      -- solve formula
-
-  -- Updating the environment 
-  -- intern_module :: Path Name -> InternalModule -> m ()
   , intern_module = \path modul ->
       modify (insert_at_path path modul)
 
-  -- get_env :: Path Text -> [ImportDef] -> m e
   , get_env = \_ _ -> pure env_empty
 
   , get_precs = \_ _ ->
       pure $ Precedences Map.empty "in" "pre" "post" "close"
 
-  -- capabilities (is m a comonad??)
-  -- extract_io :: forall a. m a -> IO (a, m ())
-  -- run :: forall a. s -> m a -> IO (Either SigilDoc a, s)
   , run = \s mon -> 
       pure $ case run_gen $ runExceptT $ runStateT mon s of 
         Right (v,s) -> (Right v, s)
@@ -79,7 +63,6 @@ canonical_interpreter = Interpreter
 
   , to_image = error "to_image not implemented"
   , from_image = error "to_image not implemented"
-
   }
 
 

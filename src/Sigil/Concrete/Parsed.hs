@@ -4,7 +4,6 @@ module Sigil.Concrete.Parsed
   , ParsedEntry
   , ParsedModule
   , PUnit(..)
-  , range
   , pattern Core
   , pattern Uni
   , pattern Var
@@ -13,6 +12,16 @@ module Sigil.Concrete.Parsed
   , pattern App
   ) where
 
+{----------------------------------- PARSED ------------------------------------}
+{- The Parsed Type describes s the creation and manipulation of abstract Sigil.-}
+{- terms, i.e. the core calculus. This includes:                               -}
+{- • Representation of Sigil. Terms and Environments                           -}
+{- • Normalization                                                             -}
+{- • Substitution                                                              -}
+{- • Higher Order Unification                                                  -}
+{- • Type Checking & Type Inference                                            -}
+{-                                                                             -}
+{-------------------------------------------------------------------------------}
 
 import Data.Text
 
@@ -73,14 +82,14 @@ pattern App :: Range -> ParsedCore -> ParsedCore -> ParsedCore
 pattern App r a b <- Appχ r a b
   where App r a b = Appχ r a b
 
-range :: ParsedCore -> Range
-range core = case core of
-  Core -> mempty
-  Uni r _ -> r
-  Var r _ -> r
-  Prd r _ _ -> r
-  Abs r _ _ -> r
-  App r _ _ -> r
+instance HasRange ParsedCore where
+  range core = case core of
+    Core -> mempty
+    Uni r _ -> r
+    Var r _ -> r
+    Prd r _ _ -> r
+    Abs r _ _ -> r
+    App r _ _ -> r
 
   
 {---------------------------------- INSTANCES ----------------------------------}
@@ -92,7 +101,7 @@ instance Pretty ParsedCore where
   
 instance Pretty ParsedEntry where
   pretty =
-    pretty_entry_builder pretty pretty pretty
+    pretty_entry_builder name pretty pretty pretty
 
 instance Pretty ParsedModule where
   pretty =

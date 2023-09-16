@@ -150,7 +150,7 @@ mixfix' :: forall i m. Monad m => ParserT m ParsedCore -> ParserT m ParsedCore -
 mixfix' atom core (G {..}) = expr
   where
     expr :: ParserT m ParsedCore
-    expr = foldl (App mempty) <$> precs gVertices <*> many (precs gVertices)
+    expr = foldl (\l r-> App (range l <> range r) l r) <$> precs gVertices <*> many (precs gVertices)
     
     precs :: [i] -> ParserT m ParsedCore
     precs (p:ps) = prec p <||> precs ps

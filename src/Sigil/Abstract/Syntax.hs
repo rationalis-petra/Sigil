@@ -44,10 +44,11 @@ import Prelude hiding (lookup, length)
 
 import Control.Lens (makeLenses, (^.))
 import Data.Kind
+import Data.List (intersperse)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Set (Set)
 import Data.Foldable
-import Data.Text hiding (zipWith, foldl', tail, head)
+import Data.Text hiding (zipWith, foldl', tail, head, intersperse)
 
 import Prettyprinter
 
@@ -286,10 +287,12 @@ pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
         unwind (Appχ _ l r) = unwind l <> [r]
         unwind t = [t]
 
-pretty_entry_builder :: (n -> Doc ann) -> (b n (Core b n χ) -> Doc ann) -> (Core b n χ -> Doc ann) -> Entry b n χ -> Doc ann
-pretty_entry_builder pretty_name pretty_bind pretty_core entry =
+pretty_entry_builder :: (b n (Core b n χ) -> Maybe n) -> (n -> Doc ann) -> (b n (Core b n χ) -> Doc ann) -> (Core b n χ -> Doc ann) -> Entry b n χ -> Doc ann
+pretty_entry_builder name pretty_name pretty_bind pretty_core entry =
   case entry of
-    (Singleχ _ bind val) -> pretty_bind bind <+> "≜" <+> align (pretty_core val)
+    (Singleχ _ bind val) ->
+      vsep [ pretty_bind bind
+           , maybe "_" pretty_name (name bind) <+> "≜" <+> align (pretty_core val) ]
     (Mutualχ _ entries) ->
       vsep $
         fmap pretty_decl entries <> fmap pretty_def entries
@@ -303,4 +306,4 @@ pretty_mod_builder pretty_entry m =
   -- TOOD: account for imports/exports
   vsep $
     ("module" <+> (foldl' (<>) "" . zipWith (<>) ("" : repeat ".") . fmap pretty $ (m^.module_header)))
-    : fmap (align . pretty_entry) (m^.module_entries)
+    : emptyDoc : intersperse emptyDoc (fmap (align . pretty_entry) (m^.module_entries))

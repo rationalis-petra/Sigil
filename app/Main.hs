@@ -96,8 +96,9 @@ main = do
 run_with_backend ::
   Backend
   -> (forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-      Interpreter m (e (Maybe InternalCore, InternalCore)) s t -> a -> IO ())
+      Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> a -> IO ())
   -> a -> IO ()
 run_with_backend backend func val = case backend of
-  Native -> func (canonical_interpreter :: Interpreter CanonM (Env (Maybe InternalCore, InternalCore)) (World InternalModule) InternalCore) val
+  Native -> func (canonical_interpreter spretty
+                  :: Interpreter (CanonM SigilDoc) SigilDoc (Env (Maybe InternalCore, InternalCore)) (World InternalModule) InternalCore) val
   b -> putStrLn $ pack ("Cannot run with backend:" <> show b)

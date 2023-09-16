@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 module Sigil.Parse.Lexer
   ( sc
   , scn

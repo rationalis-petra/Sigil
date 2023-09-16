@@ -33,7 +33,8 @@ module Sigil.Abstract.Environment
 
 import Prelude hiding (head, lookup)
 import Control.Lens
-import Control.Monad.Except (MonadError, ExceptT, throwError, lift)
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Except (MonadError, ExceptT, throwError)
 import Control.Monad.State (State, StateT, runState, get, modify)
 import Control.Monad.Reader (ReaderT)
   
@@ -168,7 +169,7 @@ freshen q = pure q
 
 
 class (Functor e, Foldable e) => Environment n e | e -> n where
-  lookup_err :: MonadError (Doc ann) m => n -> e a -> m a 
+  lookup_err :: MonadError err m => (Doc ann -> err) -> n -> e a -> m a 
   lookup :: n -> e a -> Maybe a 
   insert :: n -> a -> e a -> e a
   env_empty :: e a
@@ -214,10 +215,10 @@ instance Foldable Env where
     -- where
 
 instance Environment Name Env where
-  lookup_err n@(Name (Right _)) env = case Map.lookup n (env^.env_binds) of 
-    Nothing -> throwError ("variable not in scope: " <> pretty n)
+  lookup_err liftErr n@(Name (Right _)) env = case Map.lookup n (env^.env_binds) of 
+    Nothing -> throwError $ liftErr $ ("variable not in scope: " <> pretty n)
     Just (x, _) -> pure x
-  lookup_err (Name (Left v)) _ = throwError ("cannot lookup global var!" <+> pretty v)
+  lookup_err liftErr (Name (Left v)) _ = throwError $ liftErr $ ("cannot lookup global var!" <+> pretty v)
 
   lookup n@(Name (Right _)) env = case Map.lookup n (env^.env_binds) of 
     Nothing -> Nothing
@@ -257,13 +258,13 @@ instance Environment Name Env where
 instance (Pretty n, Pretty ty) => Pretty (OptBind n ty) where
   pretty bind = case bind of  
     OptBind (Just n, Nothing) -> pretty n
-    OptBind (Just n, Just ty) -> pretty n <> ":" <> pretty ty
+    OptBind (Just n, Just ty) -> pretty n <+> "⮜" <+> pretty ty
     OptBind (Nothing, Nothing) -> "_"
-    OptBind (Nothing, Just ty) -> "_:" <> pretty ty
+    OptBind (Nothing, Just ty) -> "_⮜" <> pretty ty
 
 instance (Pretty n, Pretty ty) => Pretty (AnnBind n ty) where
   pretty bind = case bind of
-    AnnBind (n, ty) -> pretty n <> ":" <> pretty ty
+    AnnBind (n, ty) -> pretty n <+> "⮜" <+> pretty ty
 
 instance Pretty Name where 
   pretty (Name name) = case name of

@@ -4,8 +4,10 @@ module Sigil.Interpret.Interpreter
   , FunctionPragma(..)
   , ArithFun(..)
   , World(..)
+  , InterpreterErr(..)
+  , Image(..)
   , insert_at_path
-  , Image(..) ) where
+  ) where
 
 
 {--------------------------------- INTERPRETER ---------------------------------}
@@ -27,9 +29,10 @@ import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.List.NonEmpty
 
-import Prettyprinter.Render.Sigil (SigilDoc)  
+import Prettyprinter.Render.Sigil
 
 import Sigil.Abstract.Environment
+import Sigil.Analysis.Typecheck
 import Sigil.Abstract.Syntax (ImportDef)
 import Sigil.Parse.Mixfix (Precedences)
 --import Sigil.Abstract.Substitution
@@ -63,31 +66,30 @@ data Image a = Image (World a) (Restarts a)
 type Restarts a = [IO a]
 
 -- TODO: Interpreter 
--- 
 -- m = monad
--- e = environment
+-- env = environment
 -- s = state
 -- t = term representation
-data Interpreter m e s t = Interpreter
+data Interpreter m err env s t = Interpreter
   -- Converting to/from the term representation, 't'
   { reify :: InternalCore -> m t
   , reflect :: t -> m InternalCore
 
   -- Evaluate a term t in the environment e
-  , eval :: e -> t -> t -> m t
+  , eval :: env -> t -> t -> m t
   -- Return true if two terms are canonically equal, false otherwise 
-  , norm_eq :: e -> t -> t -> t -> m Bool
+  , norm_eq :: env -> t -> t -> t -> m Bool
   -- Higher Order Unification algorithm implementation
   -- , solve_formula :: e -> Formula t -> m (Substitution t)
 
   -- environment manipulation
   -- load a module into the interpreter's state
   , intern_module :: Path Text -> InternalModule -> m ()
-  , get_env :: Maybe (Path Text) -> [ImportDef] -> m e
+  , get_env :: Maybe (Path Text) -> [ImportDef] -> m env
   , get_precs :: [Text] -> [ImportDef] -> m Precedences
 
   -- The Monad m
-  , run :: forall a. s -> m a -> IO (Either SigilDoc a, s)
+  , run :: forall a. s -> m a -> IO (Either err a, s)
 
   -- Startup and close should be used for state s  
   , start_state :: s
@@ -104,17 +106,11 @@ data FunctionPragma = InbuiltArith
 
 data ArithFun = Add | Sub | Mul | Div
 
--- lookup_path :: Path Name -> World -> Module Env
--- lookup_path path world = 
+data InterpreterErr
+  = EvalErr SigilDoc
+  | TCErr TCErr 
 
--- get_path_env :: Path Text -> World a -> Env (Maybe a, a)
--- get_path_env (name :| names) world =
---   case (lookup name world, names)  of 
---     (Just (), (x:xs))
---     (Just (), _)
---     (Nothing, _)
+instance SigilPretty InterpreterErr where
+  spretty (EvalErr doc) = doc
+  spretty (TCErr err) = spretty err
 
--- Helper functions that can be used when working with an interpreter.
--- make_module :: MonadError Doc m => Text -> Text -> m InbuiltModule
--- make_module = 
--- make

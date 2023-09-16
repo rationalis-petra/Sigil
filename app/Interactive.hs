@@ -45,7 +45,7 @@ default_precs = Precedences
   "sum" "ppd" "ppd" "close"
 
 interactive :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e)
-  => Interpreter m (e (Maybe InternalCore, InternalCore)) s t -> InteractiveOpts -> IO ()
+  => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> InteractiveOpts -> IO ()
 interactive (Interpreter {..}) opts = do
     s <- eval_file (ifile opts) start_state
     loop s opts 
@@ -63,7 +63,7 @@ interactive (Interpreter {..}) opts = do
           Right (val, ty) -> do
             putDocLn $ "final value:" <+> nest 2 (pretty val)
             putDocLn $ "type" <+> nest 2 (pretty ty)
-          Left err -> putDocLn err
+          Left err -> putDocLn $ err
         loop state' opts
       else
         void $ run state stop
@@ -78,14 +78,14 @@ interactive (Interpreter {..}) opts = do
       parsed <- parseToErr (core default_precs <* eof) "console-in" line 
       resolved <- resolve_closed parsed
         `catchError` (throwError . (<+>) "Resolution:")
-      (term, ty) <- infer interp_eval env resolved
+      (term, ty) <- infer interp_eval spretty env resolved
         `catchError` (throwError . (<+>) "Inference:")
-      norm <- interp_eval env ty term
+      norm <- interp_eval id env ty term
         `catchError` (throwError . (<+>) "Normalization:")
       pure (norm, ty)
 
-    interp_eval :: e (Maybe InternalCore, InternalCore) -> InternalCore -> InternalCore -> m InternalCore
-    interp_eval env ty val = do
+    interp_eval :: (SigilDoc -> SigilDoc) -> e (Maybe InternalCore, InternalCore) -> InternalCore -> InternalCore -> m InternalCore
+    interp_eval _ env ty val = do
       ty' <- reify ty
       val' <- reify val
       result <- eval env ty' val'
@@ -108,7 +108,7 @@ interactive (Interpreter {..}) opts = do
         `catchError` (throwError . (<+>) "Parse:")
       resolved <- resolve_closed parsed
         `catchError` (throwError . (<+>) "Resolution:")
-      check_module interp_eval env resolved
+      check_module interp_eval spretty env resolved
         `catchError` (throwError . (<+>) "Inference:")
       -- norm <- interp_eval env ty term
       --   `catchError` (throwError . (<+>) "Normalization:")

@@ -59,6 +59,13 @@ update_precs_def precs def =
     Singleχ _ bind _ -> update_precs (maybeToList . name $ bind) precs
     Mutualχ _ mutuals -> update_precs (map (\(n,_,_) -> n) mutuals) precs
   
+with_range :: ParserT m (Range -> a) -> ParserT m a
+with_range p = do 
+  start <- getSourcePos
+  f <- p
+  end <- getSourcePos
+  pure $ f (Range (Just (start, end)))
+
 
 -- Parase a module 
 mod :: Monad m => ([Text] -> [ImportDef] -> m Precedences) -> ParserT m ParsedModule
@@ -158,11 +165,10 @@ entry precs = choice' [mutual]
 core :: forall m. Monad m => Precedences -> ParserT m ParsedCore
 core precs = choice' [plam, pprod, pexpr]
   where
-
     plam :: ParserT m ParsedCore
-    plam = do
-      let unscope :: [OptBind Text ParsedCore] -> ParsedCore -> ParsedCore
-          unscope = flip $ foldr (Abs mempty)
+    plam = 
+      let unscope :: Range -> [OptBind Text ParsedCore] -> ParsedCore -> ParsedCore
+          unscope range = flip $ foldr (Abs range)
 
           args :: ParserT m (Precedences, [OptBind Text ParsedCore])
           args = (thread1 (\(precs, args) ->
@@ -177,19 +183,27 @@ core precs = choice' [plam, pprod, pexpr]
           arg :: ParserT m (OptBind Text ParsedCore)
           arg =  notFollowedBy (symbol "→") *> (flip (curry OptBind) Nothing . Just  <$> anyvar)
 
-      _ <- symbol "λ"
-      (precs', tel) <- args
-      _ <- symbol "→"
-      -- TODO: update precs per argument!!
-      body <- core precs'
-      pure $ unscope (reverse tel) body
+          mklam :: ParserT m (Range -> ParsedCore)
+          mklam = do
+            _ <- symbol "λ"
+            (precs', tel) <- args
+            _ <- symbol "→"
+            -- TODO: update precs per argument!!
+            body <- core precs'
+            pure $ \r -> unscope r (reverse tel) body
+
+      in with_range mklam
+
 
     pprod :: ParserT m ParsedCore
-    pprod = do
-        arg <- parg <* (symbol "→")
-        bdy <- core (update_precs (maybeToList $ name arg) precs)
-        pure $ Prd mempty arg bdy
+    pprod = with_range mkprod
       where
+        mkprod :: ParserT m (Range -> ParsedCore)
+        mkprod = do
+          arg <- parg <* (symbol "→")
+          bdy <- core (update_precs (maybeToList $ name arg) precs)
+          pure $ \r -> Prd r arg bdy
+
         parg :: ParserT m (OptBind Text ParsedCore)
         parg = annarg <||> ty_only
 
@@ -208,8 +222,9 @@ core precs = choice' [plam, pprod, pexpr]
       --   no_mixfix = choice' [plam, pprod]
 
     puniv :: ParserT m ParsedCore
-    puniv = (single '𝒰' *> (Uni mempty <$> subscript_int))
-      <||> const (Uni mempty 0) <$> symbol "𝒰"
+    puniv = with_range $
+      (single '𝒰' *> (flip Uni <$> subscript_int))
+       <||> const (flip Uni 0) <$> symbol "𝒰"
 
 
 {------------------------------ RUNNING A PARSER -------------------------------}

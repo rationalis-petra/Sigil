@@ -49,8 +49,8 @@ instance Subst Name a a => Monoid (Substitution a) where
   mempty = Substitution env_empty
 
 instance Environment Name Substitution where
-  lookup_err var (Substitution env) =
-    lookup_err var env
+  lookup_err lift_err var (Substitution env) =
+    lookup_err lift_err var env
 
   lookup var (Substitution env) =
     lookup var env

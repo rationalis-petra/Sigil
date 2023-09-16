@@ -17,6 +17,7 @@ import Prettyprinter
 import Sigil.Abstract.Environment
 import Sigil.Abstract.Syntax
 import Sigil.Concrete.Decorations.Implicit
+import Sigil.Concrete.Decorations.Range
 
 data Internal
 
@@ -150,7 +151,10 @@ instance Pretty (ImplCore AnnBind Name Internal) where
     TyConχ _ n body -> "[" <> pretty n <+> "<:" <+> pretty body <> "]"   -- Constrains named type n  
 
 instance Pretty InternalEntry where
-  pretty = pretty_entry_builder pretty pretty pretty
+  pretty = pretty_entry_builder name pretty pretty pretty
 
 instance Pretty InternalModule where
   pretty = pretty_mod_builder pretty
+
+instance HasRange InternalCore where
+  range _ = Range Nothing

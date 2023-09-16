@@ -61,7 +61,7 @@ default_precs = Precedences
   "sum" "ppd" "ppd" "close"
 
 server :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-  Interpreter m (e (Maybe InternalCore, InternalCore)) s t -> ServerOpts -> IO ()
+  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> ServerOpts -> IO ()
 server interpreter opts = do
   putStrLn "starting server!"
   runTCPServer Nothing (show $ port opts) (threadWorker interpreter)
@@ -95,7 +95,7 @@ runTCPServer mhost port worker = withSocketsDo $ do
 
 
 threadWorker :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e)
-  => Interpreter m (e (Maybe InternalCore, InternalCore)) s t -> Socket -> IO ()
+  => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> Socket -> IO ()
 threadWorker interpreter socket = putStrLn "worker started!" >> loop (packetProducer socket) (start_state interpreter)
   where
     loop :: Producer Bs.ByteString IO () -> s -> IO ()
@@ -115,7 +115,7 @@ threadWorker interpreter socket = putStrLn "worker started!" >> loop (packetProd
 
 
 processMessage :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e)
-  => Interpreter m (e (Maybe InternalCore, InternalCore)) s t -> s -> Socket -> InMessage -> IO s
+  => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> s -> Socket -> InMessage -> IO s
 processMessage (Interpreter {..}) state socket = \case
   EvalExpr uid _ code -> do -- TODO: update to use path!
     (result, state') <- run state $ eval_msg code
@@ -134,14 +134,14 @@ processMessage (Interpreter {..}) state socket = \case
       parsed <- parseToErr (core default_precs <* eof) "server-in" line 
       resolved <- resolve_closed parsed
         `catchError` (throwError . (<+>) "Resolution:")
-      (term, ty) <- infer interp_eval env resolved
+      (term, ty) <- infer interp_eval spretty env resolved
         `catchError` (throwError . (<+>) "Inference:")
-      norm <- interp_eval env ty term
+      norm <- interp_eval id env ty term
         `catchError` (throwError . (<+>) "Normalization:")
       pure (norm, ty)
 
-    interp_eval :: e (Maybe InternalCore, InternalCore) -> InternalCore -> InternalCore -> m InternalCore
-    interp_eval env ty val = do
+    interp_eval :: (SigilDoc -> SigilDoc) -> e (Maybe InternalCore, InternalCore) -> InternalCore -> InternalCore -> m InternalCore
+    interp_eval _ env ty val = do
       ty' <- reify ty
       val' <- reify val
       result <- eval env ty' val'

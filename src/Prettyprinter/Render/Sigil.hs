@@ -1,5 +1,6 @@
 module Prettyprinter.Render.Sigil
-  ( SigilStyle
+  ( SigilPretty(..)
+  , SigilStyle
   , SigilDoc
   , Colour
   , putDoc
@@ -40,6 +41,9 @@ type SigilDoc = Doc SigilStyle
 
 type Colour = (Vividness, PPTerm.Color)
 data Vividness = Normal | Dull
+
+class SigilPretty a where  
+  spretty :: a -> SigilDoc 
 
 
 {---------------------------------- RENDERING ----------------------------------}

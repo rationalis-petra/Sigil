@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables, ImplicitParams #-}
 module Sigil.Interpret.Term
   ( Term(..) ) where
 
@@ -29,13 +29,8 @@ import Sigil.Concrete.Internal
 
 
 class Pretty a => Term a where
-  normalize :: (MonadError (Doc ann) m, Environment Name e) => e (Maybe a,a) -> a -> a -> m a
-  equiv :: (MonadError (Doc ann) m, Environment Name e) => e (Maybe a,a) -> a -> a -> a -> m Bool
-
--- class (Default χ, DecEq χ, DecPretty χ) => TermDec χ where  
---(Eq (Core AnnBind Name χ), Pretty (Core AnnBind Name χ))
---(Pretty (Core AnnBind Name χ), MonadError (Doc ann) m, Environment Name e)
---(Pretty (Core AnnBind Name χ), MonadError (Doc ann) m, Environment Name e)
+  normalize :: (MonadError err m, Environment Name e) => (Doc ann -> err) -> e (Maybe a,a) -> a -> a -> m a
+  equiv :: (MonadError err m, Environment Name e) => (Doc ann -> err) -> e (Maybe a,a) -> a -> a -> a -> m Bool
 
 
 {------------------------------ DENOTATIVE TERMS -------------------------------}
@@ -88,16 +83,18 @@ data Normal e = Normal (Sem e) (Sem e)
 
 -- TODO: now we use IDs for names, need to ensure we do capture-avoiding substitution!!
 instance Term InternalCore where
-  normalize env ty term =
-    read_nf =<< (Normal <$> ty' <*> term')
-    where
-      ty' = eval ty =<< env_eval env
-      term' = eval term =<< env_eval env
-
-  equiv env ty x y = (αeq) <$> normalize env ty x <*> normalize env ty y
+  normalize lift_error env ty term =
+    let ?lift_err = lift_error in
+      let ty' = eval ty =<< env_eval env
+          term' = eval term =<< env_eval env
+      in read_nf =<< (Normal <$> ty' <*> term')
 
 
-read_nf :: forall e ann m. (MonadError (Doc ann) m, Environment Name e) => Normal e -> m InternalCore
+  equiv lift_error env ty x y = (αeq) <$> normalize lift_error env ty x <*> normalize lift_error env ty y
+    where 
+      ?lift_err = lift_error
+
+read_nf :: forall e err ann m. (MonadError err m, Environment Name e, ?lift_err :: Doc ann -> err) => Normal e -> m InternalCore
 read_nf (Normal ty val) = case (ty, val) of 
   (SPrd name a b, f) -> do
     let neua :: Sem e 
@@ -115,25 +112,25 @@ read_nf (Normal ty val) = case (ty, val) of
     pure $ Prd (bind name a') b'
         
   (_, Neutral _ e) -> read_ne e 
-  (_, _) -> throwError ("bad read_nf: " <+> pretty val <> " : " <+> pretty ty)
+  (_, _) -> throw ("bad read_nf: " <+> pretty val <> " : " <+> pretty ty)
 
 
-read_ne :: (MonadError (Doc ann) m, Environment Name e) => Neutral e -> m InternalCore
+read_ne :: (MonadError err m, Environment Name e, ?lift_err :: Doc ann -> err) =>  Neutral e -> m InternalCore
 read_ne neu = case neu of 
   NeuVar name -> pure $ Var name
   NeuApp l r -> App <$> (read_ne l) <*> (read_nf r)
 
-eval :: (MonadError (Doc ann) m, Environment Name e) => InternalCore -> e (Sem e) -> m (Sem e)
+eval :: (MonadError err m, Environment Name e, ?lift_err :: Doc ann -> err) => InternalCore -> e (Sem e) -> m (Sem e)
 eval term env = case term of
   Uni n -> pure $ SUni n
   Prd bnd b -> do
-    nm <- fromMaybe (throwError "Prd must bind a name") (fmap pure $ name bnd)
-    a <- fromMaybe (throwError "Prd must bind a type") (fmap pure $ tipe bnd)
+    nm <- fromMaybe (throw "Prd must bind a name") (fmap pure $ name bnd)
+    a <- fromMaybe (throw "Prd must bind a type") (fmap pure $ tipe bnd)
     a' <- eval a env
     pure $ SPrd nm a' $ SAbs nm b env
-  Var name -> lookup_err name env
+  Var name -> lookup_err ?lift_err name env
   Abs bnd body -> do
-    nme <- fromMaybe (throwError "Abs must bind a name") (fmap pure $ name bnd)
+    nme <- fromMaybe (throw "Abs must bind a name") (fmap pure $ name bnd)
     pure $ SAbs nme body env
   App l r -> do
     l' <- (eval l env)
@@ -142,32 +139,32 @@ eval term env = case term of
 
   -- Implicit terms 
   IPrd bnd b -> do
-    nm <- fromMaybe (throwError "Prd must bind a name") (fmap pure $ name bnd)
-    a <- fromMaybe (throwError "Prd must bind a type") (fmap pure $ tipe bnd)
+    nm <- fromMaybe (throw "Prd must bind a name") (fmap pure $ name bnd)
+    a <- fromMaybe (throw "Prd must bind a type") (fmap pure $ tipe bnd)
     a' <- eval a env
     pure $ ISPrd nm a' $ SAbs nm b env
   IAbs bnd body -> do
-    nme <- fromMaybe (throwError "Abs must bind a name") (fmap pure $ name bnd)
+    nme <- fromMaybe (throw "Abs must bind a name") (fmap pure $ name bnd)
     pure $ ISAbs nme body env
-  TyCon _ _ -> throwError "don't know how to eval tycon"
+  TyCon _ _ -> throw "don't know how to eval tycon"
   --Coreχ _ -> throwError "cannot eval Coreχ terms" 
 
-app :: (MonadError (Doc ann) m, Environment Name e) => (Sem e) -> (Sem e) -> m (Sem e)
+app :: (MonadError err m, Environment Name e, ?lift_err :: Doc ann -> err) => (Sem e) -> (Sem e) -> m (Sem e)
 app (SAbs name body env) val = eval body (insert name val env)
 app (Neutral (SPrd _ a b) neu) v =
   Neutral <$> (b `app` v) <*> pure (NeuApp neu (Normal a v))
-app _ _ = throwError "bad args to app"
+app l r = throw ("bad args to app:" <+> pretty l <+> "and" <+> pretty r) 
 
-env_eval :: (MonadError (Doc ann) m, Environment Name e) => e (Maybe InternalCore, InternalCore) -> m (e (Sem e))
+env_eval :: (MonadError err m, Environment Name e, ?lift_err :: Doc ann -> err) => e (Maybe InternalCore, InternalCore) -> m (e (Sem e))
 env_eval = eval_helper eval_var 
   where
     
-    eval_var :: (MonadError (Doc ann) m, Environment Name e) =>
+    eval_var :: (MonadError err m, Environment Name e, ?lift_err :: Doc ann -> err) =>
                 Name -> (Maybe InternalCore, InternalCore) -> e (Sem e) -> m (Sem e)
     eval_var n (Nothing, ty) env = mkvar n ty env
     eval_var _ (Just val, _) env = eval val env
     
-    mkvar :: (MonadError (Doc ann) m, Environment Name e) =>
+    mkvar :: (MonadError err m, Environment Name e, ?lift_err :: Doc ann -> err) =>
               Name -> InternalCore -> e (Sem e) -> m (Sem e)
     mkvar n ty env = do
       ty' <- eval ty env
@@ -184,6 +181,8 @@ uni_level sem = case sem of
   ISAbs _ _ _ -> 0 -- note: predicative vs impredicative!!
   Neutral _ _ -> 0 -- TODO: this is probably wrong!!!
 
+throw :: (MonadError err m, ?lift_err :: Doc ann -> err) => Doc ann -> m a
+throw doc = throwError $ ?lift_err doc
 
 {-------------------------------- MISC INSTANCES -------------------------------}
 {-                                                                             -}

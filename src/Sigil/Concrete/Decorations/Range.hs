@@ -1,5 +1,7 @@
 module Sigil.Concrete.Decorations.Range
-  ( Range(..) ) where
+  ( Range(..)
+  , HasRange(..)
+  ) where
 
 {------------------------------------ RANGE ------------------------------------}
 {- The Range decoration is designed to encapsulate source position information -}
@@ -9,7 +11,10 @@ module Sigil.Concrete.Decorations.Range
 {-------------------------------------------------------------------------------}
 
 import Text.Megaparsec
+import Prettyprinter
 
+class HasRange a where 
+  range :: a -> Range
 
 newtype Range = Range { un_range :: Maybe (SourcePos, SourcePos) }
   deriving (Eq, Show, Ord)
@@ -27,3 +32,12 @@ instance Semigroup Range where
 
 instance Monoid Range where
   mempty = Range Nothing
+
+instance Pretty Range where 
+  pretty = \case
+    Range (Just (l, r)) -> (pretty_pos l <> ":" <> pretty_pos r)
+    Range Nothing -> "<unknown>"
+    where
+      pretty_pos :: SourcePos -> Doc ann
+      pretty_pos p = (pretty $ sourceName p) <> "(" <> pretty (unPos $ sourceLine p) <> pretty (unPos $ sourceColumn p) <> ")"
+
