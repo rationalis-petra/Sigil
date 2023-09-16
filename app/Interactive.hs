@@ -85,10 +85,10 @@ interactive (Interpreter {..}) opts = do
       pure (norm, ty)
 
     interp_eval :: (SigilDoc -> SigilDoc) -> e (Maybe InternalCore, InternalCore) -> InternalCore -> InternalCore -> m InternalCore
-    interp_eval _ env ty val = do
+    interp_eval f env ty val = do
       ty' <- reify ty
       val' <- reify val
-      result <- eval env ty' val'
+      result <- eval f env ty' val'
       reflect result 
 
     eval_file :: Text -> s -> IO s

@@ -35,9 +35,9 @@ instance Monoid Range where
 
 instance Pretty Range where 
   pretty = \case
-    Range (Just (l, r)) -> (pretty_pos l <> ":" <> pretty_pos r)
+    Range (Just (l, r)) -> (pretty_pos l <> "-" <> pretty_pos r)
     Range Nothing -> "<unknown>"
     where
       pretty_pos :: SourcePos -> Doc ann
-      pretty_pos p = (pretty $ sourceName p) <> "(" <> pretty (unPos $ sourceLine p) <> pretty (unPos $ sourceColumn p) <> ")"
+      pretty_pos p = (pretty $ sourceName p) <> "(" <> pretty (unPos $ sourceLine p) <> ":" <> pretty (unPos $ sourceColumn p) <> ")"
 

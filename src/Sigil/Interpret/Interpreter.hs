@@ -76,7 +76,7 @@ data Interpreter m err env s t = Interpreter
   , reflect :: t -> m InternalCore
 
   -- Evaluate a term t in the environment e
-  , eval :: env -> t -> t -> m t
+  , eval :: (err -> err) -> env -> t -> t -> m t
   -- Return true if two terms are canonically equal, false otherwise 
   , norm_eq :: env -> t -> t -> t -> m Bool
   -- Higher Order Unification algorithm implementation

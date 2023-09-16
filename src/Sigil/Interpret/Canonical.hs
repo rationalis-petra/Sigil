@@ -39,8 +39,8 @@ canonical_interpreter liftErr = Interpreter
   { reify = pure
   , reflect = pure
 
-  , eval = \env ty term -> do
-      normalize (liftErr . EvalErr) env ty term
+  , eval = \f env ty term -> do
+      normalize (f . liftErr . EvalErr) env ty term
 
   , norm_eq = \env ty a b -> do
       equiv (liftErr . EvalErr) env ty a b
