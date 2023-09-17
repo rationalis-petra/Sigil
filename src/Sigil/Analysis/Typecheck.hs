@@ -145,7 +145,8 @@ instance Checkable Name ResolvedCore InternalCore where
           let env' = insert n (Nothing, a_norm) env
           (body', ret_ty) <- infer' env' body
         
-          pure (Abs (AnnBind (n, a')) body', Prd (AnnBind (n, a')) ret_ty)
+          -- TODO: replace a_norm → a'
+          pure (Abs (AnnBind (n, a_norm)) body', Prd (AnnBind (n, a_norm)) ret_ty)
         
         Prdχ _ (OptBind (maybe_n, Just a)) b -> do
           (a', aty) <- infer' env a
