@@ -12,8 +12,8 @@ import Sigil.Abstract.Environment
 import Sigil.Abstract.AlphaEq 
 
 data ImplCore b n χ
-  = IAbsχ (IAbsχ χ) (b n (Core b n χ)) (Core b n χ) -- Implicit lambda λ [{A:𝒰} (x:A)] x
-  | IPrdχ (IPrdχ χ) (b n (Core b n χ)) (Core b n χ)    -- Implicit d-prod {A:𝒰} → A
+  = IAbsχ (IAbsχ χ) (b n (Core b n χ)) (Core b n χ) -- Implicit lambda λ [{A:𝕌} (x:A)] x
+  | IPrdχ (IPrdχ χ) (b n (Core b n χ)) (Core b n χ)    -- Implicit d-prod {A:𝕌} → A
   | TyConχ (TyConχ χ) n (Core b n χ)   -- Constrains named type n  
 
 type family IAbsχ χ

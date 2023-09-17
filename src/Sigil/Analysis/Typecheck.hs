@@ -278,5 +278,5 @@ check_prod liftErr term = throwError $ liftErr $ PrettyErr ("expected prod, got:
 check_lvl _ (Uniχ _ i) = pure i
 check_lvl liftErr term@(Prdχ _ bn b) = case tipe bn of
   Just a -> max <$> check_lvl liftErr a <*> check_lvl liftErr b
-  Nothing -> throwError $ liftErr $ PrettyErr ("expected 𝒰ᵢ, got:" <+> pretty term) (range term)
-check_lvl liftErr term = throwError $ liftErr $ PrettyErr ("expected 𝒰ᵢ, got:" <+> pretty term) (range term)
+  Nothing -> throwError $ liftErr $ PrettyErr ("expected 𝕌ᵢ, got:" <+> pretty term) (range term)
+check_lvl liftErr term = throwError $ liftErr $ PrettyErr ("expected 𝕌ᵢ, got:" <+> pretty term) (range term)

@@ -223,8 +223,8 @@ core precs = choice' [plam, pprod, pexpr]
 
     puniv :: ParserT m ParsedCore
     puniv = with_range $
-      (single '𝒰' *> (flip Uni <$> subscript_int))
-       <||> const (flip Uni 0) <$> symbol "𝒰"
+      (single '𝕌' *> (flip Uni <$> subscript_int))
+       <||> const (flip Uni 0) <$> symbol "𝕌"
 
 
 {------------------------------ RUNNING A PARSER -------------------------------}

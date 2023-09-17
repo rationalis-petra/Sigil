@@ -77,26 +77,12 @@ import Prettyprinter
 
 data Core b n χ
   = Coreχ (Coreχ b n χ)
-  -- The Core Calculus, based on Martin Löf
+  -- The Core Calculus, based on Martin Löf/CoC
   | Uniχ (Uniχ χ) Int 
   | Varχ (Varχ χ) n
   | Prdχ (Prdχ χ) (b n (Core b n χ)) (Core b n χ)
   | Absχ (Absχ χ) (b n (Core b n χ)) (Core b n χ)
   | Appχ (Appχ χ) (Core b n χ) (Core b n χ)
-
-  -- Type Families - with name and uid
-  -- | Fam Text Integer [Core n χ]
-
-  -- Inductive + Coinductive constants - now with name!
-  -- | Ive n [Core n χ] --
-  -- | Cve [Core n χ]   --
-  -- | Match [Pattern]  --
-  -- | CoCall           --
-
-  -- Records constants - with name and uid
-  -- | Sct [(b (Core b v χ), Core b v χ)]
-  -- | Sig [(b (Core b v χ), Core b v χ)]
-  -- | Dot
 
 
 -- Type Families
@@ -230,11 +216,16 @@ instance Forall Eq b n χ --(Eq (b n (Core b n χ)), Eq n, Forallχ Eq χ, Eq (C
 {-     Instances for printing syntax trees to via the Prettyprinter library    -}
 {-------------------------------------------------------------------------------}
 
-pretty_core_builder :: (b n (Core b n χ) -> Doc ann) -> (n -> Doc ann) -> (Coreχ b n χ -> Doc ann) -> Core b n χ -> Doc ann
+pretty_core_builder ::
+  (Bool -> b n (Core b n χ) -> Doc ann)
+  -> (n -> Doc ann)
+  -> (Coreχ b n χ -> Doc ann)
+  -> Core b n χ
+  -> Doc ann
 pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
   case c of
     Coreχ v -> pretty_coreχ v
-    Uniχ _ n -> "𝒰" <> pretty_subscript n
+    Uniχ _ n -> "𝕌" <> pretty_subscript n
       where
         pretty_subscript =
           pretty . fmap to_subscript . show
@@ -250,7 +241,6 @@ pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
           '8' -> '₈'
           '9' -> '₉'
           _ -> c
-
   
     Varχ _ name -> pretty_name name
       
@@ -258,7 +248,7 @@ pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
       where
         tel = telescope c
         
-        telescope (Prdχ _ bind e) = pretty_bind bind : telescope e
+        telescope (Prdχ _ bind e) = pretty_bind False bind : telescope e
         telescope b = [pretty_core  b]
     
     Absχ _ bind e ->
@@ -269,7 +259,7 @@ pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
               (bind : args, body)
           telescope body = ([], body)
     
-          pretty_args bind [] = pretty_bind bind
+          pretty_args bind [] = pretty_bind True bind
           pretty_args v (x : xs) = pretty_args v [] <+> pretty_args x xs
       in
         ("λ " <> pretty_args bind args <> " →") <+> nest 2 (bracket body)
@@ -286,6 +276,15 @@ pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
       
         unwind (Appχ _ l r) = unwind l <> [r]
         unwind t = [t]
+
+-- pretty_bind_builder :: 
+--   (Core b n χ -> Doc ann)
+--   -> (n -> Doc ann)
+--   -> (Coreχ b n χ -> Doc ann)
+--   -> Bool
+--   -> b n (Core b n χ)
+--   -> Doc ann
+-- pretty_bind_builder pretty_core pretty_name pretty_core isFnc entry = 
 
 pretty_entry_builder :: (b n (Core b n χ) -> Maybe n) -> (n -> Doc ann) -> (b n (Core b n χ) -> Doc ann) -> (Core b n χ -> Doc ann) -> Entry b n χ -> Doc ann
 pretty_entry_builder name pretty_name pretty_bind pretty_core entry =

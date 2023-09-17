@@ -79,7 +79,7 @@ pattern TyCon n e <- Coreχ (TyConχ () n e)
 
 instance Pretty InternalCore where
   pretty c = case c of  
-    Uni n -> "𝒰" <> pretty_subscript n
+    Uni n -> "𝕌" <> pretty_subscript n
       where
         pretty_subscript =
           pretty . fmap to_subscript . show

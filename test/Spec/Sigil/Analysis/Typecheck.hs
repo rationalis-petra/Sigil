@@ -68,8 +68,8 @@ check_tests =
 
 infer_tests :: [Test]            
 infer_tests =
-  [ -- 𝒰 : 𝒰1
-    infer_test "𝒰0-𝒰1" (𝓊 0) (𝓊 1)
+  [ -- 𝕌 : 𝕌1
+    infer_test "𝕌₀-𝕌₁" (𝓊 0) (𝓊 1)
 
   , infer_test "simple-lam" ([(idn 0 "A", 𝓊 0)] ⇒ idv 0 "A") ([(idn 0 "A", 𝓊 0)] → 𝓊 0)
 

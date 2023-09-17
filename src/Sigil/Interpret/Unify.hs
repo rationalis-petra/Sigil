@@ -29,7 +29,7 @@ module Sigil.Interpret.Unify
 {- Further, the ∈ term can act as a generalisation of type inference/checking  -}
 {- and proof search:                                                           -}
 {- • M ∈ N (no free vars) is equivalent to type-checking M : N                 -}
-{- • ∃n:ℕ∃. T:𝒰 n. M ∈ T is equivalent to inferring the type of M              -}
+{- • ∃n:ℕ∃. T:𝕌 n. M ∈ T is equivalent to inferring the type of M              -}
 {- • ∃x:A. x∈A is like a proof search for proposition A.                       -}
 {-                                                                             -}
 {- The 'solve' function (which solves formulas) works by applying a series of  -}
@@ -273,10 +273,10 @@ unify_eq quant_vars a b = case (a, b) of
     if n == n' then
       pure $ Just (quant_vars, mempty, [])
     else
-      throwError ("inequal universes:"
-                  <+> "(𝒰 " <> pretty n <> ")"
+      throwError ("unequal universes:"
+                  <+> "(𝕌 " <> pretty n <> ")"
                   <+> "and"
-                  <+> "(𝒰 " <> pretty n' <> ")")
+                  <+> "(𝕌 " <> pretty n' <> ")")
 
   (s, s') | αeq s s' -> pure $ Just (quant_vars, mempty, [])
 

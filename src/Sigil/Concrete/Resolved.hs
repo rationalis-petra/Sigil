@@ -32,7 +32,7 @@ type ResolvedEntry = Entry OptBind Name Resolved
 type ResolvedModule = Module OptBind Name Resolved
 
 instance Pretty ResolvedCore where
-  pretty = pretty_core_builder pretty pretty pretty 
+  pretty = pretty_core_builder pretty_bind pretty pretty 
 
 instance HasRange ResolvedCore where
   range core = case core of

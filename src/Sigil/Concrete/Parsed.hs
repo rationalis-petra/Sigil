@@ -97,7 +97,7 @@ instance HasRange ParsedCore where
 
 instance Pretty ParsedCore where
   pretty =
-    pretty_core_builder pretty pretty pretty
+    pretty_core_builder pretty_bind pretty pretty
   
 instance Pretty ParsedEntry where
   pretty =

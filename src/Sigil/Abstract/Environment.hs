@@ -11,6 +11,7 @@ module Sigil.Abstract.Environment
   , Binding(..)
   , OptBind(..)
   , AnnBind(..)
+  , pretty_bind
 
   -- Environment
   , Environment(..)
@@ -74,7 +75,7 @@ newtype Name = Name (Either QualName UniqueName)
 {- There are 3 variants of binding we can have:                                -}
 {- + Name but no type, e.g. λ [x] x                                            -}
 {- + Type but no name, e.g. ℤ → ℤ                                              -}
-{- + Both Name and type, e.g. λ [x:ℤ] (x + 1) or (A:𝒰) → A → A                 -}
+{- + Both Name and type, e.g. λ [x:ℤ] (x + 1) or (A:𝕌) → A → A                 -}
 {- Specific binding types may encompass any subset of these three, and the     -}
 {- typeclass abstraction should account for any possible subset.               -}
 {- Hence, name and type return maybes, and the only way to construct a binding -}
@@ -270,3 +271,11 @@ instance Pretty Name where
   pretty (Name name) = case name of
     Left qname -> pretty qname -- TODO prettify
     Right (_, var) -> pretty var
+
+pretty_bind :: (Pretty n, Pretty ty, Binding b) => Bool -> b n ty -> Doc ann
+pretty_bind fnc b = case (name b, tipe b) of
+  (Just n, Just ty) -> "(" <> pretty n <+> "⮜" <+> pretty ty <> ")"
+  (Nothing, Nothing) -> "_"
+  (Just n, Nothing) -> if fnc then pretty n else "(" <> pretty n <> "⮜_)"
+  (Nothing, Just ty) -> if fnc then "(_⮜" <> pretty ty <> ")" else pretty ty
+

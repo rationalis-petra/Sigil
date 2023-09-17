@@ -51,16 +51,16 @@ unify_tests =
     True
 
   -- TODO: ambiguous constraint - is this correct?
-  -- ∃x:𝒰. ∃y:𝒰 . x ≗ y
+  -- ∃x:𝕌. ∃y:𝕌 . x ≗ y
   -- , can_solve_test "ex-var1" (Bind Exists (idn 0 "x") (𝓊 0) $
   --                             Bind Exists (idn 1 "y") (𝓊 0) $  
 
-  -- ∃x:(A:𝒰→𝒰). x ≗ λ [A:𝒰] A
+  -- ∃x:(A:𝕌→𝕌). x ≗ λ [A:𝕌] A
   , can_solve_test "ex-lam" (Bind Exists (idn 0 "x") ([(idn 1 "A", 𝓊 0)] → 𝓊 0) $
                             Conj [idv 0 "x" :≗: ([(idn 1 "A", 𝓊 0)] ⇒ idv 1 "A")]) True
 
   -- TODO: this returns an abiguity error: is this correct? 
-  -- ∃x:(𝒰1→𝒰1). x 𝒰 ≗ 𝒰
+  -- ∃x:(𝕌₁→𝕌₁). x 𝕌 ≗ 𝕌
   -- , can_solve_test "ex-lam-app" (Bind Exists (idn 0 "x") ([(idn 1 "A", 𝓊 1)] → 𝓊 1) $
   --                           Conj [(idv 0 "x" ⋅ 𝓊 0) :≗: 𝓊 0]) True
 

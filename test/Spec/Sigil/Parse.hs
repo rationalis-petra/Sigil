@@ -139,11 +139,11 @@ parse_mixfix precs = TestGroup "mixfix" $ Right
 parse_lit :: Precedences -> TestGroup
 parse_lit graph =
   TestGroup "literal" $ Right
-    [ lit_test "universe-0"   "𝒰"   (𝓊 0)
-    , lit_test "universe-0v2" "𝒰₀"  (𝓊 0)
-    , lit_test "universe-1"   "𝒰₁"  (𝓊 1)
-    , lit_test "universe-10"  "𝒰₁₀" (𝓊 10)
-    , lit_test "universe-23"  "𝒰₂₃" (𝓊 23)
+    [ lit_test "universe-0"   "𝕌"   (𝓊 0)
+    , lit_test "universe-0v2" "𝕌₀"  (𝓊 0)
+    , lit_test "universe-1"   "𝕌₁"  (𝓊 1)
+    , lit_test "universe-10"  "𝕌₁₀" (𝓊 10)
+    , lit_test "universe-23"  "𝕌₂₃" (𝓊 23)
     ]
 
   where
@@ -160,7 +160,7 @@ parse_lit graph =
 parse_expr :: Precedences -> TestGroup
 parse_expr graph =
   TestGroup "expression" $ Right
-    [ expr_test "universe-in-expr" "𝒰 + 𝒰" (var "_+_" ⋅ 𝓊 0 ⋅ 𝓊 0)
+    [ expr_test "universe-in-expr" "𝕌 + 𝕌" (var "_+_" ⋅ 𝓊 0 ⋅ 𝓊 0)
     , expr_test "univar-lamb" "λ x → true" (abs ["x"] (var "true"))
     , expr_test "bivar-lamb" "λ x y → false" (abs ["x", "y"] (var "false"))
 
@@ -181,20 +181,20 @@ parse_expr graph =
       (abs ["_x"] (var "_x" ⋅ var "true"))
 
     , expr_test "uni-uni-app"
-      "𝒰 𝒰"
+      "𝕌 𝕌"
       (𝓊 0 ⋅ 𝓊 0)
     -- slow
     -- , expr_test "lamb-in-expr"
     --   "(λ [x_] x true) + (λ [x_] x true) "
     --   (var "_+_" ⋅ (abs ["x_"] (var "x_" ⋅ var "true")) ⋅ (abs ["x_"] (var "x_" ⋅ var "true")))
     -- , expr_test "uni-uni-paren-app"
-    --   "(𝒰 𝒰)"
+    --   "(𝕌 𝕌)"
     --   (𝓊 0⋅ 𝓊 0)
     -- , expr_test "lam-var-app"
     --   "(λ [x_] x true) true"
     --   ((abs ["x_"] (var "x_" ⋅ var "true")) ⋅ var "true")
     -- , expr_test "lam-uni-app"
-    --   "(λ [x_] x true) 𝒰"
+    --   "(λ [x_] x true) 𝕌"
     --   ((abs ["x_"] (var "x_" ⋅ var "true")) ⋅ 𝓊 0)
     -- , expr_test "lam-lam-app"
     --   "(λ [x_] x true) (λ [x_] x true)"
@@ -202,21 +202,21 @@ parse_expr graph =
 
     -- Lambda: Annotations, multiple arguments etc.
     , expr_test "lam-ann"
-      "λ (A ⮜ 𝒰) → A"
+      "λ (A ⮜ 𝕌) → A"
       (lam [("A", 𝓊 0)] (var "A"))
     , expr_test "lam-many"
-      "λ (A ⮜ 𝒰) (B ⮜ 𝒰) → A"
+      "λ (A ⮜ 𝕌) (B ⮜ 𝕌) → A"
       (lam [("A", 𝓊 0), ("B", 𝓊 0)] (var "A"))
     , expr_test "lam-dep"
-      "λ (A ⮜ 𝒰) (x ⮜ A) → x"
+      "λ (A ⮜ 𝕌) (x ⮜ A) → x"
       (lam [("A", 𝓊 0), ("x", var "A")] (var "x"))
 
     -- Product: Annotations, multiple arguments etc.
     , expr_test "prd-ann"
-      "(A ⮜ 𝒰) → A"
+      "(A ⮜ 𝕌) → A"
       (pi [("A", 𝓊 0)] (var "A"))
     , expr_test "prd-noann"
-      "𝒰 → 𝒰"
+      "𝕌 → 𝕌"
       ([𝓊 0] → 𝓊 0)
     ]
   where
@@ -281,8 +281,8 @@ parse_mod env =
 
       mod_test "complex-modul"
       "module complex-modul \n\
-      \fn ≜ λ (A ⮜ 𝒰₁) (x ⮜ A) → A\n\
-      \val ≜ fn 𝒰"
+      \fn ≜ λ (A ⮜ 𝕌₁) (x ⮜ A) → A\n\
+      \val ≜ fn 𝕌"
       (modul ["complex-modul"] [] []
        [ sentry "fn" (lam [("A", 𝓊 1), ("x", var "A")] (var "A"))
        , sentry "val" (var "fn" ⋅ 𝓊 0)

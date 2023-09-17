@@ -41,4 +41,4 @@ instance Pretty Void where
   pretty _ = ""
 
 instance Pretty CoreUD where
-  pretty = pretty_core_builder pretty pretty pretty
+  pretty = pretty_core_builder pretty_bind pretty pretty

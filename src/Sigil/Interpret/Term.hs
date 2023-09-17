@@ -195,7 +195,7 @@ throw doc = throwError $ ?lift_err doc
 
 instance Pretty (Sem e) where
   pretty sem = case sem of 
-    SUni n -> "𝒰" <> pretty_subscript n
+    SUni n -> "𝕌" <> pretty_subscript n
       where
         pretty_subscript =
           pretty . fmap to_subscript . show
