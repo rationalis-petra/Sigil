@@ -113,8 +113,8 @@ instance Pretty InternalCore where
         where
           tel = telescope e
         
-          telescope (Prd bind e) =  ("(" <> pretty bind <> ")") : telescope e
-          telescope (IPrd bind e) = ("{" <> pretty bind <> "}") : telescope e
+          telescope (Prd bind e) =  pretty_annbind False bind : telescope e
+          telescope (IPrd bind e) = ("{" <> pretty_annbind False bind <> "}") : telescope e
           telescope b = [pretty b]
 
       pretty_abs_like e =
@@ -127,14 +127,22 @@ instance Pretty InternalCore where
                 ((True, bind) : args, body)
             telescope body = ([], body)
     
+            pretty_args [(False, bind)] =
+              pretty_annbind True bind
+            pretty_args [(True, bind)] =
+              ("{" <> pretty_annbind True bind <> "}")
             pretty_args ((False, bind) : xs) =
-              ("(" <> pretty bind <> ")") <+> pretty_args xs
+              pretty_annbind True bind <+> pretty_args xs
             pretty_args ((True, bind) : xs) =
-              ("{" <> pretty bind <> "}") <+> pretty_args xs
+              ("{" <> pretty_annbind True bind <> "}") <+> pretty_args xs
             pretty_args [] = mempty
         in
           ("λ" <+> pretty_args args <+> "→") <+> nest 2 (bracket body)
-      
+
+      pretty_annbind fnc = \case
+        AnnBind (Name (Right (_, "_")), ty) -> if fnc then "(_⮜" <> pretty ty <> ")" else pretty ty
+        AnnBind (n, ty) -> "(" <> pretty n <+> "⮜" <+> pretty ty <> ")"
+
       bracket v = if iscore v then pretty v else "(" <> pretty v <> ")"
       
       iscore (Uni _) = True
@@ -146,7 +154,7 @@ instance Pretty InternalCore where
 
 instance Pretty (ImplCore AnnBind Name Internal) where
   pretty ic = case ic of 
-    IAbsχ _ b body -> "λ ⟨" <> pretty b <> "⟩" <+> "→" <+> pretty body
+    IAbsχ _ b body -> "λ ⟨" <> pretty_bind True b <> "⟩" <+> "→" <+> pretty body
     IPrdχ _ b body -> "⟨" <> pretty b <> "⟩" <+> "→" <+> pretty body
     TyConχ _ n body -> "[" <> pretty n <+> "<:" <+> pretty body <> "]"   -- Constrains named type n  
 

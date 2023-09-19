@@ -42,7 +42,17 @@ instance SigilPretty TCErr where
     PrettyErr doc range -> vsep [doc, ("at: " <+> pretty range)]
 
 type Evaluator m err e t = (SigilDoc -> err) -> e (Maybe t,t) -> t -> t -> m t
-  
+
+{-------------------------------------------------------------------------------}
+{- The checkable type is used to implement the bidirectional typechecking      -}
+{- • For infer, the argument is a term, and the return value if is a           -}
+{-   (type, term) pair.                                                        -}
+{- • for check, the argument is a term and it's asserted type, and the return  -}
+{-   value is a term                                                           -}
+{- IMORTANT: Neither the return type nor return term are guaranteed to be in   -}
+{- normal form.                                                                -}
+{-------------------------------------------------------------------------------}
+
 class Checkable n a t | a -> n t where 
   infer :: (Environment n e, MonadError err m, MonadGen m) => Evaluator m err e t -> (TCErr -> err) -> e (Maybe t,t) -> a -> m (t, t)
   check :: (Environment n e, MonadError err m, MonadGen m) => Evaluator m err e t -> (TCErr -> err) -> e (Maybe t,t) -> a -> t -> m t
@@ -139,14 +149,13 @@ instance Checkable Name ResolvedCore InternalCore where
           pure (App l' r', subst (n ↦ rnorm) ret_ty)
         
         Absχ _ (OptBind (Just n, Just a)) body -> do
-          (a', aty) <- infer' env a
-          a_norm <- normalize' env aty a'
+          (a', asort) <- infer' env a
+          a_norm <- normalize' env asort a'
         
           let env' = insert n (Nothing, a_norm) env
           (body', ret_ty) <- infer' env' body
         
-          -- TODO: replace a_norm → a'
-          pure (Abs (AnnBind (n, a_norm)) body', Prd (AnnBind (n, a_norm)) ret_ty)
+          pure (Abs (AnnBind (n, a')) body', Prd (AnnBind (n, a')) ret_ty)
         
         Prdχ _ (OptBind (maybe_n, Just a)) b -> do
           (a', aty) <- infer' env a
@@ -181,7 +190,7 @@ instance Checkable Name ResolvedCore InternalCore where
           a_normal <- normalize' env a_ty a_typd
           check_eq liftErr a_normal a'
           body' <- check' (insert n (Nothing, a_normal) env) body ret_ty
-          pure $ Abs (AnnBind (n, a_normal)) body'
+          pure $ Abs (AnnBind (n, a_typd)) body'
         (Absχ _ (OptBind (Just n, Nothing)) body, Prd (AnnBind (_,a')) ret_ty) -> do
           body' <- check' (insert n (Nothing, a') env) body ret_ty
           pure $ Abs (AnnBind (n, a')) body'
@@ -215,11 +224,10 @@ check_entry normalize liftErr env mod =
           (a_typd, a_ty) <- infer' env a
           a_normal <- normalize (liftErr . flip NormErr (range a)) env a_ty a_typd
           val' <- check' env val a_normal
-          pure (Singleχ () (AnnBind (n, a_normal)) val')
+          pure (Singleχ () (AnnBind (n, a_typd)) val')
         OptBind (Just n, Nothing) -> do
           (val_typd, val_ty) <- infer' env val
-          val_normal <- normalize' env val_ty val_typd
-          pure (Singleχ () (AnnBind (n, val_ty)) val_normal)
+          pure (Singleχ () (AnnBind (n, val_ty)) val_typd)
         OptBind (Nothing, _) -> throwError' $ "Expecting Single definition to have a name"
       
     Mutualχ _ terms -> do
@@ -252,14 +260,25 @@ check_module normalize liftErr env mod = do
       d' <- check_entry normalize liftErr env d
       case d' of
         Mutualχ () defs -> do
-          let env' = foldl' (\env (n, ty, val) -> insert n (Just val, ty) env) env defs
+          env' <- foldl' (\cmp (n, ty, val) -> do
+                             env <- cmp
+                             ty' <- eval_ty env ty
+                             val' <- eval env ty val
+                             pure $ insert n (Just val', ty') env)
+                  (pure env) defs
           ds' <- check_entries env' ds
           pure (d' : ds')
         Singleχ () (AnnBind (n, ty)) val -> do
-          let env' = insert n (Just val, ty) env
+          ty' <- eval_ty env ty
+          val' <- eval env ty val
+          let env' = insert n (Just val', ty') env
           ds' <- check_entries env' ds
           pure (d' : ds')
   
+    eval = normalize (liftErr . flip NormErr (Range Nothing))
+    eval_ty env ty = do 
+      (_, sort) <- infer normalize liftErr env ty   
+      eval env sort ty
 
 -- TODO: replace with check_sub!!
 --check_eq _ _ = undefined

@@ -69,7 +69,7 @@ interactive (Interpreter {..}) opts = do
         void $ run state stop
    
     should_quit :: Text -> Bool
-    should_quit ":q" = True
+    should_quit ";q" = True
     should_quit _ = False
 
     eval_line :: Text -> m (InternalCore, InternalCore)
