@@ -27,6 +27,8 @@ type instance Uniχ Internal = ()
 type instance Prdχ Internal = ()
 type instance Absχ Internal = ()
 type instance Appχ Internal = ()
+type instance Eqlχ Internal = ()
+type instance Dapχ Internal = ()
 type instance IAbsχ Internal = ()
 type instance IPrdχ Internal = ()
 type instance TyConχ Internal = ()
@@ -44,7 +46,7 @@ type InternalModule = Module AnnBind Name Internal
 
 {-# COMPLETE Uni, Var, Prd, Abs, App, IPrd, IAbs, TyCon #-}
 
-pattern Uni :: Int -> InternalCore
+pattern Uni :: Integer -> InternalCore
 pattern Uni n <- Uniχ () n
   where Uni n = Uniχ () n
 
@@ -140,7 +142,10 @@ instance Pretty InternalCore where
           ("λ" <+> pretty_args args <+> "→") <+> nest 2 (bracket body)
 
       pretty_annbind fnc = \case
-        AnnBind (Name (Right (_, "_")), ty) -> if fnc then "(_⮜" <> pretty ty <> ")" else pretty ty
+        AnnBind (Name (Right (_, "_")), ty) ->
+          if fnc
+          then "(_⮜" <> pretty ty <> ")"
+          else bracket ty
         AnnBind (n, ty) -> "(" <> pretty n <+> "⮜" <+> pretty ty <> ")"
 
       bracket v = if iscore v then pretty v else "(" <> pretty v <> ")"

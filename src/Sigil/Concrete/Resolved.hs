@@ -20,6 +20,8 @@ type instance Uniχ Resolved = Range
 type instance Prdχ Resolved = Range
 type instance Absχ Resolved = Range
 type instance Appχ Resolved = Range
+type instance Eqlχ Resolved = Range
+type instance Dapχ Resolved = Range
 
 type ResolvedCore = Core OptBind Name Resolved
 
@@ -42,3 +44,5 @@ instance HasRange ResolvedCore where
     Prdχ r _ _ -> r
     Absχ r _ _ -> r
     Appχ r _ _ -> r
+    Eqlχ r _ _ _ _ -> r
+    Dapχ r _ _ -> r

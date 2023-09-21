@@ -49,7 +49,7 @@ pattern Mix :: Range -> [(Either (Range, Text) PreMixCore)] -> PreMixCore
 pattern Mix r l <- Coreχ (r, l)
   where Mix r l = Coreχ (r, l)
   
-pattern Uni :: Range -> Int -> PreMixCore
+pattern Uni :: Range -> Integer -> PreMixCore
 pattern Uni r n <- Uniχ r n
   where Uni r n = Uniχ r n
 

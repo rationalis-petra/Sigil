@@ -299,7 +299,7 @@ parse_mod env =
             Test name $ Just $ vsep ["got:", pretty val, "expected:", pretty out]
         Left msg -> Test name $ Just msg
 
-𝓊 :: Int -> ParsedCore  
+𝓊 :: Integer -> ParsedCore  
 𝓊 = Uniχ mempty
 
 var :: Text -> ParsedCore  

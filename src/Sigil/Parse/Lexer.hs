@@ -59,7 +59,7 @@ symbol = L.symbol sc
 symboln :: Text -> ParserT m Text
 symboln = L.symbol scn
 
-subscript_int :: ParserT m Int -- TODO update to INTEGER
+subscript_int :: ParserT m Integer
 subscript_int = lexeme $ to_int 1 . reverse <$> many1 sub_numchar
   where
     to_int _ [] = 0

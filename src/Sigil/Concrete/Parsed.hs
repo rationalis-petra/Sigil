@@ -47,6 +47,8 @@ type instance Uniχ Parsed = Range
 type instance Prdχ Parsed = Range
 type instance Absχ Parsed = Range
 type instance Appχ Parsed = Range
+type instance Eqlχ Parsed = Range
+type instance Dapχ Parsed = Range
 
 type ParsedCore = Core OptBind Text Parsed
 
@@ -62,7 +64,7 @@ pattern Core :: ParsedCore
 pattern Core <- Coreχ _
   where Core = Coreχ PUnit
   
-pattern Uni :: Range -> Int -> ParsedCore
+pattern Uni :: Range -> Integer -> ParsedCore
 pattern Uni r n <- Uniχ r n
   where Uni r n = Uniχ r n
 

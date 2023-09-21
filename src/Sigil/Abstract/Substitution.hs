@@ -119,6 +119,27 @@ instance (Ord n, Binding b,
         shadow' = maybe shadow (\n -> Set.insert n shadow) (name bind)
     Appχ χ l r -> Appχ χ (substitute shadow sub l) (substitute shadow sub r)
 
+    Eqlχ χ tel ty a a' ->
+      Eqlχ χ tel'
+        (substitute shadow' sub ty)
+        (substitute shadow' sub a)
+        (substitute shadow' sub a')
+        where 
+          (tel', shadow') = subst_tel shadow sub tel
+
+    Dapχ χ tel val ->
+      Dapχ χ tel' (substitute shadow' sub val)
+       where
+         (tel', shadow') = subst_tel shadow sub tel
+
+    where
+      subst_tel shadow _ [] = ([], shadow)
+      subst_tel shadow sub ((bind, ty) : tel) =
+        (((substitute shadow sub bind , substitute shadow' sub ty) : tel'), shadow'')
+        where
+          shadow' = maybe shadow (\n -> Set.insert n shadow) (name bind)
+          (tel', shadow'') = subst_tel shadow' sub tel
+
   free_vars term = case term of 
     Coreχ _ -> Set.empty
     Uniχ _ _ -> Set.empty
@@ -128,6 +149,24 @@ instance (Ord n, Binding b,
     Absχ _ bind body -> let fvb = free_vars body in
       Set.union (free_vars bind) (maybe fvb (\n -> Set.delete n fvb) (name bind))
     Appχ _ l r -> Set.union (free_vars l) (free_vars r)
+    Eqlχ _ tel ty a a' -> 
+      let (vars, diff_vars) = free_tel tel
+      in vars <>
+          Set.difference 
+           (free_vars ty <> free_vars a <> free_vars a')
+           diff_vars
+    Dapχ _ tel val -> 
+      let (vars, diff_vars) = free_tel tel
+      in vars <> Set.difference (free_vars val) diff_vars
+    where 
+      free_tel [] = (Set.empty, Set.empty)
+      free_tel ((bind, val) : tel) =
+        let (vars, diff_vars) = free_tel tel
+            fvv = free_vars val
+        in (free_vars bind
+            <> (maybe fvv (\n -> Set.delete n fvv) (name bind))
+            <> vars,
+            maybe diff_vars (flip Set.insert diff_vars) (name bind))
 
 
 instance Regen (Core OptBind Name χ) where 
@@ -138,6 +177,13 @@ instance Regen (Core OptBind Name χ) where
       ty' <- mapM (go sub) ty
       pure (sub', OptBind (n', ty'))
 
+    freshen_tel [] sub = pure (sub, [])
+    freshen_tel ((bind, id) : tel) sub = do
+      (sub', bind') <- freshen_bind bind sub
+      id' <- go sub' id
+      (sub'', tel') <- freshen_tel tel sub'
+      pure (sub'', ((bind', id') : tel'))
+
     go sub term = case term of 
       Coreχ χ -> pure $ Coreχ χ 
       Uniχ χ n -> pure $ Uniχ χ n
@@ -150,7 +196,13 @@ instance Regen (Core OptBind Name χ) where
       Absχ χ bind body -> do
         (sub', bind') <- freshen_bind bind sub
         Absχ χ bind' <$> (go sub' body)
-      Appχ χ l r -> Appχ χ <$> (go sub l) <*> (go sub r)
+      Appχ χ l r -> Appχ χ <$> go sub l <*> go sub r
+      Eqlχ χ tel ty a a' -> do
+        (sub', tel') <- freshen_tel tel sub
+        Eqlχ χ tel' <$> go sub' ty <*> go sub' a <*> go sub' a'
+      Dapχ χ tel val -> do
+        (sub', tel') <- freshen_tel tel sub
+        Dapχ χ tel' <$> go sub' val
 
 instance Regen (Core AnnBind Name χ) where 
   regen = go (Substitution env_empty) where
@@ -159,10 +211,13 @@ instance Regen (Core AnnBind Name χ) where
       let sub' = insert n n' sub
       ty' <- go sub' ty
       pure (sub', AnnBind (n', ty'))
-      -- n' <- mapM freshen n
-      -- let sub' = maybe sub (flip (uncurry insert) sub) ((,) <$> n <*> n')
-      -- ty' <- go sub' ty
-      -- pure (sub', AnnBind (n', ty'))
+
+    freshen_tel [] sub = pure (sub, [])
+    freshen_tel ((bind, id) : tel) sub = do
+      (sub', bind') <- freshen_bind bind sub
+      id' <- go sub' id 
+      (sub'', tel') <- freshen_tel tel sub'
+      pure (sub'', ((bind', id') : tel'))
 
     go sub term = case term of 
       Coreχ χ -> pure $ Coreχ χ 
@@ -177,3 +232,9 @@ instance Regen (Core AnnBind Name χ) where
         (sub', bind') <- freshen_bind bind sub
         Absχ χ bind' <$> (go sub' body)
       Appχ χ l r -> Appχ χ <$> (go sub l) <*> (go sub r)
+      Eqlχ χ tel ty a a' -> do
+        (sub', tel') <- freshen_tel tel sub
+        Eqlχ χ tel' <$> go sub' ty <*> go sub' a <*> go sub' a'
+      Dapχ χ tel val -> do
+        (sub', tel') <- freshen_tel tel sub
+        Dapχ χ tel' <$> go sub' val

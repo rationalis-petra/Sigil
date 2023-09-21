@@ -71,7 +71,7 @@ fv_tests =
 -- var :: n -> Core b n UD
 -- var = Var void
 
-𝓊 :: Int -> InternalCore
+𝓊 :: Integer -> InternalCore
 𝓊 = Uni
 
 (⇒) :: [(Name, InternalCore)] -> InternalCore -> InternalCore

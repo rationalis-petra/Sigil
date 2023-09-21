@@ -126,7 +126,7 @@ data FBind a = FBind
   , _elem_type :: a
   }
 
-data Atom = AVar Name | AUni Int
+data Atom = AVar Name | AUni Integer
   deriving Eq
 
 type Binds'            = Binds InternalCore

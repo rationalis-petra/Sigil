@@ -48,7 +48,7 @@ tests =
     var :: Forallχ Monoid χ => n -> Core b n χ
     var = Varχ mempty
 
-    𝓊 :: Forallχ Monoid χ => Int -> Core b n χ
+    𝓊 :: Forallχ Monoid χ => Integer -> Core b n χ
     𝓊 = Uniχ mempty
 
     (⇒) :: Forallχ Monoid χ => [n] -> Core OptBind n χ -> Core OptBind n χ

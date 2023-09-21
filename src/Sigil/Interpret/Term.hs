@@ -49,7 +49,7 @@ class Pretty a => Term a where
 
 
 data Sem e
-  = SUni Int
+  = SUni Integer
   | SPrd Name (Sem e) (Sem e)
   | SAbs Name InternalCore (e (Sem e))
   | ISAbs Name InternalCore (e (Sem e))
@@ -173,7 +173,7 @@ env_eval = eval_helper eval_var
       pure $ Neutral ty' (NeuVar n)
 
 -- TODO: fix this function - it is wrong!
-uni_level :: Sem e -> Int
+uni_level :: Sem e -> Integer
 uni_level sem = case sem of 
   SUni n -> n + 1
   SPrd _ l r -> max (uni_level l) (uni_level r)

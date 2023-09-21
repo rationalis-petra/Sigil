@@ -64,7 +64,7 @@ alphaeq_tests =
       | eq            = Test name $ Just "terms are supposed to be α-equal"
       | otherwise     = Test name $ Just "terms are not supposed to not α-equal"
 
-𝓊 :: Int -> CoreUD
+𝓊 :: Integer -> CoreUD
 𝓊 = Uniχ void
 
 (⇒) :: [Name] -> CoreUD -> CoreUD

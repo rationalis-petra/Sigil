@@ -15,6 +15,8 @@ module Sigil.Abstract.Syntax
   , Prdχ
   , Absχ
   , Appχ
+  , Eqlχ
+  , Dapχ
   , Mutualχ
   , Singleχ
 
@@ -48,7 +50,7 @@ import Data.List (intersperse)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Set (Set)
 import Data.Foldable
-import Data.Text hiding (zipWith, foldl', tail, head, intersperse)
+import Data.Text hiding (zipWith, foldl', tail, head, intersperse, map)
 
 import Prettyprinter
 
@@ -78,11 +80,15 @@ import Prettyprinter
 data Core b n χ
   = Coreχ (Coreχ b n χ)
   -- The Core Calculus, based on Martin Löf/CoC
-  | Uniχ (Uniχ χ) Int 
+  | Uniχ (Uniχ χ) Integer
   | Varχ (Varχ χ) n
   | Prdχ (Prdχ χ) (b n (Core b n χ)) (Core b n χ)
   | Absχ (Absχ χ) (b n (Core b n χ)) (Core b n χ)
   | Appχ (Appχ χ) (Core b n χ) (Core b n χ)
+
+  -- Heterogeneous Univalent identity type & Dependent Lifting of Identity Terms
+  | Eqlχ (Eqlχ χ) [(b n (Core b n χ), Core b n χ)] (Core b n χ) (Core b n χ) (Core b n χ)
+  | Dapχ (Dapχ χ) [(b n (Core b n χ), Core b n χ)] (Core b n χ)
 
 
 -- Type Families
@@ -93,6 +99,8 @@ type family Uniχ χ
 type family Prdχ χ
 type family Absχ χ
 type family Appχ χ
+type family Eqlχ χ
+type family Dapχ χ
 
 type Forall (φ :: Type -> Constraint) b n χ
   = ( φ n
@@ -103,6 +111,8 @@ type Forall (φ :: Type -> Constraint) b n χ
     , φ (Prdχ χ)
     , φ (Absχ χ)
     , φ (Appχ χ)
+    , φ (Eqlχ χ)
+    , φ (Dapχ χ)
     )
 
 type Forallχ (φ :: Type -> Constraint) χ
@@ -111,6 +121,8 @@ type Forallχ (φ :: Type -> Constraint) χ
     , φ (Prdχ χ)
     , φ (Absχ χ)
     , φ (Appχ χ)
+    , φ (Eqlχ χ)
+    , φ (Dapχ χ)
     )
 
 
@@ -209,6 +221,10 @@ instance Forall Eq b n χ --(Eq (b n (Core b n χ)), Eq n, Forallχ Eq χ, Eq (C
       χ == χ' && x == x' && e == e'  
     (Appχ χ l r, Appχ χ' l' r') ->
       χ == χ' && l == l' && r == r'
+    (Eqlχ χ tel ty a1 a2, Eqlχ χ' tel' ty' a1' a2' ) ->
+      χ == χ' && tel == tel' && ty == ty' && a1 == a1' && a2 == a2'
+    (Dapχ χ tel val , Dapχ χ' tel' val') ->
+      χ == χ' && tel == tel' && val == val'
     (_, _) -> False
 
 
@@ -266,8 +282,30 @@ pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
 
     -- telescoping
     Appχ χ l r -> sep $ bracket <$> unwind (Appχ χ l r)
+
+    Eqlχ _ tel ty a a' ->
+      ("Id"
+       <+> pretty_tel tel
+       <+> pretty_core ty
+       <+> ("(" <> pretty_core a)
+       <+> "="
+       <+> (pretty_core a' <> ")"))
+
+    Dapχ _ tel val ->
+      ("Dap"
+       <+> pretty_tel tel
+       <+> pretty_core val)
+
     where 
         pretty_core = pretty_core_builder pretty_bind pretty_name pretty_coreχ
+
+        pretty_tel tel =
+          case map pretty_tentry tel of
+            (hd:tl) -> align $ sep $ hd : zipWith (<+>) (repeat ",") tl
+            [] -> "•"
+
+        pretty_tentry (b, v) = pretty_bind True b <+> "." <+> bracket v
+  
         bracket v = if iscore v then pretty_core v else "(" <> pretty_core v <> ")"
         
         iscore (Uniχ _ _) = True
@@ -276,6 +314,7 @@ pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
       
         unwind (Appχ _ l r) = unwind l <> [r]
         unwind t = [t]
+
 
 -- pretty_bind_builder :: 
 --   (Core b n χ -> Doc ann)

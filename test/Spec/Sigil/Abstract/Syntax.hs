@@ -47,7 +47,7 @@ pretty_group = TestGroup "pretty" $ Right
     pptext = renderStrict . layoutPretty defaultLayoutOptions
 
 
-𝓊 :: Int -> CoreUD
+𝓊 :: Integer -> CoreUD
 𝓊 = Uniχ void
 
 idv :: Integer -> Text -> CoreUD
