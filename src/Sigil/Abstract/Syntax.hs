@@ -281,7 +281,7 @@ pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
     Appχ χ l r -> sep $ bracket <$> unwind (Appχ χ l r)
 
     Eqlχ _ tel ty a a' ->
-      ("Id"
+      ("ι"
        <+> pretty_tel tel
        <+> pretty_core ty
        <+> ("(" <> pretty_core a)
@@ -289,7 +289,7 @@ pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
        <+> (pretty_core a' <> ")"))
 
     Dapχ _ tel val ->
-      ("Dap"
+      ("ρ"
        <+> pretty_tel tel
        <+> pretty_core val)
 
@@ -298,10 +298,10 @@ pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
 
         pretty_tel tel =
           case map pretty_tentry tel of
-            (hd:tl) -> align $ sep $ hd : zipWith (<+>) (repeat ",") tl
-            [] -> "•"
+            (hd:tl) -> align $ sep $ hd : zipWith (<+>) (repeat "=") tl
+            [] -> "."
 
-        pretty_tentry (b, v) = pretty_bind True b <+> "." <+> bracket v
+        pretty_tentry (b, v) = pretty_bind True b <+> "=" <+> bracket v
   
         bracket v = if iscore v then pretty_core v else "(" <> pretty_core v <> ")"
         

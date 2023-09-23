@@ -55,6 +55,7 @@ data Sem e
   | SAbs Name InternalCore InternalCore (e (Sem e))
   | ISAbs Name InternalCore InternalCore (e (Sem e))
   | SEql (Sem e) (Sem e) (Sem e)
+  | SDap (Sem e)
   | Neutral (Sem e) (Neutral e)
 
 data Neutral e
@@ -98,6 +99,7 @@ instance Term InternalCore where
 
 read_nf :: forall e err ann m. (MonadError err m, MonadGen m, Environment Name e, ?lift_err :: Doc ann -> err) => Normal e -> m InternalCore
 read_nf (Normal ty val) = case (ty, val) of 
+  -- Values
   (SPrd name a b, f) -> do
     let neua :: Sem e 
         neua = Neutral a $ NeuVar name
@@ -105,14 +107,21 @@ read_nf (Normal ty val) = case (ty, val) of
         lvl = uni_level a
     a' <- read_nf $ Normal (SUni lvl) a
     f' <- read_nf =<< (Normal <$> (b `app` neua) <*> (f `app` neua))
-    -- TODO: we can probably derive the χ-decoration from f somehow...
     pure $ Abs (bind name a') f'
+  (SEql ty _ _, SDap val) -> do
+    Dap [] <$> read_nf (Normal ty val)
+
+  -- Types
+  (SUni k, SEql ty a a') -> do
+    Eql [] <$> read_nf (Normal (SUni k) ty)
+      <*> read_nf (Normal ty a)
+      <*> read_nf (Normal ty a')
   (SUni _, SUni i) -> pure $ Uni i
   (SUni k, SPrd name a b) -> do
     let neua :: Sem e 
         neua = Neutral a $ NeuVar name
     a' <- (read_nf $ Normal (SUni k) a)
-    b' <- (read_nf =<< Normal (SUni k) <$> (b `app` neua)) -- THIS IS BUGGY!!!
+    b' <- (read_nf =<< Normal (SUni k) <$> (b `app` neua))
     pure $ Prd (bind name a') b'
         
   (_, Neutral _ e) -> read_ne e 
@@ -202,6 +211,7 @@ dap _ term = case term of
           Abs (bind v ty) $
           Abs (bind id (Eql [] ty (Var u) (Var v))) $
           Dap [(bind name ty, (Var id))] body) env 
+  SUni n -> pure $ SDap $ SUni n
   _ -> throw ("don't know how to Dap:" <+> pretty term)
 
 env_eval :: (MonadError err m, MonadGen m, Environment Name e, ?lift_err :: Doc ann -> err) => e (Maybe InternalCore, InternalCore) -> m (e (Sem e))
@@ -225,6 +235,7 @@ uni_level sem = case sem of
   SPrd _ l r -> max (uni_level l) (uni_level r)
   SAbs _ _ _ _ -> 0 -- note: predicative vs impredicative!!
   SEql ty _ _ -> uni_level ty
+  SDap val -> uni_level val
 
   ISPrd _ l r -> max (uni_level l) (uni_level r)
   ISAbs _ _ _ _ -> 0 -- note: predicative vs impredicative!!
@@ -260,7 +271,8 @@ instance Pretty (Sem e) where
           _ -> c
     SPrd n a b -> pretty n <> " : " <> pretty a <+> "→" <+> pretty b
     SAbs n _ body _ -> "λ (" <> pretty n <> ")" <+> pretty body
-    SEql ty a b -> "Eq" <+> pretty ty <+> pretty a <+> pretty b
+    SEql ty a b -> "ι." <+> pretty ty <+> pretty a <+> pretty b
+    SDap val -> "ρ." <+> pretty val
     Neutral _ n -> pretty n
   
     ISPrd n a b -> "{" <> pretty n <+> ":" <+> pretty a <> "}" <+> "→" <+> pretty b

@@ -250,7 +250,7 @@ core precs = choice' [plam, pprod, pid, pap, pexpr]
     ptel precs =
       (do
         arg <- annbind <||> sym_only
-        _ <- symbol "."
+        _ <- symbol "="
         val <- core precs
         let precs' = update_precs (maybeToList $ name arg) precs
         (tel', precs'') <- ptel precs'

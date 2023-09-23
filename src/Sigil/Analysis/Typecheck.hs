@@ -94,6 +94,16 @@ instance Checkable Name InternalCore InternalCore where
           j <- check_lvl liftErr bty
           pure (Prd (AnnBind (n, a')) b', Uni (max i j))
       
+        Dap [] val -> do  
+          (val', val_ty) <- infer' env val
+          pure (Dap [] val', Eql [] val_ty val' val')
+
+        Eql [] ty v1 v2 -> do  
+          (ty', tykind) <- infer' env ty
+          ty_norm <- normalize' env tykind ty' 
+          v1' <- check' env v1 ty_norm
+          v2' <- check' env v2 ty_norm
+          pure (Eql [] ty' v1' v2', tykind)
         _ -> throwError' $ "infer not implemented for term:" <+> pretty term
   
   
@@ -168,6 +178,17 @@ instance Checkable Name ResolvedCore InternalCore where
           i <- check_lvl liftErr aty
           j <- check_lvl liftErr bty
           pure (Prd (AnnBind (n', a')) b', Uni (max i j))
+
+        Dapχ _ [] val -> do  
+          (val', val_ty) <- infer' env val
+          pure (Dap [] val', Eql [] val_ty val' val')
+
+        Eqlχ _ [] ty v1 v2 -> do  
+          (ty', tykind) <- infer' env ty
+          ty_norm <- normalize' env tykind ty' 
+          v1' <- check' env v1 ty_norm
+          v2' <- check' env v2 ty_norm
+          pure (Eql [] ty' v1' v2', tykind)
         _ -> throwError' $ "infer not implemented for term:" <+> pretty term
   
   
