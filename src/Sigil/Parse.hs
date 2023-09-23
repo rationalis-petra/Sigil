@@ -134,25 +134,39 @@ mod get_precs = do
 
 
 entry :: forall m. Monad m => Precedences -> ParserT m ParsedEntry
-entry precs = choice' [mutual]
+entry precs = mutual
   where 
     mutual :: ParserT m ParsedEntry
     mutual = do
       -- TODO: parse declaration
-      -- name <- anyvar
-      -- _ <- symbol "⮜"
-      -- tipe <- core precs
+      ann <- L.nonIndented scn (do
+        name <- anyvar
+        _ <- symbol "⮜"
+        tipe <- core precs
+        pure $ Just (name, tipe))
+        <||> pure Nothing
       
-      args <- many1 anyvar
-      _ <- symbol "≜"
-      val <- core (update_precs args precs)
+      (args, val) <- L.nonIndented scn $ do
+        args <- many1 anyvar
+        _ <- symbol "≜"
+        val <- core (update_precs args precs)
+        pure (args, val)
 
       let tofn [] v = v
           tofn (x:xs) v = Abs mempty (OptBind (Just x, Nothing)) (tofn xs v)
 
       case args of 
         [] -> error "impossible!"
-        (x:xs) -> pure $ Singleχ mempty (OptBind (Just x, Nothing)) (tofn xs val)
+        (name:xs) -> do
+          case ann of
+            Just (name', _) ->
+              if (name == name') then
+                pure ()
+              else
+                fail "annotated name and definitional name must be identical"
+            Nothing -> pure ()
+            
+          pure $ Singleχ mempty (OptBind (Just name, fmap snd ann)) (tofn xs val)
 
 
 {--------------------------------- CORE PARSER ---------------------------------}
@@ -230,9 +244,7 @@ core precs = choice' [plam, pprod, pid, pap, pexpr]
           _ <- symbol "ι"
           (tel, precs') <- ptel precs
           _ <- symbol "."
-          ty <- core precs'
-          a  <- core precs'
-          a' <- core precs'
+          App _ (App _ ty a) a' <- core precs'
           pure $ (\r -> Eql r tel ty a a')
 
     pap :: ParserT m ParsedCore
