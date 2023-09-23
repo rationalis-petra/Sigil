@@ -158,12 +158,19 @@ entry precs = choice' [mutual]
 {--------------------------------- CORE PARSER ---------------------------------}
 {- The core parser first looks for the head of an expression (λ, let, etc.)    -}
 {- if no identifiable head is found, then it is assumed to be a mixfix         -}
-{- expression.                                                                 -}
+{- expression. Current expressions are:                                        -}
+{- • Lambda λ x (y ⮜ A) → e                                                    -}
+{- • Product (A ⮜ 𝕌) → A → A                                                   -}
+{- • Universe 𝕌 | 𝕌ₙ                                                           -}
+{- • Identity Id (x ⮜ A = e) (y ⮜ B = e'). A e e                               -}
+{- • Id-App   Ap (x ⮜ A = e) (y ⮜ B = e'). e                                   -}
+{-                                                                             -}
+{-                                                                             -}
 {-------------------------------------------------------------------------------}
 
 
 core :: forall m. Monad m => Precedences -> ParserT m ParsedCore
-core precs = choice' [plam, pprod, pexpr]
+core precs = choice' [plam, pprod, pid, pap, pexpr]
   where
     plam :: ParserT m ParsedCore
     plam = 
@@ -214,6 +221,44 @@ core precs = choice' [plam, pprod, pexpr]
         ty_only :: ParserT m (OptBind Text ParsedCore)
         ty_only = (\t -> OptBind (Nothing, Just t)) <$> choice' [plam, pexpr]
 
+
+    pid :: ParserT m ParsedCore
+    pid = with_range mkid 
+      where
+        mkid :: ParserT m (Range -> ParsedCore)
+        mkid = do 
+          _ <- symbol "ι"
+          (tel, precs') <- ptel precs
+          _ <- symbol "."
+          ty <- core precs'
+          a  <- core precs'
+          a' <- core precs'
+          pure $ (\r -> Eql r tel ty a a')
+
+    pap :: ParserT m ParsedCore
+    pap = with_range mkap 
+      where
+        mkap :: ParserT m (Range -> ParsedCore)
+        mkap = do 
+          _ <- symbol "ρ"
+          (tel, precs') <- ptel precs
+          _ <- symbol "."
+          pf <- core precs'
+          pure $ (\r -> Dap r tel pf)
+
+    ptel :: Precedences -> ParserT m ([(OptBind Text ParsedCore, ParsedCore)], Precedences)
+    ptel precs =
+      (do
+        arg <- annbind <||> sym_only
+        _ <- symbol "."
+        val <- core precs
+        let precs' = update_precs (maybeToList $ name arg) precs
+        (tel', precs'') <- ptel precs'
+        pure $ ((arg, val) : tel', precs''))
+      <||> pure ([], precs)
+      where
+        annbind = (OptBind .) . (,) <$> (fmap Just anyvar) <*> (symbol "⮜" *> fmap Just (core precs)) 
+        sym_only = (OptBind .) . (,) <$> (fmap Just anyvar) <*> pure Nothing
 
     pexpr :: ParserT m ParsedCore
     pexpr = mixfix patom (core precs) precs

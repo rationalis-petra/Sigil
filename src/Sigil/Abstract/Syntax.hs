@@ -90,9 +90,6 @@ data Core b n χ
   | Eqlχ (Eqlχ χ) [(b n (Core b n χ), Core b n χ)] (Core b n χ) (Core b n χ) (Core b n χ)
   | Dapχ (Dapχ χ) [(b n (Core b n χ), Core b n χ)] (Core b n χ)
 
-
--- Type Families
-
 type family Coreχ (b :: Type -> Type -> Type) n χ
 type family Varχ χ
 type family Uniχ χ
