@@ -1,9 +1,16 @@
-# sigil & Glint
+# Sigil
 
-sigil is an experimental programming language (work in progress) based on
-Higher Observational Type Theory and bundled with a Higher Order Logic
-metaprogramming language.
+Sigil is an experimental theorem prover and programming language (work in
+progress). 
+
+From a theoretical perspective, Sigil aims to implement Higher Observational
+Type Theory (HOTT) for the purpose of computational univalence. Further, it aims
+to introduce a form of excluded middle that both is consistent with HOTT and
+computes (continuations). 
+
+From a practical/usability perspective, the sigil executable is designed to act
+either as a 'regular' compiler or in 'server' mode, where it can perform the
+duties of a regular language server (syntax highlighting etc.) as well as
+debugging features like expression evaluation, tracing, hot reload and more.
 
 
-Glint is a documentation langauge which comes with the sigil compiler, and can
-be used to generate documentation from comments.
