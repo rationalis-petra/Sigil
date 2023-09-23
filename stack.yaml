@@ -14,6 +14,6 @@ packages:
 
 # Dependency packages to be pulled from upstream that are not in the resolver.
 extra-deps: 
-  - git: git@github.com:k0001/pipes-aeson.git
+  - git: https://github.com/k0001/pipes-aeson.git
     commit: 207696d9c8a15bff8b2dc7f6899575d2b00a8647
   # - pipes-aeson-0.4.1.8

@@ -10,6 +10,8 @@ module Sigil.Concrete.Parsed
   , pattern Prd
   , pattern Abs
   , pattern App
+  , pattern Eql
+  , pattern Dap
   ) where
 
 {----------------------------------- PARSED ------------------------------------}
@@ -59,7 +61,7 @@ type ParsedEntry = Entry OptBind Text Parsed
 
 type ParsedModule = Module OptBind Text Parsed
 
-{-# COMPLETE Core, Uni, Var, Prd, Abs, App #-}
+{-# COMPLETE Core, Uni, Var, Prd, Abs, App, Eql, Dap #-}
 pattern Core :: ParsedCore
 pattern Core <- Coreχ _
   where Core = Coreχ PUnit
@@ -84,6 +86,14 @@ pattern App :: Range -> ParsedCore -> ParsedCore -> ParsedCore
 pattern App r a b <- Appχ r a b
   where App r a b = Appχ r a b
 
+pattern Eql :: Range -> [(OptBind Text ParsedCore, ParsedCore)] -> ParsedCore -> ParsedCore -> ParsedCore -> ParsedCore
+pattern Eql r tel ty a a' <- Eqlχ r tel ty a a'
+  where Eql r tel ty a a' = Eqlχ r tel ty a a'
+
+pattern Dap :: Range -> [(OptBind Text ParsedCore, ParsedCore)] -> ParsedCore -> ParsedCore
+pattern Dap r tel val <- Dapχ r tel val
+  where Dap r tel val = Dapχ r tel val
+
 instance HasRange ParsedCore where
   range core = case core of
     Core -> mempty
@@ -92,6 +102,8 @@ instance HasRange ParsedCore where
     Prd r _ _ -> r
     Abs r _ _ -> r
     App r _ _ -> r
+    Eql r _ _ _ _ -> r
+    Dap r _ _ -> r
 
   
 {---------------------------------- INSTANCES ----------------------------------}

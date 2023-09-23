@@ -50,6 +50,22 @@ instance ResolveTo ParsedCore ResolvedCore where
       ty' <- mapM (resolve vars) ty
       Absχ rn (OptBind (n, ty')) <$> resolve vars' e
     App rn l r -> Appχ rn <$> resolve vars l <*> resolve vars r
+    Eql rn tel ty a a' -> do
+      (vars', tel') <- resolve_tel vars tel
+      Eqlχ rn tel' <$> resolve vars' ty <*> resolve vars' a <*> resolve vars' a'
+    Dap rn tel val -> do
+      (vars', tel') <- resolve_tel vars tel
+      Dapχ rn tel' <$> resolve vars' val
+    where
+      resolve_tel vars [] = pure (vars, [])
+      resolve_tel vars ((OptBind (t, a), val) : tel) = do
+        id <- fresh_id 
+        let n = (\text -> Name $ Right (id, text)) <$> t
+            vars' = maybe vars (\t -> insert t id vars) t
+        a' <- mapM (resolve vars) a 
+        val' <- resolve vars' val 
+        (vars'', tel') <- resolve_tel vars' tel
+        pure $ (vars'', ((OptBind (n, a'), val') : tel'))
 
 
 instance ResolveTo ParsedEntry ResolvedEntry where

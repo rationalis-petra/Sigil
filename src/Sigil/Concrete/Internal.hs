@@ -8,6 +8,8 @@ module Sigil.Concrete.Internal
   , pattern Prd
   , pattern Abs
   , pattern App
+  , pattern Eql
+  , pattern Dap
   , pattern IAbs
   , pattern IPrd
   , pattern TyCon ) where
@@ -44,7 +46,7 @@ type InternalEntry = Entry AnnBind Name Internal
 
 type InternalModule = Module AnnBind Name Internal  
 
-{-# COMPLETE Uni, Var, Prd, Abs, App, IPrd, IAbs, TyCon #-}
+{-# COMPLETE Uni, Var, Prd, Abs, App, Eql, Dap, IPrd, IAbs, TyCon #-}
 
 pattern Uni :: Integer -> InternalCore
 pattern Uni n <- Uniχ () n
@@ -65,6 +67,14 @@ pattern Abs b e <- Absχ () b e
 pattern App :: InternalCore -> InternalCore -> InternalCore
 pattern App l r <- Appχ () l r
   where App l r = Appχ () l r
+
+pattern Eql :: [(AnnBind Name InternalCore, InternalCore)] -> InternalCore -> InternalCore -> InternalCore -> InternalCore
+pattern Eql tel ty a a' <- Eqlχ () tel ty a a'
+  where Eql tel ty a a' = Eqlχ () tel ty a a'
+
+pattern Dap :: [(AnnBind Name InternalCore, InternalCore)] -> InternalCore -> InternalCore
+pattern Dap tel val <- Dapχ () tel val
+  where Dap tel val = Dapχ () tel val
 
 pattern IPrd :: AnnBind Name InternalCore -> InternalCore -> InternalCore
 pattern IPrd b ty <- Coreχ (IPrdχ () b ty)
@@ -107,6 +117,10 @@ instance Pretty InternalCore where
     IAbs _ _ -> pretty_abs_like c
 
     App l r -> sep $ fmap bracket $ unwind (App l r)
+
+    Eql tel ty a b -> ("Id" <+> pretty_tel tel <+> pretty ty <+> pretty a <+> pretty b)
+    Dap tel val -> ("Ap" <+> pretty_tel tel <+> pretty val)
+
     TyCon _ _ -> "tycon"
   
     where 
@@ -147,6 +161,11 @@ instance Pretty InternalCore where
           then "(_⮜" <> pretty ty <> ")"
           else bracket ty
         AnnBind (n, ty) -> "(" <> pretty n <+> "⮜" <+> pretty ty <> ")"
+
+      pretty_tel [] = "•"
+      pretty_tel [(bind, val)] = pretty_annbind True bind <+> "." <+> pretty val
+      pretty_tel ((bind, val) : tel) =
+        pretty_annbind True bind <+> "." <+> pretty val <+> "," <+> pretty_tel tel
 
       bracket v = if iscore v then pretty v else "(" <> pretty v <> ")"
       
