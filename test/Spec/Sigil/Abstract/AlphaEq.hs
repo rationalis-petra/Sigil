@@ -32,6 +32,12 @@ alphaeq_tests =
   , eq_test "prd-renamed-eq" ([idn 0 "x"] → idv 0 "x") ([idn 1 "y"] → idv 1 "y") True
   , eq_test "prd-free-neq" ([idn 0 "x"] → idv 1 "y") ([idn 1 "y"] → idv 1 "y") False
 
+  , eq_test "eql-eq" (ι [] (𝓊 1) (𝓊 0) (𝓊 0)) (ι [] (𝓊 1) (𝓊 0) (𝓊 0)) True
+  , eq_test "eql-neq" (ι [] (𝓊 1) (𝓊 0) (𝓊 0)) (ι [] (𝓊 1) (𝓊 0) (𝓊 1)) False
+  , eq_test "eql-bnd-eq"
+    (ι [(OptBind (Just (idn 0 "x"), Nothing), (𝓊 0))] (𝓊 0) (idv 0 "x") (idv 0 "x"))
+    (ι [(OptBind (Just (idn 0 "y"), Nothing), (𝓊 0))] (𝓊 0) (idv 0 "y") (idv 0 "y")) True
+
   , eq_test "def-eq" (idn 0 "x" ≜ 𝓊 0) (idn 0 "x" ≜ 𝓊 0) True
   , eq_test "def-neq" (idn 0 "x" ≜ 𝓊 0) (idn 0 "x" ≜ 𝓊 1) False
 
@@ -72,6 +78,9 @@ args ⇒ body = foldr (\var body -> Absχ void (OptBind (Just var, Nothing)) bod
 
 (→) :: [Name] -> CoreUD -> CoreUD
 args → body = foldr (\var body -> Prdχ void (OptBind (Just var, Nothing)) body) body args
+
+ι :: [(OptBind Name CoreUD, CoreUD)] -> CoreUD -> CoreUD -> CoreUD -> CoreUD
+ι = Eqlχ void
 
 -- (⋅) :: Core b n UD -> Core b n UD -> Core b n UD
 -- (⋅) = App void

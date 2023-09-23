@@ -21,10 +21,10 @@ eq_spec = TestGroup "αβη-equivalence" $ Right eq_tests
 norm_spec :: TestGroup
 norm_spec = TestGroup "normalization" $ Right norm_tests
 
-type NormM a = Except (Doc SigilStyle) a
+type NormM a = ExceptT (Doc SigilStyle) Gen a
 
 runNormM :: NormM a -> Either (Doc SigilStyle) a
-runNormM = runExcept
+runNormM = run_gen . runExceptT
 
 default_env :: Env (Maybe InternalCore, InternalCore)
 default_env = env_empty

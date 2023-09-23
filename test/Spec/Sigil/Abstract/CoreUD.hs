@@ -24,6 +24,8 @@ type instance Varχ UD = Void
 type instance Prdχ UD = Void
 type instance Absχ UD = Void
 type instance Appχ UD = Void
+type instance Eqlχ UD = Void
+type instance Dapχ UD = Void
 type instance Mutualχ UD = Void
 type instance Singleχ UD = Void
 

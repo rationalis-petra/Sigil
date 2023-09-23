@@ -97,7 +97,9 @@ interactive (Interpreter {..}) opts = do
       (result, state') <- run state $ eval_mod filename text 
       case result of
         Right modul -> do
+          putStr "\n"
           putDocLn $ "module:" <+> nest 2 (pretty modul)
+          putStr "\n"
         Left err -> putDocLn err
       pure state'
 

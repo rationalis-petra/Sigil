@@ -92,7 +92,25 @@ instance (Ord n, Binding b, AlphaEq n (b n (Core b n χ)), AlphaEq n (Coreχ b n
                   , maybe (snd rename) (\n -> Map.insert n (name b) (snd rename)) (name b'))
     (Appχ _ l r, Appχ _ l' r') ->
       αequal rename l l' && αequal rename r r'
+    (Eqlχ _ tel ty v1 v2, Eqlχ _ tel' ty' v1' v2') ->
+      let (tel_eq, rename') = αequal_tel rename tel tel'
+      in tel_eq && αequal rename' ty ty' && αequal rename' v1 v1' && αequal rename' v2 v2'
+    (Dapχ _ tel val, Dapχ _ tel' val') ->
+      let (tel_eq, rename') = αequal_tel rename tel tel'
+      in tel_eq && αequal rename' val val'
     (_, _) -> False
+    where
+      αequal_tel rename [] [] = (True, rename)
+      αequal_tel rename ((bind, val) : tel) ((bind', val') : tel') =
+        let rename' =
+              ( maybe (fst rename) (\n -> Map.insert n (name bind') (fst rename)) (name bind)
+              , maybe (snd rename) (\n -> Map.insert n (name bind) (snd rename)) (name bind'))
+        in if αequal rename bind bind' && αequal rename val val' then
+             αequal_tel rename' tel tel'
+           else
+             (False, rename)
+      αequal_tel rename _ _   = (False, rename)
+    
 
 instance (Ord n, Binding b, AlphaEq n (Core b n χ)) => AlphaEq n (b n (Core b n χ)) where
   αequal rename b b' = case (tipe b, tipe b') of 
