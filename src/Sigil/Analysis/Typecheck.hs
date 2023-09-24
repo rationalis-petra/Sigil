@@ -17,6 +17,7 @@ module Sigil.Analysis.Typecheck
 import Control.Monad.Except (MonadError, throwError)
 import Control.Lens
 import Data.Foldable
+import qualified Data.Set as Set
 -- import qualified Data.Map as Map
 -- import Data.Map (Map)  
 -- import qualified Data.Text as Text
@@ -80,8 +81,9 @@ instance Checkable Name InternalCore InternalCore where
      
           let env' = insert n (Nothing, a_norm) env
           (body', ret_ty) <- infer' env' body
+          n' <- if n `Set.member` free_vars ret_ty then pure n else fresh_var "_"
      
-          pure (Abs (AnnBind (n, a')) body', Prd (AnnBind (n, a')) ret_ty)
+          pure (Abs (AnnBind (n, a')) body', Prd (AnnBind (n', a')) ret_ty)
      
         Prd (AnnBind (n, a)) b -> do
           (a', aty) <- infer' env a
@@ -165,8 +167,9 @@ instance Checkable Name ResolvedCore InternalCore where
         
           let env' = insert n (Nothing, a_norm) env
           (body', ret_ty) <- infer' env' body
+          n' <- if n `Set.member` free_vars ret_ty then pure n else fresh_var "_"
         
-          pure (Abs (AnnBind (n, a')) body', Prd (AnnBind (n, a')) ret_ty)
+          pure (Abs (AnnBind (n, a')) body', Prd (AnnBind (n', a')) ret_ty)
         
         Prdχ _ (OptBind (maybe_n, Just a)) b -> do
           (a', aty) <- infer' env a
