@@ -62,7 +62,7 @@ instance Checkable Name InternalCore InternalCore where
     let infer' = infer normalize liftErr
         check' = check normalize liftErr
         normalize' = normalize (liftErr . flip NormErr (range term))
-        throwError' = throwError . liftErr . flip PrettyErr (range term)
+        throwError' = throwError . liftErr . flip PrettyErr (range term) . ("throw-resolved" <+>)
         lookup_err' = lookup_err (liftErr . flip PrettyErr (range term))
     in 
       case term of
@@ -120,9 +120,10 @@ instance Checkable Name InternalCore InternalCore where
           | otherwise -> throwError' "universe-level check failed"
         
         -- TODO: generalize to more bindings; notably untyped bindings!!
-        (Abs (AnnBind (n, a)) body, Prd (AnnBind (_,a')) ret_ty) -> do
+        (Abs (AnnBind (n, a)) body, Prd (AnnBind (n',a')) ret_ty) -> do
           check_eq liftErr a a'
-          body' <- check'(insert n (Nothing, a) env) body ret_ty
+          let ret_ty' = if (n == n') then ret_ty else subst (n' ↦ Var n) ret_ty
+          body' <- check'(insert n (Nothing, a) env) body ret_ty'
           pure $ Abs (AnnBind (n, a')) body'
         (Abs _ _, _) -> throwError' $ "expected λ-term to have Π-type, got" <+> pretty ty
         
@@ -205,26 +206,26 @@ instance Checkable Name ResolvedCore InternalCore where
           | j < k -> pure (Uni j)
           | otherwise -> throwError' "universe-level check failed"
       
-        -- TODO: generalize to more bindings; notably untyped bindings!!
-        (Absχ _ (OptBind (Just n, Just a)) body, Prd (AnnBind (_,a')) ret_ty) -> do
+        (Absχ _ (OptBind (Just n, Just a)) body, Prd (AnnBind (n',a')) ret_ty) -> do
           (a_typd, a_ty) <- infer' env a
           a_normal <- normalize' env a_ty a_typd
           check_eq liftErr a_normal a'
-          body' <- check' (insert n (Nothing, a_normal) env) body ret_ty
+          let ret_ty' = if (n == n') then ret_ty else subst (n' ↦ Var n) ret_ty
+          body' <- check' (insert n (Nothing, a_normal) env) body ret_ty'
           pure $ Abs (AnnBind (n, a_typd)) body'
         (Absχ _ (OptBind (Just n, Nothing)) body, Prd (AnnBind (_,a')) ret_ty) -> do
           body' <- check' (insert n (Nothing, a') env) body ret_ty
           pure $ Abs (AnnBind (n, a')) body'
         (Absχ {}, _) -> throwError' $ "expected λ-term to have Π-type, got" <+> pretty ty
       
-        (Prdχ _ (OptBind (Just n, Just a)) b, _) -> do
-          -- TODO: normalization??
+        (Prdχ _ (OptBind (mn, Just a)) b, _) -> do
           a' <- check' env a ty
-          b' <- check' (insert n (Nothing, a') env) b ty
+          a_normal <- normalize' env ty a'
+          n <- maybe (fresh_var "_") pure mn
+          b' <- check' (insert n (Nothing, a_normal) env) b ty
           pure $ Prd (AnnBind (n, a')) b'
                                 
-        (Prdχ {}, _) -> throwError' $ "expected Π-term to have a named binding, did not!" <+> pretty term
-      
+        -- TODO: add cases for Eql and Dap
         _ -> do
           (term', ty') <- infer' env term
           _ <- check_eq liftErr ty ty'

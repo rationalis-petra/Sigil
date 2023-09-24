@@ -94,7 +94,7 @@ interactive (Interpreter {..}) opts = do
     eval_file :: Text -> s -> IO s
     eval_file filename state = do
       text <- readFile (unpack filename)
-      (result, state') <- run state $ eval_mod filename text 
+      (result, state') <- run state $ check_mod filename text 
       case result of
         Right modul -> do
           putStr "\n"
@@ -103,8 +103,8 @@ interactive (Interpreter {..}) opts = do
         Left err -> putDocLn err
       pure state'
 
-    eval_mod :: Text -> Text -> m InternalModule
-    eval_mod filename file = do
+    check_mod :: Text -> Text -> m InternalModule
+    check_mod filename file = do
       env <- get_env Nothing []
       parsed <- parse (mod (\_ _ -> pure default_precs) <* eof) filename file 
         `catchError` (throwError . (<+>) "Parse:")
@@ -112,6 +112,3 @@ interactive (Interpreter {..}) opts = do
         `catchError` (throwError . (<+>) "Resolution:")
       check_module interp_eval spretty env resolved
         `catchError` (throwError . (<+>) "Inference:")
-      -- norm <- interp_eval env ty term
-      --   `catchError` (throwError . (<+>) "Normalization:")
-      -- pure term
