@@ -74,6 +74,14 @@ instance Environment Name Substitution where
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
+instance (Ord n, Subst n s a) => Subst n s (a, a, a) where 
+  substitute shadow sub (x, y, z) = 
+    ( substitute shadow sub x
+    , substitute shadow sub y
+    , substitute shadow sub z
+    )
+
+  free_vars (x, y, z) = free_vars x <> free_vars y <> free_vars z
 
 instance (Ord n, Subst n s a) => Subst n s [a] where 
   substitute shadow sub = fmap (substitute shadow sub)
@@ -98,8 +106,10 @@ instance (Ord n, Subst n s a) => Subst n s (AnnBind n a) where
   free_vars (AnnBind (n, a)) = Set.delete n $ free_vars a
     --maybe id Set.delete n $ free_vars a
 
-instance (Ord n, Binding b,
-          Subst n (Core b n χ) (b n (Core b n χ)))
+instance ( Ord n
+         , Binding b
+         , Subst n (Core b n χ) (b n (Core b n χ))
+         , Subst n (Core b n χ) (b n (Core b n χ, Core b n χ, Core b n χ)))
           => Subst n (Core b n χ) (Core b n χ) where 
   substitute shadow sub term = case term of
     Coreχ χ -> Coreχ χ 
@@ -177,9 +187,15 @@ instance Regen (Core OptBind Name χ) where
       ty' <- mapM (go sub) ty
       pure (sub', OptBind (n', ty'))
 
+    freshen_eq_bind (OptBind (n, eql)) sub = do
+      n' <- mapM freshen n
+      let sub' = maybe sub (flip (uncurry insert) sub) ((,) <$> n <*> n')
+      eql' <- mapM (\(ty, v1, v2) -> (,,) <$> go sub ty <*> go sub v1 <*> go sub v2) eql
+      pure (sub', OptBind (n', eql'))
+
     freshen_tel [] sub = pure (sub, [])
     freshen_tel ((bind, id) : tel) sub = do
-      (sub', bind') <- freshen_bind bind sub
+      (sub', bind') <- freshen_eq_bind bind sub
       id' <- go sub' id
       (sub'', tel') <- freshen_tel tel sub'
       pure (sub'', ((bind', id') : tel'))
@@ -212,9 +228,15 @@ instance Regen (Core AnnBind Name χ) where
       ty' <- go sub' ty
       pure (sub', AnnBind (n', ty'))
 
+    freshen_eq_bind (AnnBind (n, eql)) sub = do
+      n' <- freshen n
+      let sub' = insert n n' sub
+      eql' <- (\(ty, v1, v2) -> (,,) <$> go sub ty <*> go sub v1 <*> go sub v2) eql
+      pure (sub', AnnBind (n', eql'))
+
     freshen_tel [] sub = pure (sub, [])
     freshen_tel ((bind, id) : tel) sub = do
-      (sub', bind') <- freshen_bind bind sub
+      (sub', bind') <- freshen_eq_bind bind sub
       id' <- go sub' id 
       (sub'', tel') <- freshen_tel tel sub'
       pure (sub'', ((bind', id') : tel'))

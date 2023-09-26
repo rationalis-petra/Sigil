@@ -258,19 +258,24 @@ core precs = choice' [plam, pprod, pid, pap, pexpr]
           pf <- core precs'
           pure $ (\r -> Dap r tel pf)
 
-    ptel :: Precedences -> ParserT m ([(OptBind Text ParsedCore, ParsedCore)], Precedences)
+    ptel :: Precedences -> ParserT m ([(OptBind Text (ParsedCore, ParsedCore, ParsedCore), ParsedCore)], Precedences)
     ptel precs =
       (do
-        arg <- annbind <||> sym_only
-        _ <- symbol "="
-        val <- core precs
-        let precs' = update_precs (maybeToList $ name arg) precs
+        (entry, precs') <- between (symbol "(") (symbol ")") $ do
+          arg <- (fmap Just anyvar)
+          ty <- (core precs)
+          (v1, v2) <- between (symbol "(") (symbol ")") $ do
+            v1 <- core precs
+            _ <- symbol "="
+            v2 <- core precs
+            pure (v1, v2)
+          _ <- symbol "≜"
+          id <- core precs
+          pure ((OptBind (arg, (Just (ty, v1, v2))), id), update_precs (maybeToList $ arg) precs)
         (tel', precs'') <- ptel precs'
-        pure $ ((arg, val) : tel', precs''))
+        pure $ (entry : tel', precs''))
       <||> pure ([], precs)
-      where
-        annbind = (OptBind .) . (,) <$> (fmap Just anyvar) <*> (symbol "⮜" *> fmap Just (core precs)) 
-        sym_only = (OptBind .) . (,) <$> (fmap Just anyvar) <*> pure Nothing
+            
 
     pexpr :: ParserT m ParsedCore
     pexpr = mixfix patom (core precs) precs

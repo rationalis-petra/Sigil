@@ -86,11 +86,11 @@ pattern App :: Range -> ParsedCore -> ParsedCore -> ParsedCore
 pattern App r a b <- Appχ r a b
   where App r a b = Appχ r a b
 
-pattern Eql :: Range -> [(OptBind Text ParsedCore, ParsedCore)] -> ParsedCore -> ParsedCore -> ParsedCore -> ParsedCore
+pattern Eql :: Range -> (Tel OptBind Text ParsedCore) -> ParsedCore -> ParsedCore -> ParsedCore -> ParsedCore
 pattern Eql r tel ty a a' <- Eqlχ r tel ty a a'
   where Eql r tel ty a a' = Eqlχ r tel ty a a'
 
-pattern Dap :: Range -> [(OptBind Text ParsedCore, ParsedCore)] -> ParsedCore -> ParsedCore
+pattern Dap :: Range -> (Tel OptBind Text ParsedCore) -> ParsedCore -> ParsedCore
 pattern Dap r tel val <- Dapχ r tel val
   where Dap r tel val = Dapχ r tel val
 
@@ -111,7 +111,7 @@ instance HasRange ParsedCore where
 
 instance Pretty ParsedCore where
   pretty =
-    pretty_core_builder pretty_bind pretty pretty
+    pretty_core_builder pretty pretty
   
 instance Pretty ParsedEntry where
   pretty =

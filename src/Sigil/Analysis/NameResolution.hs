@@ -29,6 +29,10 @@ class ResolveTo a b | a -> b where
 resolve_closed :: (MonadGen m, ResolveTo a b) => a -> m b
 resolve_closed = resolve empty
 
+instance ResolveTo a b => ResolveTo (a, a, a) (b, b, b) where
+  resolve vars (x, y, z) = (,,) <$> rv x <*> rv y <*> rv z
+    where rv = resolve vars
+
 instance ResolveTo ParsedCore ResolvedCore where
   resolve vars term = case term of 
     Core -> pure $ Coreχ ()

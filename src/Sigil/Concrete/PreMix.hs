@@ -84,7 +84,7 @@ instance HasRange PreMixCore where
 
 instance Pretty PreMixCore where
   pretty =
-    pretty_core_builder pretty_bind pretty pretty_mix
+    pretty_core_builder pretty pretty_mix
 
     where pretty_mix (_, l) = "[" <> pretty_contents l <> "]"
           pretty_contents [] = ""

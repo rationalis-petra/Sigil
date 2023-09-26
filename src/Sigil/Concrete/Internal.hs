@@ -68,11 +68,11 @@ pattern App :: InternalCore -> InternalCore -> InternalCore
 pattern App l r <- Appχ () l r
   where App l r = Appχ () l r
 
-pattern Eql :: [(AnnBind Name InternalCore, InternalCore)] -> InternalCore -> InternalCore -> InternalCore -> InternalCore
+pattern Eql :: [(AnnBind Name (InternalCore, InternalCore, InternalCore), InternalCore)] -> InternalCore -> InternalCore -> InternalCore -> InternalCore
 pattern Eql tel ty a a' <- Eqlχ () tel ty a a'
   where Eql tel ty a a' = Eqlχ () tel ty a a'
 
-pattern Dap :: [(AnnBind Name InternalCore, InternalCore)] -> InternalCore -> InternalCore
+pattern Dap :: [(AnnBind Name (InternalCore, InternalCore, InternalCore), InternalCore)] -> InternalCore -> InternalCore
 pattern Dap tel val <- Dapχ () tel val
   where Dap tel val = Dapχ () tel val
 
@@ -163,9 +163,12 @@ instance Pretty InternalCore where
         AnnBind (n, ty) -> "(" <> pretty n <+> "⮜" <+> pretty ty <> ")"
 
       pretty_tel [] = "."
-      pretty_tel [(bind, val)] = pretty_annbind True bind <+> "." <+> pretty val
+      pretty_tel [(bind, val)] = pretty_eq_bind bind <+> "." <+> pretty val
       pretty_tel ((bind, val) : tel) =
-        pretty_annbind True bind <+> "." <+> pretty val <+> "," <+> pretty_tel tel
+        pretty_eq_bind bind <+> "." <+> pretty val <+> "," <+> pretty_tel tel
+
+      pretty_eq_bind (AnnBind (nm, (ty, v1, v2))) = 
+        pretty nm <+> "⮜" <+> pretty ty <+> ("(" <> pretty v1 <+> "=" <+> pretty v2 <> ")")
 
       bracket v = if iscore v then pretty v else "(" <> pretty v <> ")"
       

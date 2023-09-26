@@ -111,10 +111,19 @@ instance (Ord n, Binding b, AlphaEq n (b n (Core b n χ)), AlphaEq n (Coreχ b n
              (False, rename)
       αequal_tel rename _ _   = (False, rename)
     
-
 instance (Ord n, Binding b, AlphaEq n (Core b n χ)) => AlphaEq n (b n (Core b n χ)) where
   αequal rename b b' = case (tipe b, tipe b') of 
     (Just ty, Just ty') -> αequal rename' ty ty'
+      where
+        rename' = ( maybe (fst rename) (\n -> Map.insert n (name b') (fst rename)) (name b)
+                  , maybe (snd rename) (\n -> Map.insert n (name b) (snd rename)) (name b'))
+    (Nothing, Nothing) -> True
+    _ -> False
+
+instance (Ord n, Binding b, AlphaEq n (Core b n χ)) => AlphaEq n (b n (Core b n χ, Core b n χ, Core b n χ)) where
+  αequal rename b b' = case (tipe b, tipe b') of 
+    (Just (ty, v1, v2), Just (ty', v1', v2')) ->
+      αequal rename' ty ty' && αequal rename' v1 v1' && αequal rename' v2 v2'
       where
         rename' = ( maybe (fst rename) (\n -> Map.insert n (name b') (fst rename)) (name b)
                   , maybe (snd rename) (\n -> Map.insert n (name b) (snd rename)) (name b'))

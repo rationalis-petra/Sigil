@@ -1,5 +1,6 @@
 module Sigil.Abstract.Syntax
   ( Core(..)
+  , Tel
   , Module(..)
   , Entry(..)
   , ImportModifier(..)
@@ -54,6 +55,7 @@ import Data.Text hiding (zipWith, foldl', tail, head, intersperse, map)
 
 import Prettyprinter
 
+import Sigil.Abstract.Environment
 
 {---------------------------------- CORE TYPE ----------------------------------}
 {- The Core Type represents the calculus upon which Sigil. is based. It is      -}
@@ -76,6 +78,7 @@ import Prettyprinter
 {-   • Adding a new node for constants (numbers etc.)                          -}
 {-------------------------------------------------------------------------------}
 
+type Tel b n v = [(b n (v, v, v), v)]
 
 data Core b n χ
   = Coreχ (Coreχ b n χ)
@@ -87,8 +90,9 @@ data Core b n χ
   | Appχ (Appχ χ) (Core b n χ) (Core b n χ)
 
   -- Heterogeneous Univalent identity type & Dependent Lifting of Identity Terms
-  | Eqlχ (Eqlχ χ) [(b n (Core b n χ), Core b n χ)] (Core b n χ) (Core b n χ) (Core b n χ)
-  | Dapχ (Dapχ χ) [(b n (Core b n χ), Core b n χ)] (Core b n χ)
+  | Eqlχ (Eqlχ χ) (Tel b n (Core b n χ)) (Core b n χ) (Core b n χ) (Core b n χ)
+  | Dapχ (Dapχ χ) (Tel b n (Core b n χ)) (Core b n χ)
+
 
 type family Coreχ (b :: Type -> Type -> Type) n χ
 type family Varχ χ
@@ -102,6 +106,7 @@ type family Dapχ χ
 type Forall (φ :: Type -> Constraint) b n χ
   = ( φ n
     , φ (b n (Core b n χ))
+    , φ (b n (Core b n χ, Core b n χ, Core b n χ)) -- for equality!
     , φ (Coreχ b n χ)
     , φ (Uniχ χ)
     , φ (Varχ χ)
@@ -203,7 +208,7 @@ instance (Forall Eq b n χ) => Eq (Entry b n χ) where
     _ -> False
 
 
-instance Forall Eq b n χ --(Eq (b n (Core b n χ)), Eq n, Forallχ Eq χ, Eq (Coreχ b n χ))
+instance (Forall Eq b n χ )
          => Eq (Core b n χ) where
   v1 == v2 = case (v1, v2) of 
     (Coreχ r, Coreχ r') ->
@@ -230,12 +235,12 @@ instance Forall Eq b n χ --(Eq (b n (Core b n χ)), Eq n, Forallχ Eq χ, Eq (C
 {-------------------------------------------------------------------------------}
 
 pretty_core_builder ::
-  (Bool -> b n (Core b n χ) -> Doc ann)
-  -> (n -> Doc ann)
+  Binding b
+  => (n -> Doc ann)
   -> (Coreχ b n χ -> Doc ann)
   -> Core b n χ
   -> Doc ann
-pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
+pretty_core_builder pretty_name pretty_coreχ c =
   case c of
     Coreχ v -> pretty_coreχ v
     Uniχ _ n -> "𝕌" <> pretty_subscript n
@@ -261,7 +266,7 @@ pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
       where
         tel = telescope c
         
-        telescope (Prdχ _ bind e) = pretty_bind False bind : telescope e
+        telescope (Prdχ _ bind e) = pretty_fn_bind bind : telescope e
         telescope b = [pretty_core  b]
     
     Absχ _ bind e ->
@@ -272,7 +277,7 @@ pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
               (bind : args, body)
           telescope body = ([], body)
     
-          pretty_args bind [] = pretty_bind True bind
+          pretty_args bind [] = pretty_ty_bind bind
           pretty_args v (x : xs) = pretty_args v [] <+> pretty_args x xs
       in
         ("λ " <> pretty_args bind args <> " →") <+> nest 2 (bracket body)
@@ -294,14 +299,30 @@ pretty_core_builder pretty_bind pretty_name pretty_coreχ c =
        <+> pretty_core val)
 
     where 
-        pretty_core = pretty_core_builder pretty_bind pretty_name pretty_coreχ
+        pretty_core = pretty_core_builder pretty_name pretty_coreχ
 
         pretty_tel tel =
           case map pretty_tentry tel of
-            (hd:tl) -> align $ sep $ hd : zipWith (<+>) (repeat "=") tl
+            (hd:tl) -> align $ sep $ hd : zipWith (<+>) (repeat ",") tl
             [] -> "."
 
-        pretty_tentry (b, v) = pretty_bind True b <+> "=" <+> bracket v
+        pretty_tentry (b, v) = pretty_eql_bind b <+> "≜" <+> bracket v
+
+        pretty_fn_bind b = case (name b, tipe b) of 
+          (Just nm, Just ty) -> "(" <> pretty_name nm <+> "⮜" <+> pretty_core ty <> ")"
+          (Just nm, Nothing) -> pretty_name nm
+          (Nothing, Just ty) -> "(_" <+> "⮜" <+> pretty_core ty <> ")"
+          (Nothing, Nothing) -> "_"
+        pretty_ty_bind b = case (name b, tipe b) of 
+          (Just nm, Just ty) -> "(" <> pretty_name nm <+> "⮜" <+> pretty_core ty <> ")"
+          (Just nm, Nothing) -> "(" <> pretty_name nm <+> "⮜" <+> "_)"
+          (Nothing, Just ty) -> pretty_core ty
+          (Nothing, Nothing) -> "_"
+        pretty_eql_bind b = case (name b, tipe b) of
+          (Just nm, Just (ty, v1, v2)) -> pretty_name nm <+> "⮜" <+> pretty_core (Eqlχ (error "impossible") [] ty v1 v2)
+          (Just nm, Nothing) -> pretty_name nm <+> "⮜" <+> "_"
+          (Nothing, Just (ty, v1, v2)) -> "_" <+> "⮜" <+> pretty_core (Eqlχ (error "impossible") [] ty v1 v2)
+          (Nothing, Nothing) -> "_"
   
         bracket v = if iscore v then pretty_core v else "(" <> pretty_core v <> ")"
         

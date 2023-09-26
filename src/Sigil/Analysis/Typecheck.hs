@@ -13,6 +13,7 @@ module Sigil.Analysis.Typecheck
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
+import Debug.Trace
 
 import Control.Monad.Except (MonadError, throwError)
 import Control.Lens
@@ -98,7 +99,8 @@ instance Checkable Name InternalCore InternalCore where
       
         Dap [] val -> do  
           (val', val_ty) <- infer' env val
-          pure (Dap [] val', Eql [] val_ty val' val')
+          let val_ty' = trace (show $ pretty val_ty <> "\n") val_ty
+          pure (Dap [] val', Eql [] val_ty' val' val')
 
         Eql [] ty v1 v2 -> do  
           (ty', tykind) <- infer' env ty
@@ -185,7 +187,8 @@ instance Checkable Name ResolvedCore InternalCore where
 
         Dapχ _ [] val -> do  
           (val', val_ty) <- infer' env val
-          pure (Dap [] val', Eql [] val_ty val' val')
+          let val_ty' = trace (show $ pretty val_ty <> "\n") val_ty
+          pure (Dap [] val', Eql [] val_ty' val' val')
 
         Eqlχ _ [] ty v1 v2 -> do  
           (ty', tykind) <- infer' env ty

@@ -54,7 +54,7 @@ data Sem e
   | ISPrd Name (Sem e) (Sem e)
   | SAbs Name InternalCore InternalCore (e (Sem e))
   | ISAbs Name InternalCore InternalCore (e (Sem e))
-  | SEql (Sem e) (Sem e) (Sem e)
+  | SEql [(Name, (Sem e, Sem e, Sem e), Sem e)] (Sem e) (Sem e) (Sem e)
   | SDap (Sem e)
   | Neutral (Sem e) (Neutral e)
 
@@ -108,12 +108,22 @@ read_nf (Normal ty val) = case (ty, val) of
     a' <- read_nf $ Normal (SUni lvl) a
     f' <- read_nf =<< (Normal <$> (b `app` neua) <*> (f `app` neua))
     pure $ Abs (bind name a') f'
-  (SEql ty _ _, SDap val) -> do
+  -- TODO: figure out what to do with SEql telescope?!
+  -- possibly it is guaranteed to be empty, as SDap is a telescope??
+  (SEql [] ty _ _, SDap val) -> do
     Dap [] <$> read_nf (Normal ty val)
 
   -- Types
-  (SUni k, SEql ty a a') -> do
-    Eql [] <$> read_nf (Normal (SUni k) ty)
+  (SUni k, SEql tel ty a a') -> do
+    let read_nf_tel _ out [] = pure out
+        read_nf_tel in_tel out ((name, (ty, v1, v2), id) : tel) = do 
+          ty' <- read_nf (Normal (SUni k) ty)
+          v1' <- read_nf (Normal ty v1)
+          v2' <- read_nf (Normal ty v2)
+          id' <- read_nf (Normal (SEql in_tel ty v1 v2) id)
+          read_nf_tel (in_tel <> [(name, (ty, v1, v2), id)]) (out <> [(bind name (ty', v1', v2'), id')]) tel
+    Eql <$> read_nf_tel [] [] tel
+      <*> read_nf (Normal (SUni k) ty)
       <*> read_nf (Normal ty a)
       <*> read_nf (Normal ty a')
   (SUni _, SUni i) -> pure $ Uni i
@@ -151,27 +161,41 @@ eval term env = case term of
     l' <- (eval l env)
     r' <- (eval r env)
     app l' r'
-  Eql tel ty a a' -> do
-    if null tel then
-      SEql <$> eval ty env  <*> eval a env <*> eval a' env
-    else throw "Not sure what to do with Tel in Eql"
-    --let eval_tel = 
+  Eql tel ty v1 v2 -> do
+    -- Eql evaluation is divided into three phases:
+    -- Phase 1: eliminate all instances of ρ (refl) from the telescope
+    -- Phase 2: perform all ty eliminations
+    -- Phase 3: eliminate unused bindings
+
     
-    -- let eval_tel = f
-    -- -- TODO: what do we do with tel??
-    -- ty' <- (eval ty env)
-    -- case ty' of
-    --   SUni lvl -> Eql tel' ty' <$> eval a env <*> eval a' env
-    --   SPrd nm a b -> do
-    --     u <- fresh_name "u"
-    --     v <- fresh_name "v"
-    --     q <- fresh_name "q"
-    --     eql_arg <- eval Eql ?? b (Var u) (Var v)
-    --     eql_bdy <- eval Eql ?? b (App a (Var u)) (App a' (Var v))
-    --     SPrd u a $ SPrd v b $ SPrd q eql_atg eql_bdy
+    -- Extract reflections
+    -- TODO: eliminate unused binds
+    let eval_tel :: [(AnnBind Name (InternalCore, InternalCore, InternalCore), InternalCore)] -> e (Sem e)
+          -> m ([(Name, (Sem e, Sem e, Sem e), Sem e)], e (Sem e))
+        eval_tel [] env = pure ([], env)
+        eval_tel ((bnd, id) : tel) env = do 
+          name <- fromMaybe (throw "Eql Telescope must bind a name") (fmap pure $ name bnd)
+          id' <- eval id env 
+          case id' of 
+            SDap val -> 
+              eval_tel tel (insert name val env)
+            _ -> do
+              (ty, v1, v2) <- fromMaybe (throw "Eql Telescope must bind an equality") (fmap pure $ tipe bnd)
+              ty' <- eval ty env 
+              v1' <- eval v1 env 
+              v2' <- eval v2 env 
+    -- TODO: inserting neutral terms into environment may be bad!!
+              (tel', env') <- eval_tel tel (insert name (Neutral ty' (NeuVar name)) env)
+              pure $ ((name, (ty', v1', v2'), id') : tel', env')
+
+    (tel_sem, env') <- eval_tel tel env
+    ty_sem <- eval ty env  
+    eql env' tel_sem ty_sem v1 v2
+    -- TODO: phase 3!!
+    -- pure $ SEql tel' ty' v1' v2'
 
   Dap tel val -> do
-    let eval_tel :: e (Sem e) -> [(AnnBind Name InternalCore, InternalCore)] -> m (e (Sem e))
+    let eval_tel :: e (Sem e) -> [(AnnBind Name (InternalCore, InternalCore, InternalCore), InternalCore)] -> m (e (Sem e))
         eval_tel env [] = pure env
         eval_tel env ((bind, val) : tel) = do 
           name <- fromMaybe (throw "Ap Telescope must bind a name") (fmap pure $ name bind)
@@ -202,7 +226,7 @@ app l r = throw ("bad args to app:" <+> pretty l <+> "and" <+> pretty r)
 
 dap :: (MonadError err m, Environment Name e, MonadGen m, ?lift_err :: Doc ann -> err) => e (Sem e) -> (Sem e) -> m (Sem e)
 dap _ term = case term of
-  Neutral ty neu -> pure $ Neutral (SEql ty (Neutral ty neu) (Neutral ty neu)) (NeuDap neu)
+  Neutral ty neu -> pure $ Neutral (SEql [] ty (Neutral ty neu) (Neutral ty neu)) (NeuDap neu)
   SAbs name ty body env -> do
     u <- fresh_var "u"
     v <- fresh_var "v"
@@ -210,9 +234,27 @@ dap _ term = case term of
     eval (Abs (bind u ty) $
           Abs (bind v ty) $
           Abs (bind id (Eql [] ty (Var u) (Var v))) $
-          Dap [(bind name ty, (Var id))] body) env 
+          Dap [(bind name (ty, Var u, Var v), (Var id))] body) env 
   SUni n -> pure $ SDap $ SUni n
-  _ -> throw ("don't know how to Dap:" <+> pretty term)
+  _ -> throw ("Don't know how to dap:" <+> pretty term)
+
+eql :: (MonadError err m, Environment Name e, MonadGen m, ?lift_err :: Doc ann -> err) => e (Sem e) -> [(Name, (Sem e, Sem e, Sem e), Sem e)] -> (Sem e)
+  -> InternalCore -> InternalCore -> m (Sem e)
+eql env tel tipe v1 v2 = case tipe of
+  Neutral _ _ -> SEql tel tipe <$> eval v1 env <*> eval v2 env -- TODO: is this neutral??
+  SPrd name ty b -> do
+    u <- fresh_var "u"
+    v <- fresh_var "v"
+    id <- fresh_var "id"
+    (SPrd u ty .
+     SPrd v ty .
+     SPrd id (SEql tel ty (Neutral ty (NeuVar u)) (Neutral ty (NeuVar u)))) <$>
+  -- TODO: it is possible we need to insert u/v/id into env??
+     eql env (tel <> [(name, (ty, (Neutral ty (NeuVar u)), (Neutral ty (NeuVar u))),
+                   (Neutral (SEql tel ty (Neutral ty (NeuVar u)) (Neutral ty (NeuVar v))) (NeuVar id)))])
+         b (App v1 (Var u)) (App v2 (Var v))
+  SUni n -> SEql tel (SUni n) <$> eval v1 env <*> eval v2 env
+  _ -> throw ("Don't know how to eql:" <+> pretty tipe)
 
 env_eval :: (MonadError err m, MonadGen m, Environment Name e, ?lift_err :: Doc ann -> err) => e (Maybe InternalCore, InternalCore) -> m (e (Sem e))
 env_eval = eval_helper eval_var 
@@ -234,7 +276,7 @@ uni_level sem = case sem of
   SUni n -> n + 1
   SPrd _ l r -> max (uni_level l) (uni_level r)
   SAbs _ _ _ _ -> 0 -- note: predicative vs impredicative!!
-  SEql ty _ _ -> uni_level ty
+  SEql _ ty _ _ -> uni_level ty
   SDap val -> uni_level val
 
   ISPrd _ l r -> max (uni_level l) (uni_level r)
@@ -271,7 +313,14 @@ instance Pretty (Sem e) where
           _ -> c
     SPrd n a b -> pretty n <> " : " <> pretty a <+> "→" <+> pretty b
     SAbs n _ body _ -> "λ (" <> pretty n <> ")" <+> pretty body
-    SEql ty a b -> "ι." <+> pretty ty <+> pretty a <+> pretty b
+    SEql tel ty a b -> "ι" <+> pretty_tel tel <+> "." <+> pretty ty <+> pretty a <+> pretty b
+      where 
+        pretty_tel [(name, (ty, v1, v2), id)] = 
+          pretty name <+> "⮜" <+> pretty ty <+> ("(" <> pretty v1 <+> "=" <+> pretty v2 <> ")") <+> "≜" <+> pretty id
+        pretty_tel ((name, (ty, v1, v2), id) : tel) = 
+          pretty name <+> "⮜" <+> pretty ty <+> ("(" <> pretty v1 <+> "=" <+> pretty v2 <> ")") <+> "≜" <+> pretty id
+               <+> "," <+> pretty_tel tel
+        pretty_tel [] = ""
     SDap val -> "ρ." <+> pretty val
     Neutral _ n -> pretty n
   
