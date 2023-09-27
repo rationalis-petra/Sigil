@@ -18,8 +18,6 @@ module Sigil.Parse
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
--- import Debug.Trace
-
 import Prelude hiding (head, last, tail, mod)
 import Control.Monad (join)
 import Control.Monad.Trans (lift)
