@@ -118,7 +118,7 @@ instance Pretty InternalCore where
 
     App l r -> sep $ fmap bracket $ unwind (App l r)
 
-    Eql tel ty a b -> ("ι" <+> pretty_tel tel <+> pretty ty <+> pretty a <+> pretty b)
+    Eql tel ty a b -> ("ι" <+> pretty_tel tel <+> bracket ty <+> bracket a <+> bracket b)
     Dap tel val -> ("ρ" <+> pretty_tel tel <+> pretty val)
 
     TyCon _ _ -> "tycon"
