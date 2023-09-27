@@ -71,19 +71,19 @@ infer_tests =
   [ -- 𝕌 : 𝕌1
     infer_test "𝕌₀-𝕌₁" (𝓊 0) (𝓊 1)
 
-  , infer_test "simple-lam" ([(idn 0 "A", 𝓊 0)] ⇒ idv 0 "A") ([(idn 0 "A", 𝓊 0)] → 𝓊 0)
+  , infer_test "simple-lam" ([(idn 0 "A", 𝓊 0)] ⇒ idv 0 "A") ([(idn 0 "_", 𝓊 0)] → 𝓊 0)
 
   , infer_test "multi-lam-1"
     ([(idn 0 "A", 𝓊 0), (idn 1 "B", 𝓊 0)] ⇒ idv 1 "B")
-    ([(idn 0 "A", 𝓊 0), (idn 1 "B", 𝓊 0)] → 𝓊 0)
+    ([(idn 1 "_", 𝓊 0), (idn 0 "_", 𝓊 0)] → 𝓊 0)
 
   , infer_test "multi-lam-2"
     ([(idn 0 "A", 𝓊 0), (idn 1 "B", 𝓊 0)] ⇒ idv 0 "A")
-    ([(idn 0 "A", 𝓊 0), (idn 1 "B", 𝓊 0)] → 𝓊 0)
+    ([(idn 1 "_", 𝓊 0), (idn 0 "_", 𝓊 0)] → 𝓊 0)
 
   , infer_test "dep-lam"
     ([(idn 0 "A", 𝓊 0), (idn 1 "x", idv 0 "A")] ⇒ idv 1 "x")
-    ([(idn 0 "A", 𝓊 0), (idn 1 "x", idv 0 "A")] → idv 0 "A")
+    ([(idn 0 "A", 𝓊 0), (idn 0 "_", idv 0 "A")] → idv 0 "A")
 
   , infer_test "prd-cum"
     ([(idn 0 "A", 𝓊 0)] → idv 0 "A")

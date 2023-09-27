@@ -79,7 +79,7 @@ args ⇒ body = foldr (\var body -> Absχ void (OptBind (Just var, Nothing)) bod
 (→) :: [Name] -> CoreUD -> CoreUD
 args → body = foldr (\var body -> Prdχ void (OptBind (Just var, Nothing)) body) body args
 
-ι :: [(OptBind Name CoreUD, CoreUD)] -> CoreUD -> CoreUD -> CoreUD -> CoreUD
+ι :: [(OptBind Name (CoreUD, CoreUD, CoreUD), CoreUD)] -> CoreUD -> CoreUD -> CoreUD -> CoreUD
 ι = Eqlχ void
 
 -- (⋅) :: Core b n UD -> Core b n UD -> Core b n UD

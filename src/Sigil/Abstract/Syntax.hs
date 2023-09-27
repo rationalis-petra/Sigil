@@ -266,7 +266,7 @@ pretty_core_builder pretty_name pretty_coreχ c =
       where
         tel = telescope c
         
-        telescope (Prdχ _ bind e) = pretty_fn_bind bind : telescope e
+        telescope (Prdχ _ bind e) = pretty_ty_bind bind : telescope e
         telescope b = [pretty_core  b]
     
     Absχ _ bind e ->
@@ -277,7 +277,7 @@ pretty_core_builder pretty_name pretty_coreχ c =
               (bind : args, body)
           telescope body = ([], body)
     
-          pretty_args bind [] = pretty_ty_bind bind
+          pretty_args bind [] = pretty_fn_bind bind
           pretty_args v (x : xs) = pretty_args v [] <+> pretty_args x xs
       in
         ("λ " <> pretty_args bind args <> " →") <+> nest 2 (bracket body)
