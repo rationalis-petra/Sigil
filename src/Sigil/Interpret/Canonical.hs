@@ -42,8 +42,8 @@ canonical_interpreter liftErr = Interpreter
   , eval = \f env ty term -> do
       normalize (f . liftErr . EvalErr) env ty term
 
-  , norm_eq = \env ty a b -> do
-      equiv (liftErr . EvalErr) env ty a b
+  , norm_eq = \f env ty a b -> do
+      equiv (f . liftErr . EvalErr) env ty a b
 
   , intern_module = \path modul ->
       modify (insert_at_path path modul)

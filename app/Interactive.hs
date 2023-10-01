@@ -78,7 +78,7 @@ interactive (Interpreter {..}) opts = do
       parsed <- parseToErr (core default_precs <* eof) "console-in" line 
       resolved <- resolve_closed parsed
         `catchError` (throwError . (<+>) "Resolution:")
-      (term, ty) <- infer interp_eval spretty env resolved
+      (term, ty) <- infer (CheckInterp interp_eval interp_eq spretty) env resolved
         `catchError` (throwError . (<+>) "Inference:")
       norm <- interp_eval id env ty term
         `catchError` (throwError . (<+>) "Normalization:")
@@ -90,6 +90,13 @@ interactive (Interpreter {..}) opts = do
       val' <- reify val
       result <- eval f env ty' val'
       reflect result 
+
+    interp_eq :: (SigilDoc -> SigilDoc) -> e (Maybe InternalCore, InternalCore) -> InternalCore -> InternalCore -> InternalCore -> m Bool
+    interp_eq f env ty l r = do
+      ty' <- reify ty
+      l' <- reify l
+      r' <- reify r
+      norm_eq f env ty' l' r'
 
     eval_file :: Text -> s -> IO s
     eval_file filename state = do
@@ -110,5 +117,5 @@ interactive (Interpreter {..}) opts = do
         `catchError` (throwError . (<+>) "Parse:")
       resolved <- resolve_closed parsed
         `catchError` (throwError . (<+>) "Resolution:")
-      check_module interp_eval spretty env resolved
+      check_module (CheckInterp interp_eval interp_eq spretty) env resolved
         `catchError` (throwError . (<+>) "Inference:")

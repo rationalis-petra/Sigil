@@ -20,6 +20,7 @@ module Sigil.Abstract.Environment
   -- Fresh Variable Generation
   , MonadGen(..)
   , fresh_var
+  , fresh_varn
   , freshen
   , Gen
   , run_gen ) where
@@ -42,7 +43,7 @@ import Control.Monad.Reader (ReaderT)
 import Data.List (sortOn)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Ord (Down(Down))
-import Data.Text (Text)
+import Data.Text (Text, pack)
 import qualified Data.Map as Map
 import Data.Map (Map)
 
@@ -157,6 +158,9 @@ run_gen = fst . flip runState 0 . ungen
 
 fresh_var :: MonadGen m => Text -> m Name
 fresh_var s = fresh_id >>= pure . Name . Right . (, s)
+
+fresh_varn :: MonadGen m => Text -> m Name
+fresh_varn s = fresh_id >>= pure . Name . Right . (\n -> (n, s <> (pack . show) n))
 
 freshen :: MonadGen m => Name -> m Name
 freshen (Name (Right (_, s))) = fresh_var s

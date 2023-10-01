@@ -78,7 +78,7 @@ data Interpreter m err env s t = Interpreter
   -- Evaluate a term t in the environment e
   , eval :: (err -> err) -> env -> t -> t -> m t
   -- Return true if two terms are canonically equal, false otherwise 
-  , norm_eq :: env -> t -> t -> t -> m Bool
+  , norm_eq :: (err -> err) -> env -> t -> t -> t -> m Bool
   -- Higher Order Unification algorithm implementation
   -- , solve_formula :: e -> Formula t -> m (Substitution t)
 

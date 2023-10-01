@@ -5,6 +5,7 @@ module Sigil.Interpret.Term
 import Prelude hiding (head, lookup)
 import Data.Kind
 import Data.Maybe
+import Control.Monad((<=<))
 import Control.Monad.Except (MonadError, throwError)
 
 import Prettyprinter
@@ -15,16 +16,10 @@ import Sigil.Concrete.Internal
   
 
 {------------------------------ THE TERM CLASSES -------------------------------}
-{- The Term class supports only two methods:                                   -}
+{- The Term represents types which can be normalized/evaluated. As such, it    -}
+{- supports two primary methods:                                               -}
 {- • normalize: convert to canonical (Β-normal, η-long) form                   -}
 {- • equiv: αβη equivalence                                                    -}
-{-                                                                             -}
-{- Both accept an environment. Currently, this is a local environment, but     -}
-{- eventually the environment will also include a 'global' (i.e. surrounding   -}
-{- module) component as well, to look up qualified names (QName)               -}
-{-                                                                             -}
-{- There is also the TermDec class, which must be fulfilled by any Decorations -}
-{- used on the Term Syntax tree.                                               -}
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
@@ -34,7 +29,18 @@ class Term a where
   equiv :: (MonadError err m, MonadGen m, Environment Name e) => (Doc ann -> err) -> e (Maybe a,a) -> a -> a -> a -> m Bool
 
 
-{------------------------------ DENOTATIVE TERMS -------------------------------}
+{------------------------------- IMPLEMENTATION --------------------------------}
+{- Currently, the only type which implements the term typeclass is             -}
+{- InternalCore. The implementation uses a strategy of Normalization by        -}
+{- Evaluation, based on an algorithm described in the paper 'Normalization by  -}
+{- Evaluation, Dependent Types and Impredicativity' by Andreas Abel.           -}
+{-                                                                             -}
+{-                                                                             -}
+{-                                                                             -}
+{-                                                                             -}
+{-                                                                             -}
+{- DENOTATIVE TERMS (Sem m e)                                                  -}
+{----------------------------                                                  -}
 {- These are types for a denotative interpretation of expressions in core:     -}
 {- Most look similar to their 'normal' semantic representation, with the       -}
 {- important exception of functions, which are represented as closures,        -}
@@ -46,17 +52,14 @@ class Term a where
 {- accompanied by their type. Neutral terms are those whose evaluation is      -}
 {- blocked because of an uninstantiated variable, e.g. f 2, where f is an      -}
 {- uninstantiated variable.                                                    -}
+{-                                                                             -}
 {-------------------------------------------------------------------------------}
 
-
- 
 
 data Sem m e
   = SUni Integer
   | SPrd Name (Sem m e) (Sem m e)
-  | ISPrd Name (Sem m e) (Sem m e)
   | SAbs Name (Sem m e -> m (Sem m e))
-  | ISAbs Name (Sem m e -> m (Sem m e))
   | SEql [(Name, (Sem m e, Sem m e, Sem m e), Sem m e)] (Sem m e) (Sem m e) (Sem m e)
   | SDap (Sem m e)
   | Neutral (Sem m e) (Neutral m e)
@@ -100,6 +103,7 @@ instance Term InternalCore where
     where 
       ?lift_err = lift_error
 
+
 read_nf :: forall e err ann m. (MonadError err m, MonadGen m, Environment Name e, ?lift_err :: Doc ann -> err) => Normal m e -> m InternalCore
 read_nf (Normal ty val) = case (ty, val) of 
   -- Values
@@ -111,8 +115,9 @@ read_nf (Normal ty val) = case (ty, val) of
     a' <- read_nf $ Normal (SUni lvl) a
     f' <- read_nf =<< (Normal <$> (b `app` neua) <*> (f `app` neua))
     pure $ Abs (bind name a') f'
+
   -- TODO: figure out what to do with SEql telescope?!
-  -- possibly it is guaranteed to be empty, as SDap is a telescope??
+  -- Possibly it is guaranteed to be empty, as SDap is a telescope??
   (SEql [] ty _ _, SDap val) -> do
     Dap [] <$> read_nf (Normal ty val)
 
@@ -141,11 +146,12 @@ read_nf (Normal ty val) = case (ty, val) of
   (_, _) -> throw ("bad read_nf: " <+> pretty val <> " : " <+> pretty ty)
 
 
-read_ne :: (MonadError err m, MonadGen m, Environment Name e, ?lift_err :: Doc ann -> err) =>  Neutral m e -> m InternalCore
+read_ne :: (MonadError err m, MonadGen m, Environment Name e, ?lift_err :: Doc ann -> err) => Neutral m e -> m InternalCore
 read_ne neu = case neu of 
   NeuVar name -> pure $ Var name
   NeuApp l r -> App <$> (read_ne l) <*> (read_nf r)
   NeuDap val -> Dap [] <$> (read_ne val)
+
 
 eval :: forall m err e ann. (MonadError err m, MonadGen m, Environment Name e, ?lift_err :: Doc ann -> err) => InternalCore -> e (Sem m e) -> m (Sem m e)
 eval term env = case term of
@@ -169,7 +175,6 @@ eval term env = case term of
     -- Phase 2: perform all ty eliminations
     -- Phase 3: eliminate unused bindings
 
-    
     -- Extract reflections
     -- TODO: eliminate unused binds
     let eval_tel :: [(AnnBind Name (InternalCore, InternalCore, InternalCore), InternalCore)] -> e (Sem m e)
@@ -186,12 +191,14 @@ eval term env = case term of
               ty' <- eval ty env 
               v1' <- eval v1 env 
               v2' <- eval v2 env 
-    -- TODO: inserting neutral terms into environment may be bad!!
+
+              -- TODO: inserting neutral terms into environment may be bad!!
+              --       (normally we only do this at the read_nf stage!)
               (tel', env') <- eval_tel tel (insert name (Neutral ty' (NeuVar name)) env)
               pure $ ((name, (ty', v1', v2'), id') : tel', env')
 
     (tel_sem, env') <- eval_tel tel env
-    ty_sem <- eval ty env  
+    ty_sem <- eval ty env'
     eql env' tel_sem ty_sem v1 v2
     -- TODO: phase 3!!
     -- pure $ SEql tel' ty' v1' v2'
@@ -208,16 +215,53 @@ eval term env = case term of
     dap env val' 
 
   -- Implicit terms 
-  IPrd bnd b -> do
-    nm <- fromMaybe (throw "Prd must bind a name") (fmap pure $ name bnd)
-    a <- fromMaybe (throw "Prd must bind a type") (fmap pure $ tipe bnd)
-    a' <- eval a env
-    pure $ ISPrd nm a' $ SAbs nm (\val -> eval b (insert nm val env))
-  IAbs bnd body -> do
-    nme <- fromMaybe (throw "IAbs must bind a name") (fmap pure $ name bnd)
-    pure $ ISAbs nme (\val -> eval body (insert nme val env))
+  IPrd _ _ -> throw "don't know how to eval IPrd"
+  IAbs _ _ -> throw "don't know how to eval IAbs"
   TyCon _ _ -> throw "don't know how to eval tycon"
-  --Coreχ _ -> throwError "cannot eval Coreχ terms" 
+
+
+eval_sem :: forall m err e ann. (MonadError err m, MonadGen m, Environment Name e, ?lift_err :: Doc ann -> err) => e (Sem m e) -> (Sem m e) -> m (Sem m e)
+eval_sem env term = case term of
+  SUni n -> pure $ SUni n
+  SPrd n a b -> do
+    a' <- eval_sem env a
+    pure $ SPrd n a' $ SAbs n (eval_sem env <=< app b)
+  SAbs n f -> do
+    pure $ SAbs n (eval_sem env <=< f)
+  SEql tel ty v1 v2 -> do
+    let eval_tel :: [(Name, (Sem m e, Sem m e, Sem m e), Sem m e)] -> e (Sem m e)
+          -> m ([(Name, (Sem m e, Sem m e, Sem m e), Sem m e)], e (Sem m e))
+        eval_tel [] env = pure ([], env)
+        eval_tel ((name, (ty, v1, v2), id) : tel) env = do 
+          id' <- eval_sem env id  
+          case id' of 
+            SDap val -> 
+              eval_tel tel (insert name val env)
+            _ -> do
+              ty' <- eval_sem env ty  
+              v1' <- eval_sem env v1 
+              v2' <- eval_sem env v2  
+
+              -- TODO: inserting neutral terms into environment may be bad!!
+              --       (normally we only do this at the read_nf stage!)
+              (tel', env') <- eval_tel tel (insert name (Neutral ty' (NeuVar name)) env)
+              pure $ ((name, (ty', v1', v2'), id') : tel', env')
+
+    (tel_sem, env') <- eval_tel tel env
+    ty_sem <- eval_sem env ty   
+    seql env' tel_sem ty_sem v1 v2
+  SDap val -> SDap <$> eval_sem env val
+  Neutral _ val -> eval_neusem env val 
+
+
+eval_neusem :: forall m err e ann. (MonadError err m, MonadGen m, Environment Name e, ?lift_err :: Doc ann -> err) => e (Sem m e) -> (Neutral m e) -> m (Sem m e)
+eval_neusem env neu = case neu of 
+  NeuVar n -> lookup_err ?lift_err n env
+  NeuApp l (Normal _ r) -> do
+    l' <- eval_neusem env l
+    r' <- eval_sem env r
+    l' `app` r'
+  NeuDap v -> dap env =<< eval_neusem env v
 
 app :: (MonadError err m, Environment Name e, MonadGen m, ?lift_err :: Doc ann -> err) => (Sem m e) -> (Sem m e) -> m (Sem m e)
 app (SAbs _ fnc) val = fnc val
@@ -229,9 +273,9 @@ dap :: (MonadError err m, Environment Name e, MonadGen m, ?lift_err :: Doc ann -
 dap env term = case term of
   Neutral ty neu -> pure $ Neutral (SEql [] ty (Neutral ty neu) (Neutral ty neu)) (NeuDap neu)
   SAbs _ fnc -> do
-    u <- fresh_var "u"
-    v <- fresh_var "v"
-    id <- fresh_var "id"
+    u <- fresh_varn "u"
+    v <- fresh_varn "v"
+    id <- fresh_varn "id"
     pure (SAbs u
           (\uval ->
              pure $ SAbs v
@@ -248,20 +292,49 @@ eql :: (MonadError err m, Environment Name e, MonadGen m, ?lift_err :: Doc ann -
 eql env tel tipe v1 v2 = case tipe of
   Neutral _ _ -> SEql tel tipe <$> eval v1 env <*> eval v2 env -- TODO: is this neutral??
   SPrd name a fnc -> do
-    u <- fresh_var "u"
-    v <- fresh_var "v"
-    id <- fresh_var "id"
-    pure (SPrd u a $ SAbs u
+    u <- fresh_varn "u"
+    v <- fresh_varn "v"
+    id <- fresh_varn "id"
+    -- TODO: subst left of tel in u
+    aleft <- eval_sem (foldl (\env (nm, (_, l, _), _) -> insert nm l env) env tel) a
+    aright <- eval_sem (foldl (\env (nm, (_, _, r), _) -> insert nm r env) env tel) a
+    pure (SPrd u aleft $ SAbs u
            (\uval ->
-             pure $ SPrd v a $ SAbs v 
+             pure $ SPrd v aright $ SAbs v 
              (\vval ->
                pure $ SPrd id (SEql tel a uval vval) $ SAbs id
                (\idval -> do
-                   b <- fnc `app` idval -- TODO: I think this is wrong?~
-                   eql (insert u uval . insert v vval . insert id idval $ env)
+                   b <- fnc `app` (Neutral a (NeuVar name)) -- TODO: I think this is wrong?
+                   eql (insert u uval . insert v vval . insert id idval . insert name (Neutral a (NeuVar name)) $ env)
                     (tel <> [(name, (a, uval, vval), idval)])
                     b (App v1 (Var u)) (App v2 (Var v))))))
   SUni n -> SEql tel (SUni n) <$> eval v1 env <*> eval v2 env
+  _ -> throw ("Don't know how to eql:" <+> pretty tipe)
+
+seql :: (MonadError err m, Environment Name e, MonadGen m, ?lift_err :: Doc ann -> err) => e (Sem m e) -> [(Name, (Sem m e, Sem m e, Sem m e), Sem m e)] -> (Sem m e)
+  -> Sem m e -> Sem m e -> m (Sem m e)
+seql env tel tipe v1 v2 = case tipe of
+  Neutral _ _ -> SEql tel tipe <$> eval_sem env v1 <*> eval_sem env v2 -- TODO: is this neutral??
+  SPrd name a fnc -> do
+    u <- fresh_varn "u"
+    v <- fresh_varn "v"
+    id <- fresh_varn "id"
+    -- TODO: subst left of tel in u
+    aleft <- eval_sem (foldl (\env (nm, (_, l, _), _) -> insert nm l env) env tel) a
+    aright <- eval_sem (foldl (\env (nm, (_, _, r), _) -> insert nm r env) env tel) a
+    pure (SPrd u aleft $ SAbs u
+           (\uval ->
+             pure $ SPrd v aright $ SAbs v 
+             (\vval ->
+               pure $ SPrd id (SEql tel a uval vval) $ SAbs id
+               (\idval -> do
+                   b <- fnc `app` (Neutral a (NeuVar name)) -- TODO: I think this is wrong?
+                   v1' <- v1 `app` uval
+                   v2' <- v2 `app` vval 
+                   seql (insert u uval . insert v vval . insert id idval . insert name (Neutral a (NeuVar name)) $ env)
+                    (tel <> [(name, (a, uval, vval), idval)])
+                    b v1' v2'))))
+  SUni n -> SEql tel (SUni n) <$> eval_sem env v1 <*> eval_sem env v2
   _ -> throw ("Don't know how to eql:" <+> pretty tipe)
 
 env_eval :: (MonadError err m, MonadGen m, Environment Name e, ?lift_err :: Doc ann -> err) => e (Maybe InternalCore, InternalCore) -> m (e (Sem m e))
@@ -281,15 +354,12 @@ env_eval = eval_helper eval_var
 -- TODO: fix this function - it is wrong!
 uni_level :: Sem m e -> Integer
 uni_level sem = case sem of 
-  SUni n -> n + 1
+  SUni n -> n
   SPrd _ l r -> max (uni_level l) (uni_level r)
-  SAbs _ _ -> 0 -- note: predicative vs impredicative!!
+  SAbs _ _ -> 0
   SEql _ ty _ _ -> uni_level ty
   SDap val -> uni_level val
-
-  ISPrd _ l r -> max (uni_level l) (uni_level r)
-  ISAbs _ _ -> 0 -- note: predicative vs impredicative!!
-  Neutral _ _ -> 0 -- TODO: this is probably wrong!!!
+  Neutral ty _ -> max 0 (uni_level ty - 1)
 
 throw :: (MonadError err m, ?lift_err :: Doc ann -> err) => Doc ann -> m a
 throw doc = throwError $ ?lift_err doc
@@ -331,9 +401,6 @@ instance Pretty (Sem m e) where
         pretty_tel [] = ""
     SDap val -> "ρ." <+> pretty val
     Neutral _ n -> pretty n
-  
-    ISPrd n a b -> "{" <> pretty n <+> ":" <+> pretty a <> "}" <+> "→" <+> pretty b
-    ISAbs n _ -> "λ {" <> pretty n <> "}" <+> "..."
 
 instance Pretty (Neutral m e) where
   pretty neu = case neu of

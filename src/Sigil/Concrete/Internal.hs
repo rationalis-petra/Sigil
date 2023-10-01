@@ -178,6 +178,7 @@ instance Pretty InternalCore where
 
       unwind (App l r) = unwind l <> [r]
       unwind t = [t]
+  
 
 instance Pretty (ImplCore AnnBind Name Internal) where
   pretty ic = case ic of 

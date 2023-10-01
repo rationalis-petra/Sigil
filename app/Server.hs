@@ -134,7 +134,7 @@ processMessage (Interpreter {..}) state socket = \case
       parsed <- parseToErr (core default_precs <* eof) "server-in" line 
       resolved <- resolve_closed parsed
         `catchError` (throwError . (<+>) "Resolution:")
-      (term, ty) <- infer interp_eval spretty env resolved
+      (term, ty) <- infer (CheckInterp interp_eval interp_eq spretty) env resolved
         `catchError` (throwError . (<+>) "Inference:")
       norm <- interp_eval id env ty term
         `catchError` (throwError . (<+>) "Normalization:")
@@ -145,7 +145,14 @@ processMessage (Interpreter {..}) state socket = \case
       ty' <- reify ty
       val' <- reify val
       result <- eval f env ty' val'
-      reflect result 
+      reflect result
+
+    interp_eq :: (SigilDoc -> SigilDoc) -> e (Maybe InternalCore, InternalCore) -> InternalCore -> InternalCore -> InternalCore -> m Bool
+    interp_eq f env ty l r = do
+      ty' <- reify ty
+      l' <- reify l
+      r' <- reify r
+      norm_eq f env ty' l' r'
 
 packetProducer :: MonadIO m => Socket -> Producer Bs.ByteString m ()
 packetProducer socket = do
