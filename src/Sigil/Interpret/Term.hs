@@ -35,10 +35,6 @@ class Term a where
 {- Evaluation, based on an algorithm described in the paper 'Normalization by  -}
 {- Evaluation, Dependent Types and Impredicativity' by Andreas Abel.           -}
 {-                                                                             -}
-{-                                                                             -}
-{-                                                                             -}
-{-                                                                             -}
-{-                                                                             -}
 {- DENOTATIVE TERMS (Sem m e)                                                  -}
 {----------------------------                                                  -}
 {- These are types for a denotative interpretation of expressions in core:     -}

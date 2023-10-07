@@ -18,9 +18,6 @@ import Control.Monad.Except (MonadError, throwError)
 import Control.Lens
 import Data.Foldable
 import qualified Data.Set as Set
--- import qualified Data.Map as Map
--- import Data.Map (Map)  
--- import qualified Data.Text as Text
 
 import Prettyprinter
 import Prettyprinter.Render.Sigil
@@ -104,13 +101,41 @@ instance Checkable Name InternalCore InternalCore where
           (val', val_ty) <- infer' env val
           pure (Dap [] val', Eql [] val_ty val' val')
 
-        Eql [] ty v1 v2 -> do  
-          (ty', tykind) <- infer' env ty
-          ty_norm <- normalize' env tykind ty' 
-          v1' <- check' env v1 ty_norm
-          v2' <- check' env v2 ty_norm
-          pure (Eql [] ty' v1' v2', tykind)
-        _ -> throwError' $ "infer not implemented for term:" <+> pretty term
+        Eql tel ty v1 v2 -> do
+          let infer_tel [] tel_in env_l env_r env_m = pure (tel_in, env_l, env_r, env_m) 
+              infer_tel ((AnnBind (n, (ty, v1, v2)), prf) : tel) tel_in env_l env_r env_m = do
+                (ty_l, kind_l) <- infer' env_l ty
+                (ty_r, kind_r) <- infer' env_r ty
+                (ty_m, kind_m) <- infer' env_m ty
+
+                v1' <- check' env_l v1 ty_l
+                v2' <- check' env_r v2 ty_r
+
+                prf' <- check' env prf (Eql tel_in ty_m v1' v2')
+
+                ty_norm_l <- normalize' env_l kind_l ty_l
+                ty_norm_r <- normalize' env_r kind_r ty_r 
+                ty_norm_m <- normalize' env_m kind_m ty_m 
+
+                v1_norm <- normalize' env_l ty_norm_l v1' 
+                v2_norm <- normalize' env_r ty_norm_r v2'
+                infer_tel tel
+                  (tel_in <> [(AnnBind (n, (ty_m, v1', v2')), prf')])
+                  (insert n (Just v1_norm, ty_norm_l) env_l)
+                  (insert n (Just v2_norm, ty_norm_r) env_r)
+                  (insert n (Nothing, ty_norm_m) env_m)
+          
+          (tel', env_l, env_r, env_m) <- infer_tel tel [] env env env
+
+          (ty_l, kind_l) <- infer' env_l ty
+          (ty_r, kind_r) <- infer' env_r ty
+          (ty_m, kind_m) <- infer' env_m ty
+          ty_norm_l <- normalize' env_l kind_l ty_l
+          ty_norm_r <- normalize' env_r kind_r ty_r
+          v1' <- check' env_l v1 ty_norm_l
+          v2' <- check' env_r v2 ty_norm_r
+          pure (Eql tel' ty_m v1' v2', kind_m)
+        _ -> throwError' $ "infer not implemented for internal term:" <+> pretty term
   
   
   -- Note: types are expected to be in normal form
@@ -128,7 +153,7 @@ instance Checkable Name InternalCore InternalCore where
         -- TODO: generalize to more bindings; notably untyped bindings!!
         (Abs (AnnBind (n, a)) body, Prd (AnnBind (n',a')) ret_ty) -> do
           (_, kind) <- infer interp env a
-          check_eq interp env kind a a'
+          check_eq (range term) interp env kind a a'
           let ret_ty' = if (n == n') then ret_ty else subst (n' ↦ Var n) ret_ty
           body' <- check'(insert n (Nothing, a) env) body ret_ty'
           pure $ Abs (AnnBind (n, a')) body'
@@ -142,7 +167,7 @@ instance Checkable Name InternalCore InternalCore where
         _ -> do
           (term', ty') <- infer' env term
           (_, kind) <- infer' env ty
-          _ <- check_eq interp env kind ty ty'
+          _ <- check_eq (range term) interp env kind ty ty'
           pure term'
 
 
@@ -193,13 +218,43 @@ instance Checkable Name ResolvedCore InternalCore where
           (val', val_ty) <- infer' env val
           pure (Dap [] val', Eql [] val_ty val' val')
 
-        Eqlχ _ [] ty v1 v2 -> do  
-          (ty', tykind) <- infer' env ty
-          ty_norm <- normalize' env tykind ty' 
-          v1' <- check' env v1 ty_norm
-          v2' <- check' env v2 ty_norm
-          pure (Eql [] ty' v1' v2', tykind)
-        _ -> throwError' $ "infer not implemented for term:" <+> pretty term
+        Eqlχ _ tel ty v1 v2 -> do
+          let infer_tel [] tel_in env_l env_r env_m = pure (tel_in, env_l, env_r, env_m) 
+              infer_tel ((OptBind (Just n, Just (ty, v1, v2)), prf) : tel) tel_in env_l env_r env_m = do
+                (ty_l, kind_l) <- infer' env_l ty
+                (ty_r, kind_r) <- infer' env_r ty
+                (ty_m, kind_m) <- infer' env_m ty
+
+                v1' <- check' env_l v1 ty_l
+                v2' <- check' env_r v2 ty_r
+
+                prf' <- check' env prf (Eql tel_in ty_m v1' v2')
+
+                ty_norm_l <- normalize' env_l kind_l ty_l 
+                ty_norm_r <- normalize' env_r kind_r ty_r
+                ty_norm_m <- normalize' env_m kind_m ty_m
+
+                v1_norm <- normalize' env_l ty_norm_l v1'
+                v2_norm <- normalize' env_r ty_norm_r v2'
+
+                infer_tel tel
+                  (tel_in <> [(AnnBind (n, (ty_m, v1', v2')), prf')])
+                  (insert n (Just v1_norm, ty_norm_l) env_l)
+                  (insert n (Just v2_norm, ty_norm_r) env_r)
+                  (insert n (Nothing, ty_norm_m) env_m)
+              infer_tel _ _ _ _ _ = throwError' "error in tel optbind"
+          
+          (tel', env_l, env_r, env_m) <- infer_tel tel [] env env env
+
+          (ty_l, kind_l) <- infer' env_l ty
+          (ty_r, kind_r) <- infer' env_r ty
+          (ty_m, kind_m) <- infer' env_m ty
+          ty_norm_l <- normalize' env_l kind_l ty_l
+          ty_norm_r <- normalize' env_r kind_r ty_r
+          v1' <- check' env_l v1 ty_norm_l
+          v2' <- check' env_r v2 ty_norm_r
+          pure (Eql tel' ty_m v1' v2', kind_m)
+        _ -> throwError . lift_err . flip PrettyErr (range term) $ "infer not implemented for resolved term:" <+> pretty term
   
   
   -- Note: types are expected to be in normal form
@@ -218,7 +273,7 @@ instance Checkable Name ResolvedCore InternalCore where
         (Absχ _ (OptBind (Just n, Just a)) body, Prd (AnnBind (n',a')) ret_ty) -> do
           (a_typd, a_kind) <- infer' env a
           a_normal <- normalize' env a_kind a_typd
-          check_eq interp env a_kind a_typd a'
+          check_eq (range term) interp env a_kind a_typd a'
           let ret_ty' = if (n == n') then ret_ty else subst (n' ↦ Var n) ret_ty
           body' <- check' (insert n (Nothing, a_normal) env) body ret_ty'
           pure $ Abs (AnnBind (n, a_typd)) body'
@@ -238,7 +293,7 @@ instance Checkable Name ResolvedCore InternalCore where
         _ -> do
           (term', ty') <- infer' env term
           (_, kind) <- infer interp env ty
-          _ <- check_eq interp env kind ty ty'
+          _ <- check_eq (range term) interp env kind ty ty'
           pure term'
 
 check_entry :: (Environment Name e, MonadError err m, MonadGen m)
@@ -314,11 +369,11 @@ check_module interp@(CheckInterp {..}) env mod = do
 
 -- TODO: replace with check_sub!!
 --check_eq _ _ = undefined
-check_eq :: (MonadError err m, Pretty a) => (CheckInterp m err e a) -> e (Maybe a, a) -> a -> a -> a -> m ()
-check_eq (CheckInterp {..}) env ty l r = 
-  αβη_eq (lift_err . flip NormErr (Range Nothing)) env ty l r >>= \case
+check_eq :: (MonadError err m, Pretty a) => Range -> (CheckInterp m err e a) -> e (Maybe a, a) -> a -> a -> a -> m ()
+check_eq range (CheckInterp {..}) env ty l r = 
+  αβη_eq (lift_err . flip NormErr range) env ty l r >>= \case
     True -> pure ()
-    False -> throwError $ lift_err $ PrettyErr ("not-equal':" <+> pretty l <+> "and" <+> pretty r) (Range Nothing)
+    False -> throwError $ lift_err $ PrettyErr ("not-equal:" <+> pretty l <+> "and" <+> pretty r) range
 
 
 -- TODO: bad for internal core?

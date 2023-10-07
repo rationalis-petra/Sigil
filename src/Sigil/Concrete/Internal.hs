@@ -118,8 +118,8 @@ instance Pretty InternalCore where
 
     App l r -> sep $ fmap bracket $ unwind (App l r)
 
-    Eql tel ty a b -> ("ι" <+> pretty_tel tel <+> bracket ty <+> bracket a <+> bracket b)
-    Dap tel val -> ("ρ" <+> pretty_tel tel <+> pretty val)
+    Eql tel ty a b -> ("ι" <+> pretty_tel tel <+> "." <+> bracket ty <+> bracket a <+> bracket b)
+    Dap tel val -> ("ρ" <+> pretty_tel tel <+> "." <+> pretty val)
 
     TyCon _ _ -> "tycon"
   
@@ -162,10 +162,10 @@ instance Pretty InternalCore where
           else bracket ty
         AnnBind (n, ty) -> "(" <> pretty n <+> "⮜" <+> pretty ty <> ")"
 
-      pretty_tel [] = "."
-      pretty_tel [(bind, val)] = pretty_eq_bind bind <+> "." <+> pretty val
+      pretty_tel [] = ""
+      pretty_tel [(bind, val)] = pretty_eq_bind bind <+> pretty val
       pretty_tel ((bind, val) : tel) =
-        pretty_eq_bind bind <+> "." <+> pretty val <+> "," <+> pretty_tel tel
+        pretty_eq_bind bind <+> pretty val <+> "," <+> pretty_tel tel
 
       pretty_eq_bind (AnnBind (nm, (ty, v1, v2))) = 
         pretty nm <+> "⮜" <+> pretty ty <+> ("(" <> pretty v1 <+> "=" <+> pretty v2 <> ")")
