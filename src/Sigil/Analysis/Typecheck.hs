@@ -277,8 +277,9 @@ instance Checkable Name ResolvedCore InternalCore where
           let ret_ty' = if (n == n') then ret_ty else subst (n' ↦ Var n) ret_ty
           body' <- check' (insert n (Nothing, a_normal) env) body ret_ty'
           pure $ Abs (AnnBind (n, a_typd)) body'
-        (Absχ _ (OptBind (Just n, Nothing)) body, Prd (AnnBind (_,a')) ret_ty) -> do
-          body' <- check' (insert n (Nothing, a') env) body ret_ty
+        (Absχ _ (OptBind (Just n, Nothing)) body, Prd (AnnBind (n',a')) ret_ty) -> do
+          let ret_ty' = if (n == n') then ret_ty else subst (n' ↦ Var n) ret_ty
+          body' <- check' (insert n (Nothing, a') env) body ret_ty'
           pure $ Abs (AnnBind (n, a')) body'
         (Absχ {}, _) -> throwError' $ "expected λ-term to have Π-type, got" <+> pretty ty
       

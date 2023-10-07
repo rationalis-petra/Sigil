@@ -10,7 +10,6 @@ module Sigil.Abstract.AlphaEq
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
-
 import Control.Lens
 import qualified Data.Map as Map
 import Data.Map (Map)

@@ -42,7 +42,7 @@ alphaeq_tests =
     (ι [(OptBind (Just (idn 0 "y"), Just (𝓊 1, 𝓊 0, 𝓊 0)), (𝓊 0))] (𝓊 0) (idv 0 "y") (idv 0 "y")) True
   , eq_test "eql-dap-eq"
     (ι [(OptBind (Just (idn 0 "x"), Just (𝓊 1, 𝓊 0, 𝓊 0)), ρ (𝓊 0))] (𝓊 0) (idv 0 "x") (idv 0 "x"))
-    (ι [(OptBind (Just (idn 0 "y"), Just (𝓊 1, 𝓊 0, 𝓊 0)), ρ (𝓊 0))] (𝓊 0) (idv 0 "y") (idv 0 "y")) True
+    (ι [(OptBind (Just (idn 1 "y"), Just (𝓊 1, 𝓊 0, 𝓊 0)), ρ (𝓊 0))] (𝓊 0) (idv 1 "y") (idv 1 "y")) True
 
   , eq_test "def-eq" (idn 0 "x" ≜ 𝓊 0) (idn 0 "x" ≜ 𝓊 0) True
   , eq_test "def-neq" (idn 0 "x" ≜ 𝓊 0) (idn 0 "x" ≜ 𝓊 1) False

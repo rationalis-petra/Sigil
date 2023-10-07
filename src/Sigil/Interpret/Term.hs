@@ -95,7 +95,8 @@ instance Term InternalCore where
       in read_nf =<< (Normal <$> ty' <*> term')
 
 
-  equiv lift_error env ty x y = (αeq) <$> normalize lift_error env ty x <*> normalize lift_error env ty y
+  equiv lift_error env ty x y = do
+    αeq <$> normalize lift_error env ty x <*> normalize lift_error env ty y
     where 
       ?lift_err = lift_error
 
@@ -298,12 +299,12 @@ eql env tel tipe v1 v2 = case tipe of
            (\uval ->
              pure $ SPrd v aright $ SAbs v 
              (\vval ->
-               pure $ SPrd id (SEql tel a uval vval) $ SAbs id
+               SPrd id <$> seql (insert u uval . insert v vval $ env) tel a uval vval <*> (pure $ SAbs id
                (\idval -> do
                    b <- fnc `app` (Neutral a (NeuVar name)) -- TODO: I think this is wrong?
                    eql (insert u uval . insert v vval . insert id idval . insert name (Neutral a (NeuVar name)) $ env)
                     (tel <> [(name, (a, uval, vval), idval)])
-                    b (App v1 (Var u)) (App v2 (Var v))))))
+                    b (App v1 (Var u)) (App v2 (Var v)))))))
   SUni n -> SEql tel (SUni n) <$> eval v1 env <*> eval v2 env
   _ -> throw ("Don't know how to eql:" <+> pretty tipe)
 
@@ -322,14 +323,14 @@ seql env tel tipe v1 v2 = case tipe of
            (\uval ->
              pure $ SPrd v aright $ SAbs v 
              (\vval ->
-               pure $ SPrd id (SEql tel a uval vval) $ SAbs id
+               SPrd id <$> (seql (insert u uval . insert v vval $ env) tel a uval vval) <*> (pure $ SAbs id
                (\idval -> do
                    b <- fnc `app` (Neutral a (NeuVar name)) -- TODO: I think this is wrong?
                    v1' <- v1 `app` uval
                    v2' <- v2 `app` vval 
                    seql (insert u uval . insert v vval . insert id idval . insert name (Neutral a (NeuVar name)) $ env)
                     (tel <> [(name, (a, uval, vval), idval)])
-                    b v1' v2'))))
+                    b v1' v2')))))
   SUni n -> SEql tel (SUni n) <$> eval_sem env v1 <*> eval_sem env v2
   _ -> throw ("Don't know how to eql:" <+> pretty tipe)
 
