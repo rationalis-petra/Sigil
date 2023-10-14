@@ -22,7 +22,7 @@ import Sigil.Concrete.Parsed
 
 expr_ops :: Map Text PrecedenceNode
 expr_ops = Map.fromList
-  [("ctrl",  PrecedenceNode node_ctrl  (Set.fromList ["ppd"]))
+  [ ("ctrl",  PrecedenceNode node_ctrl  (Set.fromList ["ppd"]))
 
   , ("eq",    PrecedenceNode node_eq    (Set.fromList ["sum"]))
   , ("sum",   PrecedenceNode node_sum   (Set.fromList ["prod"]))
@@ -66,10 +66,10 @@ expr_ops = Map.fromList
 precs :: Precedences
 precs = Precedences
   { _prec_nodes=expr_ops
-  , _default_infix="sum"
-  , _default_prefix="ppd"
-  , _default_postfix="ppd"
-  , _default_closed="close"
+  , _default_infix   = "sum"
+  , _default_prefix  = "ppd"
+  , _default_postfix = "ppd"
+  , _default_closed  = "close"
   }
 
 parse_spec :: TestGroup
@@ -118,7 +118,9 @@ parse_mixfix precs = TestGroup "mixfix" $ Right
         ⋅ var "false")
 
     -- Combining Operations (precedence tests)
-    --, mixfix_test "paren-binop" "(true + false)" (var "(_)" ⋅ (var "_+_" ⋅ var "true"  ⋅ var "false" ))
+    -- , mixfix_test "paren-binop" "( true + false )" (var "_+_" ⋅ var "true"  ⋅ var "false" )
+    -- , mixfix_test "paren-binop" "( true false )" (var "true"  ⋅ var "false" )
+    -- , mixfix_test "paren-binop" "true +  ( true + false )" (var "_+_" ⋅ var "true" ⋅ (var "_+_" ⋅ var "true"  ⋅ var "false" ))
 
     , mixfix_test "binop-precedence" "true + false ⋅ false" (var "_+_" ⋅ var "true"  ⋅ (var "_⋅_" ⋅ var "false" ⋅ var "false"))
     ]
@@ -126,7 +128,8 @@ parse_mixfix precs = TestGroup "mixfix" $ Right
   where
     mixfix_test :: Text -> Text -> ParsedCore -> Test
     mixfix_test name text out =  
-      case runParser (mixfix (fail "no core") (fail "no atom") precs) name text of  
+      let core' p = mixfix (fail "no atom") (core' p) p
+      in case runParser (mixfix (fail "no atom") (core' precs) precs) name text of  
         Right val ->
           if αeq val out then
             Test name Nothing
@@ -173,9 +176,12 @@ parse_expr graph =
     , expr_test "infix-closed_lamb"
       "λ _x_ th fo → th x fo"
       (abs ["_x_", "th", "fo"] (var "_x_" ⋅ var "th" ⋅ var "fo"))
-    , expr_test "prefix-lamb"
+    , expr_test "prefix-lamb-1"
       "λ x_ → x true"
       (abs ["x_"] (var "x_" ⋅ var "true"))
+    , expr_test "prefix-lamb-2"
+      "λ x → x true"
+      (abs ["x"] (var "x" ⋅ var "true"))
     , expr_test "postfix-lamb"
       "λ _x → true x"
       (abs ["_x"] (var "_x" ⋅ var "true"))
@@ -199,6 +205,27 @@ parse_expr graph =
     -- , expr_test "lam-lam-app"
     --   "(λ [x_] x true) (λ [x_] x true)"
     --   ((abs ["x_"] (var "x_" ⋅ var "true")) ⋅ (abs ["x_"] (var "x_" ⋅ var "true")))
+    -- , expr_test "lam-parens-app"
+    --   "(λ [x_] x true) 𝕌"
+    --   ((abs ["x_"] (var "x_" ⋅ var "true")) ⋅ 𝓊 0)
+    -- With Mixfix
+    , expr_test "lam-binop"
+      "λ (A ⮜ 𝕌) → A + A"
+      (lam [("A", 𝓊 0)] (var "_+_" ⋅ var "A" ⋅ var "A"))
+    -- , expr_test "lam-parens"
+    --   "λ (A ⮜ 𝕌) → (A + A)"
+    --   (lam [("A", 𝓊 0)] (var "_+_" ⋅ var "A" ⋅ var "A"))
+    -- , expr_test "lam-parens-2"
+    --   "λ (A ⮜ 𝕌) → A (A A)"
+    --   (lam [("A", 𝓊 0)] (var "A" ⋅ (var "A" ⋅ var "A")))
+    -- , expr_test "lam-parens-2"
+    --   "λ (A ⮜ 𝕌) → A (A A) A"
+    --   (lam [("A", 𝓊 0)] (var "A" ⋅ (var "A" ⋅ var "A") ⋅ var "A"))
+
+    -- , expr_test "lam-parens-3"
+    --   "λ m n → m n ( m n ) m"
+    --   (abs ["m", "n"] (var "m" ⋅ var "n" ⋅ (var "m" ⋅ var "n") ⋅ var "m"))
+
 
     -- Lambda: Annotations, multiple arguments etc.
     , expr_test "lam-ann"

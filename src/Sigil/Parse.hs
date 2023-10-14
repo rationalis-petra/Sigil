@@ -49,14 +49,13 @@ import Sigil.Parse.Lexer
 {-------------------------------------------------------------------------------}      
 
 
--- precs_from_module :: OptBind Text ParsedCore -> Precedences
--- precs_from_module b =
 update_precs_def :: Precedences -> ParsedEntry -> Precedences
 update_precs_def precs def =
   case def of 
     Singleχ _ bind _ -> update_precs (maybeToList . name $ bind) precs
     Mutualχ _ mutuals -> update_precs (map (\(n,_,_) -> n) mutuals) precs
   
+
 with_range :: ParserT m (Range -> a) -> ParserT m a
 with_range p = do 
   start <- getSourcePos
@@ -65,7 +64,6 @@ with_range p = do
   pure $ f (Range (Just (start, end)))
 
 
--- Parase a module 
 mod :: Monad m => ([Text] -> [ImportDef] -> m Precedences) -> ParserT m ParsedModule
 mod get_precs = do
   (title, ports) <- module_header
@@ -112,6 +110,7 @@ mod get_precs = do
       
         exportStatement :: ParserT m ExportDef
         exportStatement = fail "export statement not implemented"
+
 
 {--------------------------------- DEF PARSER ----------------------------------}
 {- The def parser parses definitions, which have one of the following forms:   -}
@@ -177,12 +176,17 @@ entry precs = mutual
 {- • Identity Id (x ⮜ A = e) (y ⮜ B = e'). A e e                               -}
 {- • Id-App   Ap (x ⮜ A = e) (y ⮜ B = e'). e                                   -}
 {-                                                                             -}
-{-                                                                             -}
 {-------------------------------------------------------------------------------}
 
 
 core :: forall m. Monad m => Precedences -> ParserT m ParsedCore
-core precs = choice' [plam, pprod, pid, pap, pexpr]
+core precs = do
+  next <- lookAhead (satisfy (const True))
+  case next of
+    'λ' -> plam
+    'ι' -> pid
+    'ρ' -> pap
+    _ -> pprod <||> pexpr
   where
     plam :: ParserT m ParsedCore
     plam = 
@@ -279,7 +283,6 @@ core precs = choice' [plam, pprod, pid, pap, pexpr]
     pexpr = mixfix patom (core precs) precs
       where 
         patom = choice' [puniv]
-      --   no_mixfix = choice' [plam, pprod]
 
     puniv :: ParserT m ParsedCore
     puniv = with_range $
@@ -289,6 +292,7 @@ core precs = choice' [plam, pprod, pid, pap, pexpr]
 
 {------------------------------ RUNNING A PARSER -------------------------------}
 
+
 parse :: MonadError SigilDoc m => ParserT m a -> Text -> Text -> m a
 parse p file input = do
   result <- Megaparsec.runParserT p (Text.unpack file) input 
@@ -296,15 +300,18 @@ parse p file input = do
     Left err -> throwError $ pretty $ errorBundlePretty err
     Right val -> pure val
 
+
 runParser :: Parser a -> Text -> Text -> Either (Doc ann) a
 runParser p file input = case Megaparsec.runParser p (Text.unpack file) input of
   Left err -> Left $ pretty $ errorBundlePretty err
   Right val -> Right val
 
+
 parseToErr :: (MonadError (Doc ann) m) => Parser a -> Text -> Text -> m a
 parseToErr p file input = case Megaparsec.runParser p (Text.unpack file) input of
   Left err -> throwError $ pretty $ errorBundlePretty err
   Right val -> pure val
+
 
 instance ShowErrorComponent Text where 
   showErrorComponent = Text.unpack

@@ -139,7 +139,6 @@ type PrecedenceGraph i = G GraphNode i
 {-         danielsson-norell-mixfix.pdf                                        -}
 {-                                                                             -}
 {-                                                                             -}
-{-                                                                             -}
 {-------------------------------------------------------------------------------}      
 
 
@@ -147,7 +146,7 @@ mixfix :: Monad m => ParserT m ParsedCore -> ParserT m ParsedCore -> Precedences
 mixfix atom core = run_precs (mixfix' atom core)
 
 mixfix' :: forall i m. Monad m => ParserT m ParsedCore -> ParserT m ParsedCore -> PrecedenceGraph i -> ParserT m ParsedCore
-mixfix' atom core (G {..}) = expr
+mixfix' patom pcore (G {..}) = expr
   where
     expr :: ParserT m ParsedCore
     expr = foldl (\l r-> App (range l <> range r) l r) <$> precs gVertices <*> many (precs gVertices)
@@ -174,7 +173,7 @@ mixfix' atom core (G {..}) = expr
 
             inj Closed =
               if view _1 (gFromVertex node) == IsClosed then
-                flip Tel [] <$> (atom <||> between (symbol "(") (symbol ")") core)
+                flip Tel [] <$> (patom <||> between (symbol "(") (symbol ")") pcore)
               else
                 fail "not default"
             inj _ = fail "not default"

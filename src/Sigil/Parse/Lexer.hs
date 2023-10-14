@@ -54,7 +54,7 @@ lexeme :: ParserT m a -> ParserT m a
 lexeme = L.lexeme sc
 
 symbol :: Text -> ParserT m Text
-symbol = L.symbol sc
+symbol txt = (string txt) <* space1 <* sc
 
 symboln :: Text -> ParserT m Text
 symboln = L.symbol scn
