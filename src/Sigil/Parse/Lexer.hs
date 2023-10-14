@@ -5,6 +5,8 @@ module Sigil.Parse.Lexer
   , symboln
   , lexeme
   , lexemen
+  , lparen
+  , rparen
   , anyvar
   , subscript_int
   ) where
@@ -40,13 +42,6 @@ scn = L.space
   (L.skipLineComment "⍝")   
   (L.skipBlockComment "⋳" "⋻")
 
--- indent_block1 :: Parser a -> Parser [a]
--- indent_block1 =
---   L.indentBlock sc indented_block
---   where 
---     indented_block = do
-  
-
 lexemen :: ParserT m a -> ParserT m a
 lexemen = L.lexeme scn
 
@@ -54,7 +49,13 @@ lexeme :: ParserT m a -> ParserT m a
 lexeme = L.lexeme sc
 
 symbol :: Text -> ParserT m Text
-symbol txt = (string txt) <* space1 <* sc
+symbol txt = (string txt) <* (space1 <|> lookAhead ((char '(' <|> char ')') *> pure ())) <* sc
+
+lparen :: ParserT m ()  
+lparen = const () <$> char '(' <* sc
+
+rparen :: ParserT m ()  
+rparen = const () <$> char ')' <* sc
 
 symboln :: Text -> ParserT m Text
 symboln = L.symbol scn

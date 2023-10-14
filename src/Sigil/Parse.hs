@@ -32,7 +32,7 @@ import qualified Text.Megaparsec.Char as C
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Megaparsec hiding (runParser, parse)
 import Prettyprinter.Render.Sigil (SigilDoc)
-import Prettyprinter
+import Prettyprinter hiding (lparen, rparen)
 
 import Sigil.Abstract.Syntax
 import Sigil.Abstract.Environment (OptBind(..), name)
@@ -200,7 +200,7 @@ core precs = do
                           (precs, []))
 
           tyarg :: Precedences -> ParserT m (OptBind Text ParsedCore)
-          tyarg precs = between (symbol "(") (symbol ")") $
+          tyarg precs = between lparen rparen $
                     (\n t -> OptBind (Just n, Just t)) <$> anyvar <*> (symbol "⮜" *> (core precs))
 
           arg :: ParserT m (OptBind Text ParsedCore)
@@ -231,7 +231,7 @@ core precs = do
         parg = annarg <||> ty_only
 
         annarg :: ParserT m (OptBind Text ParsedCore)
-        annarg = between (symbol "(") (symbol ")") $
+        annarg = between lparen rparen $
           (\n t -> OptBind (Just n, Just t)) <$> anyvar <*> (symbol "⮜" *> (core precs))
 
         ty_only :: ParserT m (OptBind Text ParsedCore)
@@ -263,10 +263,10 @@ core precs = do
     ptel :: Precedences -> ParserT m ([(OptBind Text (ParsedCore, ParsedCore, ParsedCore), ParsedCore)], Precedences)
     ptel precs =
       (do
-        (entry, precs') <- between (symbol "(") (symbol ")") $ do
+        (entry, precs') <- between lparen rparen $ do
           arg <- (fmap Just anyvar)
           ty <- (core precs)
-          (v1, v2) <- between (symbol "(") (symbol ")") $ do
+          (v1, v2) <- between lparen rparen $ do
             v1 <- core precs
             _ <- symbol "="
             v2 <- core precs

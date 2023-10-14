@@ -55,7 +55,7 @@ import qualified Data.Map as Map
 import Data.Map (Map)
 
 import Text.Megaparsec
-import Prettyprinter
+import Prettyprinter hiding (lparen, rparen)
 import Topograph
 
 import Sigil.Concrete.Decorations.Range
@@ -173,7 +173,7 @@ mixfix' patom pcore (G {..}) = expr
 
             inj Closed =
               if view _1 (gFromVertex node) == IsClosed then
-                flip Tel [] <$> (patom <||> between (symbol "(") (symbol ")") pcore)
+                flip Tel [] <$> (patom <||> between lparen rparen pcore)
               else
                 fail "not default"
             inj _ = fail "not default"
