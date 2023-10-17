@@ -18,7 +18,7 @@ module Sigil.Parse.Lexer
 {-------------------------------------------------------------------------------}
 
 
-import Data.Text (Text, pack)
+import Data.Text (Text)
 import Data.Functor (($>))
 import Control.Monad (void)
 
@@ -80,7 +80,7 @@ subscript_int = lexeme $ to_int 1 . reverse <$> many1 sub_numchar
       ]
 
 anyvar :: ParserT m Text  
-anyvar = lexeme $ pack <$> many1 (satisfy symchar)
+anyvar = lexeme $ takeWhile1P (Just "varchar") symchar
   where 
     symchar :: Char -> Bool
     symchar '('  = False
