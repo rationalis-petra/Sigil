@@ -142,6 +142,26 @@ instance ( Ord n
        where
          (tel', shadow') = subst_tel shadow sub tel
 
+    Indχ χ bind terms ->
+      Indχ χ (substitute shadow sub bind) (map subst_term terms)
+      where 
+        subst_term (text, bind) = (text, substitute shadow' sub bind)
+        shadow' = maybe shadow (\n -> Set.insert n shadow) (name bind)
+    Ctrχ χ ty label ->
+      Ctrχ χ (substitute shadow sub ty) label
+
+    Recχ χ recur val cases ->
+      Recχ χ
+        (substitute shadow sub recur)
+        (substitute shadow' sub val)
+        (map subst_case cases)
+      where 
+        shadow' = maybe shadow (\n -> Set.insert n shadow) (name recur)
+        subst_case (pat, body) = (pat, substitute (shadow <> pat_shadow pat) sub body)
+        pat_shadow = \case
+          PatVar n -> Set.singleton n
+          PatCtr _ subpats -> fold (map pat_shadow subpats)
+
     where
       subst_tel shadow _ [] = ([], shadow)
       subst_tel shadow sub ((bind, ty) : tel) =
@@ -155,9 +175,9 @@ instance ( Ord n
     Uniχ _ _ -> Set.empty
     Varχ _ var -> Set.singleton var
     Prdχ _ bind ty -> let fvt = free_vars ty in
-      Set.union (free_vars bind) (maybe fvt (\n -> Set.delete n fvt) (name bind))
+      free_vars bind <> maybe fvt (\n -> Set.delete n fvt) (name bind)
     Absχ _ bind body -> let fvb = free_vars body in
-      Set.union (free_vars bind) (maybe fvb (\n -> Set.delete n fvb) (name bind))
+      free_vars bind <> maybe fvb (\n -> Set.delete n fvb) (name bind)
     Appχ _ l r -> Set.union (free_vars l) (free_vars r)
     Eqlχ _ tel ty a a' -> 
       let (vars, diff_vars) = free_tel tel
@@ -168,6 +188,17 @@ instance ( Ord n
     Dapχ _ tel val -> 
       let (vars, diff_vars) = free_tel tel
       in vars <> Set.difference (free_vars val) diff_vars
+    Indχ _ bind terms -> let fvt = fold (map (free_vars . snd) terms) in 
+      maybe fvt (\n -> Set.delete n fvt) (name bind) <> free_vars bind
+    Ctrχ _ ty _ -> free_vars ty
+    Recχ _ recur val cases ->
+      let fvc = fold . map free_case_vars $ cases
+          free_case_vars (pat, term) = Set.difference (free_vars term) (pat_vars pat)
+          pat_vars = \case 
+            PatCtr _ subpats -> fold (map pat_vars subpats)
+            PatVar n -> Set.singleton n
+      in
+        free_vars recur <> free_vars val <> maybe fvc (\n -> Set.delete n fvc) (name recur)
     where 
       free_tel [] = (Set.empty, Set.empty)
       free_tel ((bind, val) : tel) =
@@ -219,6 +250,32 @@ instance Regen (Core OptBind Name χ) where
       Dapχ χ tel val -> do
         (sub', tel') <- freshen_tel tel sub
         Dapχ χ tel' <$> go sub' val
+      Indχ χ bind ctors -> do
+        (sub', bind') <- freshen_bind bind sub
+        ctors' <- mapM (\(t, b) -> ((t, ) . snd) <$> freshen_bind b sub') ctors
+        pure $ Indχ χ bind' ctors'
+      Ctrχ χ ty label -> 
+        Ctrχ χ <$> go sub ty <*> pure label 
+      Recχ χ recur val cases -> do
+        (sub', bind') <- freshen_bind recur sub
+        Recχ χ bind' <$> go sub' val <*> mapM (freshen_case sub') cases
+        where 
+          freshen_case sub (pat, val) = do
+            (sub', pat') <- freshen_pat sub pat
+            val' <- go sub' val 
+            pure (pat', val')
+          freshen_pat sub = \case
+            PatCtr n subpats -> do
+              (sub', subpats') <- foldr (\p m -> do
+                        (sub', ps) <- m
+                        (sub'', p') <- freshen_pat sub' p 
+                        pure (sub'', p' : ps))
+                  (pure (sub, []))
+                  subpats
+              pure (sub', PatCtr n subpats')
+            PatVar n -> do
+              n' <- freshen n
+              pure (insert n n' sub, PatVar n')
 
 instance Regen (Core AnnBind Name χ) where 
   regen = go (Substitution env_empty) where
@@ -260,3 +317,29 @@ instance Regen (Core AnnBind Name χ) where
       Dapχ χ tel val -> do
         (sub', tel') <- freshen_tel tel sub
         Dapχ χ tel' <$> go sub' val
+      Indχ χ bind ctors -> do
+        (sub', bind') <- freshen_bind bind sub
+        ctors' <- mapM (\(t, b) -> ((t, ) . snd) <$> freshen_bind b sub') ctors
+        pure $ Indχ χ bind' ctors'
+      Ctrχ χ ty label -> 
+        Ctrχ χ <$> go sub ty <*> pure label 
+      Recχ χ recur val cases -> do
+        (sub', bind') <- freshen_bind recur sub
+        Recχ χ bind' <$> go sub' val <*> mapM (freshen_case sub') cases
+        where 
+          freshen_case sub (pat, val) = do
+            (sub', pat') <- freshen_pat sub pat
+            val' <- go sub' val 
+            pure (pat', val')
+          freshen_pat sub = \case
+            PatCtr n subpats -> do
+              (sub', subpats') <- foldr (\p m -> do
+                        (sub', ps) <- m
+                        (sub'', p') <- freshen_pat sub' p 
+                        pure (sub'', p' : ps))
+                  (pure (sub, []))
+                  subpats
+              pure (sub', PatCtr n subpats')
+            PatVar n -> do
+              n' <- freshen n
+              pure (insert n n' sub, PatVar n')

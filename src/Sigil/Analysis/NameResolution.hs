@@ -60,6 +60,45 @@ instance ResolveTo ParsedCore ResolvedCore where
     Dap rn tel val -> do
       (vars', tel') <- resolve_tel vars tel
       Dapχ rn tel' <$> resolve vars' val
+    Ind rn (OptBind (t, a)) ctors -> do
+      id <- fresh_id 
+      let n = (\text -> Name $ Right (id, text)) <$> t
+          vars' = maybe vars (\t -> insert t id vars) t
+      a' <- mapM (resolve vars) a
+      Indχ rn (OptBind (n, a')) <$> mapM (resolve_ctor vars') ctors
+      where 
+        resolve_ctor vars (label, OptBind (n, ty)) = do
+          id <- fresh_id
+          let n' = (\text -> Name $ Right (id, text)) <$> n
+          ty' <- mapM (resolve vars) ty
+          pure $ (label, OptBind (n', ty'))
+    Ctr rn ty label -> do
+      Ctrχ rn <$> resolve vars ty <*> pure label
+    Rec rn (OptBind (n, a)) val cases -> do
+      id <- fresh_id 
+      let n' = (\text -> Name $ Right (id, text)) <$> n
+          vars' = maybe vars (\t -> insert t id vars) n
+      a' <- mapM (resolve vars) a 
+      val' <- resolve vars val 
+      cases' <- mapM (resolve_case vars') cases
+      pure $ Recχ rn (OptBind (n', a')) val' cases'
+      where 
+        resolve_case vars (pat, val) = do
+          (pat', vars') <- update_pat vars pat
+          (pat', ) <$> resolve vars' val
+
+        update_pat vars = \case 
+          PatCtr n subpats -> do
+            (subpats', vars') <- foldr (\p m -> do
+                                           (ps, vars') <- m
+                                           (p', vars'') <- update_pat vars' p
+                                           pure (p':ps, vars'')) (pure ([], vars)) subpats
+            pure $ (PatCtr n subpats', vars')
+          PatVar n -> do
+            id <- fresh_id
+            let p' = PatVar $ Name $ Right $ (id, n)
+            pure $ (p', insert n id vars)
+
     where
       resolve_tel vars [] = pure (vars, [])
       resolve_tel vars ((OptBind (t, a), val) : tel) = do

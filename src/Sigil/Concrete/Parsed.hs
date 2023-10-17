@@ -12,6 +12,9 @@ module Sigil.Concrete.Parsed
   , pattern App
   , pattern Eql
   , pattern Dap
+  , pattern Ind
+  , pattern Ctr
+  , pattern Rec
   ) where
 
 {----------------------------------- PARSED ------------------------------------}
@@ -51,6 +54,9 @@ type instance Absχ Parsed = Range
 type instance Appχ Parsed = Range
 type instance Eqlχ Parsed = Range
 type instance Dapχ Parsed = Range
+type instance Indχ Parsed = Range
+type instance Ctrχ Parsed = Range
+type instance Recχ Parsed = Range
 
 type ParsedCore = Core OptBind Text Parsed
 
@@ -61,7 +67,7 @@ type ParsedEntry = Entry OptBind Text Parsed
 
 type ParsedModule = Module OptBind Text Parsed
 
-{-# COMPLETE Core, Uni, Var, Prd, Abs, App, Eql, Dap #-}
+{-# COMPLETE Core, Uni, Var, Prd, Abs, App, Eql, Dap, Ind, Ctr, Rec #-}
 pattern Core :: ParsedCore
 pattern Core <- Coreχ _
   where Core = Coreχ PUnit
@@ -94,6 +100,18 @@ pattern Dap :: Range -> (Tel OptBind Text ParsedCore) -> ParsedCore -> ParsedCor
 pattern Dap r tel val <- Dapχ r tel val
   where Dap r tel val = Dapχ r tel val
 
+pattern Ind :: Range -> (OptBind Text ParsedCore) -> [(Text, OptBind Text ParsedCore)] -> ParsedCore
+pattern Ind r bind ctors <- Indχ r bind ctors
+  where Ind r bind ctors = Indχ r bind ctors
+
+pattern Ctr :: Range -> ParsedCore -> Text -> ParsedCore
+pattern Ctr r ty label <- Ctrχ r ty label
+  where Ctr r ty label = Ctrχ r ty label
+  
+pattern Rec :: Range -> (OptBind Text ParsedCore) -> ParsedCore -> [(Case OptBind Text Parsed)] -> ParsedCore
+pattern Rec r rec val cases <- Recχ r rec val cases
+  where Rec r rec val cases = Recχ r rec val cases
+
 instance HasRange ParsedCore where
   range core = case core of
     Core -> mempty
@@ -104,6 +122,9 @@ instance HasRange ParsedCore where
     App r _ _ -> r
     Eql r _ _ _ _ -> r
     Dap r _ _ -> r
+    Ind r _ _ -> r
+    Ctr r _ _ -> r
+    Rec r _ _ _ -> r
 
   
 {---------------------------------- INSTANCES ----------------------------------}

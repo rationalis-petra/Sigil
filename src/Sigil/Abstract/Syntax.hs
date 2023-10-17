@@ -7,7 +7,8 @@ module Sigil.Abstract.Syntax
   , ExportModifier(..)
   , ImportDef
   , ExportDef
-  , IndType(..)
+  , Pattern(..)
+  , Case
   -- , Clause(..)
   , Forallχ
   , Coreχ
@@ -18,6 +19,9 @@ module Sigil.Abstract.Syntax
   , Appχ
   , Eqlχ
   , Dapχ
+  , Indχ
+  , Ctrχ
+  , Recχ
   , Mutualχ
   , Singleχ
 
@@ -79,12 +83,19 @@ import Sigil.Abstract.Environment
 {-------------------------------------------------------------------------------}
 
 type Tel b n v = [(b n (v, v, v), v)]
+type Case b n χ = (Pattern n, Core b n χ)
+
+data Pattern n
+  = PatCtr Text [Pattern n]
+  | PatVar n
 
 data Core b n χ
   = Coreχ (Coreχ b n χ)
-  -- The Core Calculus, based on Martin Löf/CoC
+  -- Atoms
   | Uniχ (Uniχ χ) Integer
   | Varχ (Varχ χ) n
+
+  -- Products: Type definition, intro/elim
   | Prdχ (Prdχ χ) (b n (Core b n χ)) (Core b n χ)
   | Absχ (Absχ χ) (b n (Core b n χ)) (Core b n χ)
   | Appχ (Appχ χ) (Core b n χ) (Core b n χ)
@@ -93,6 +104,10 @@ data Core b n χ
   | Eqlχ (Eqlχ χ) (Tel b n (Core b n χ)) (Core b n χ) (Core b n χ) (Core b n χ)
   | Dapχ (Dapχ χ) (Tel b n (Core b n χ)) (Core b n χ)
 
+  -- Generic Recursive Types: Type definition, intro/elim
+  | Indχ (Indχ χ) (b n (Core b n χ)) [(Text, b n (Core b n χ))]
+  | Ctrχ (Ctrχ χ) (Core b n χ) Text
+  | Recχ (Recχ χ) (b n (Core b n χ)) (Core b n χ) [Case b n χ]
 
 type family Coreχ (b :: Type -> Type -> Type) n χ
 type family Varχ χ
@@ -102,6 +117,9 @@ type family Absχ χ
 type family Appχ χ
 type family Eqlχ χ
 type family Dapχ χ
+type family Indχ χ
+type family Ctrχ χ
+type family Recχ χ
 
 type Forall (φ :: Type -> Constraint) b n χ
   = ( φ n
@@ -177,9 +195,6 @@ data ExportModifier
 type ImportDef = (NonEmpty Text, ImportModifier)
 
 type ExportDef = (NonEmpty Text, ExportModifier)
-
-data IndType = Inductive | Coinductive  
-  deriving (Eq, Ord, Show)
 
 -- TODO: add fields!
 data Entry b n χ
@@ -298,6 +313,23 @@ pretty_core_builder pretty_name pretty_coreχ c =
        <+> pretty_tel tel
        <+> pretty_core val)
 
+  
+    Indχ _ bind terms ->
+      vsep [ "μ" <+> pretty_fn_bind bind <> "."
+           , nest 2 (vsep $ map (\(text, bind) -> pretty text <> "/" <> pretty_fn_bind bind) terms )]
+    Ctrχ _ ty label ->
+      pretty_core ty <> "﹨" <> pretty label
+    Recχ _ recur val cases ->
+      vsep ["φ" <+> pretty_fn_bind recur <> "," <+> pretty_core val
+           , nest 2 (vsep $ map pretty_case cases) ]
+      where
+        pretty_case (pat, body) = pretty_pat pat <+> "→" <+> pretty_core body
+        pretty_pat = \case 
+          PatCtr n subpats -> pretty n <+> sep (map pbracket subpats)
+          PatVar n -> pretty_name n
+        pbracket p = case p of
+          PatCtr _ _ -> "(" <> pretty_pat p <> ")"
+          PatVar _ -> pretty_pat p
     where 
         pretty_core = pretty_core_builder pretty_name pretty_coreχ
 

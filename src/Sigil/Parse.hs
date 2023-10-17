@@ -186,6 +186,8 @@ core precs = do
     'λ' -> plam
     'ι' -> pid
     'ρ' -> pap
+    'μ' -> pind
+    'φ' -> prec
     _ -> pprod <||> pexpr
   where
     plam :: ParserT m ParsedCore
@@ -278,6 +280,32 @@ core precs = do
         pure $ (entry : tel', precs''))
       <||> pure ([], precs)
             
+
+    pind :: ParserT m ParsedCore
+    pind = with_range mkind
+      where 
+        mkind :: ParserT m (Range -> ParsedCore)
+        mkind = do
+          _ <- symbol "Φ"
+          var <- anyvar 
+          _ <- symbol "⮜"
+          ty <- core precs
+          _ <- symbol "."
+          ctors <- L.indentBlock scn pctors
+          pure (\r -> Indχ r (OptBind (Just var, Just ty)) ctors)
+
+        pctors :: ParserT m (L.IndentOpt (ParserT m) [(Text, OptBind Text ParsedCore)] (Text, OptBind Text ParsedCore))
+        pctors = pure (L.IndentSome Nothing pure pctor)
+
+        pctor :: ParserT m (Text, OptBind Text ParsedCore)
+        pctor = do
+          var <- anyvar
+          _ <- symbol "⮜"
+          (var, ) . OptBind . (Just var,) . Just <$> core precs
+          
+
+    prec :: ParserT m ParsedCore
+    prec = fail "no φ implemented"
 
     pexpr :: ParserT m ParsedCore
     pexpr = mixfix patom (core precs) precs
