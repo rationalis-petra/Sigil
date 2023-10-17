@@ -49,7 +49,7 @@ lexeme :: ParserT m a -> ParserT m a
 lexeme = L.lexeme sc
 
 symbol :: Text -> ParserT m Text
-symbol txt = (string txt) <* (space1 <|> lookAhead ((char '(' <|> char ')') *> pure ())) <* sc
+symbol txt = (string txt) <* (space1 <|> lookAhead ((char '(' <|> char ')') *> pure () <|> eof)) <* sc
 
 lparen :: ParserT m ()  
 lparen = const () <$> char '(' <* sc
