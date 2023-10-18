@@ -2,6 +2,7 @@ module Spec.Sigil.Parse (parse_spec) where
 
 import Prelude hiding (abs, pi, mod)
 import Data.Bifunctor
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text (Text)
 import qualified Data.Map as Map
 import Data.Map (Map)
@@ -245,6 +246,16 @@ parse_expr graph =
     , expr_test "prd-noann"
       "𝕌 → 𝕌"
       ([𝓊 0] → 𝓊 0)
+
+    -- Inductive Types: 
+    , expr_test "ind-empty"
+    "μ N ⮜ 𝕌." (μ "N" (𝓊 0) [])
+
+    , expr_test "ind-nat"
+    "μ N ⮜ 𝕌.\n  zero ⮜ N\n  succ ⮜ N → N \n"
+     (μ "N" (𝓊 0)
+      [ ("zero", var "N")
+      , ("succ", [var "N"] → var "N")])
     ]
   where
     expr_test :: Text -> Text -> ParsedCore -> Test
@@ -293,20 +304,24 @@ parse_mod env =
   TestGroup "module" $ Right
     [ mod_test "empty"
       "module empty"
-      (modul ["empty"] [] [] []),
+      (modul ["empty"] [] [] [])
 
-      mod_test "single-def"
+    , mod_test "importer"
+      "module importer\n import\n  var"
+      (modul ["importer"] [(("var" :| []), ImSingleton)] [] []) 
+
+    , mod_test "single-def"
       "module single-def \n\
       \x ≜ true"
-      (modul ["single-def"] [] [] [sentry "x" (var "true")]),
+      (modul ["single-def"] [] [] [sentry "x" (var "true")])
 
-      mod_test "multi-def"
+    , mod_test "multi-def"
       "module multi-def \n\
       \x ≜ true\n\
       \y ≜ false"
-      (modul ["multi-def"] [] [] [sentry "x" (var "true"), sentry "y" (var "false")]),
+      (modul ["multi-def"] [] [] [sentry "x" (var "true"), sentry "y" (var "false")])
 
-      mod_test "complex-modul"
+    , mod_test "complex-modul"
       "module complex-modul \n\
       \fn ≜ λ (A ⮜ 𝕌₁) (x ⮜ A) → A\n\
       \val ≜ fn 𝕌"
@@ -346,6 +361,12 @@ pi = flip (foldr (Prdχ mempty)) . fmap (OptBind . bimap Just Just)
 
 (⋅) :: ParsedCore -> ParsedCore -> ParsedCore
 (⋅) = Appχ mempty
+
+μ :: Text -> ParsedCore -> [(Text, ParsedCore)] -> ParsedCore
+μ var ty cases  =
+  Indχ mempty
+    (OptBind (Just var, Just ty))
+    (fmap (\(t, ty) -> (t, OptBind (Just t, Just ty))) cases)
 
 sentry :: Text -> ParsedCore -> ParsedEntry
 sentry name val = Singleχ mempty (OptBind (Just name, Nothing)) val

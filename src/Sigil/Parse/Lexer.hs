@@ -2,9 +2,7 @@ module Sigil.Parse.Lexer
   ( sc
   , scn
   , symbol
-  , symboln
   , lexeme
-  , lexemen
   , lparen
   , rparen
   , anyvar
@@ -42,23 +40,17 @@ scn = L.space
   (L.skipLineComment "⍝")   
   (L.skipBlockComment "⋳" "⋻")
 
-lexemen :: ParserT m a -> ParserT m a
-lexemen = L.lexeme scn
-
 lexeme :: ParserT m a -> ParserT m a
 lexeme = L.lexeme sc
 
-symbol :: Text -> ParserT m Text
-symbol txt = (string txt) <* (space1 <|> lookAhead ((char '(' <|> char ')') *> pure () <|> eof)) <* sc
+symbol :: Text -> ParserT m ()
+symbol txt = const () <$> (string txt <* (lookAhead (satisfy (not . symchar) *> pure () <|> eof)) <* sc)
 
 lparen :: ParserT m ()  
 lparen = const () <$> char '(' <* sc
 
 rparen :: ParserT m ()  
 rparen = const () <$> char ')' <* sc
-
-symboln :: Text -> ParserT m Text
-symboln = L.symbol scn
 
 subscript_int :: ParserT m Integer
 subscript_int = lexeme $ to_int 1 . reverse <$> many1 sub_numchar
@@ -80,15 +72,16 @@ subscript_int = lexeme $ to_int 1 . reverse <$> many1 sub_numchar
       ]
 
 anyvar :: ParserT m Text  
-anyvar = lexeme $ takeWhile1P (Just "varchar") symchar
-  where 
-    symchar :: Char -> Bool
-    symchar '('  = False
-    symchar ')'  = False
-    symchar '.'  = False
-    symchar '≜'  = False
-    symchar ' '  = False
-    symchar '\n' = False
-    symchar '\r' = False
-    symchar '\t' = False
-    symchar _    = True
+anyvar = lexeme $ takeWhile1P (Just "symbol-character") symchar
+
+symchar :: Char -> Bool
+symchar '('  = False
+symchar ')'  = False
+symchar '.'  = False
+symchar '≜'  = False
+symchar '⮜'  = False
+symchar ' '  = False
+symchar '\n' = False
+symchar '\r' = False
+symchar '\t' = False
+symchar _    = True

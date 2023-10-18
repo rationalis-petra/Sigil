@@ -18,6 +18,8 @@ module Sigil.Parse
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
+import Debug.Trace
+
 import Prelude hiding (head, last, tail, mod)
 import Control.Monad (join)
 import Control.Monad.Trans (lift)
@@ -26,6 +28,7 @@ import qualified Data.Text as Text
 import Data.Text (Text)
 import Data.Either (lefts, rights)
 import Data.Maybe (maybeToList)
+import Data.List.NonEmpty (NonEmpty((:|)))
 
 import qualified Text.Megaparsec as Megaparsec
 import qualified Text.Megaparsec.Char as C
@@ -87,7 +90,7 @@ mod get_precs = do
       where 
         modul :: ParserT m (L.IndentOpt (ParserT m) ([Text], [Either ImportDef ExportDef]) [Either ImportDef ExportDef])
         modul = do 
-          _ <- symbol "module"
+          symbol "module"
           title <- sepBy anyvar (C.char '.')
           pure (L.IndentMany Nothing (pure . (title, ) . join) modulePart)
       
@@ -97,19 +100,19 @@ mod get_precs = do
       
         imports :: ParserT m (L.IndentOpt (ParserT m) [Either ImportDef ExportDef] (Either ImportDef ExportDef))
         imports = do
-          _ <- symbol "import" 
+          symbol "import" 
           pure (L.IndentSome Nothing pure (fmap Left importStatement))
       
         importStatement :: ParserT m ImportDef
-        importStatement = fail "import statement not implemented"
+        importStatement = (,ImSingleton) . (:| []) <$> anyvar
           
         exports :: ParserT m (L.IndentOpt (ParserT m) [Either ImportDef ExportDef] (Either ImportDef ExportDef))
         exports = do
-         _ <- symbol "export"
+         symbol "export"
          pure (L.IndentSome Nothing pure (fmap Right exportStatement))
       
         exportStatement :: ParserT m ExportDef
-        exportStatement = fail "export statement not implemented"
+        exportStatement = (,ExSingleton) . (:| []) <$> anyvar
 
 
 {--------------------------------- DEF PARSER ----------------------------------}
@@ -136,16 +139,16 @@ entry precs = mutual
     mutual :: ParserT m ParsedEntry
     mutual = do
       -- TODO: parse declaration
-      ann <- L.nonIndented scn (do
+      ann <- (do
         name <- anyvar
-        _ <- symbol "⮜"
+        symbol "⮜"
         tipe <- core precs
         pure $ Just (name, tipe))
         <||> pure Nothing
       
       (args, val) <- L.nonIndented scn $ do
         args <- many1 anyvar
-        _ <- symbol "≜"
+        symbol "≜"
         val <- core (update_precs args precs)
         pure (args, val)
 
@@ -210,9 +213,9 @@ core precs = do
 
           mklam :: ParserT m (Range -> ParsedCore)
           mklam = do
-            _ <- symbol "λ"
+            symbol "λ"
             (precs', tel) <- args
-            _ <- symbol "→"
+            symbol "→"
             -- TODO: update precs per argument!!
             body <- core precs'
             pure $ \r -> unscope r (reverse tel) body
@@ -245,9 +248,9 @@ core precs = do
       where
         mkid :: ParserT m (Range -> ParsedCore)
         mkid = do 
-          _ <- symbol "ι"
+          symbol "ι"
           (tel, precs') <- ptel precs
-          _ <- symbol "."
+          symbol "."
           App _ (App _ ty a) a' <- core precs'
           pure $ (\r -> Eql r tel ty a a')
 
@@ -256,9 +259,9 @@ core precs = do
       where
         mkap :: ParserT m (Range -> ParsedCore)
         mkap = do 
-          _ <- symbol "ρ"
+          symbol "ρ"
           (tel, precs') <- ptel precs
-          _ <- symbol "."
+          symbol "."
           pf <- core precs'
           pure $ (\r -> Dap r tel pf)
 
@@ -270,10 +273,10 @@ core precs = do
           ty <- (core precs)
           (v1, v2) <- between lparen rparen $ do
             v1 <- core precs
-            _ <- symbol "="
+            symbol "="
             v2 <- core precs
             pure (v1, v2)
-          _ <- symbol "≜"
+          symbol "≜"
           id <- core precs
           pure ((OptBind (arg, (Just (ty, v1, v2))), id), update_precs (maybeToList $ arg) precs)
         (tel', precs'') <- ptel precs'
@@ -281,26 +284,27 @@ core precs = do
       <||> pure ([], precs)
             
 
+  -- SEE  https://markkarpov.com/tutorial/megaparsec.html#indentationsensitive-parsing
+
     pind :: ParserT m ParsedCore
-    pind = with_range mkind
+    pind = mkind --with_range (mkind)
       where 
-        mkind :: ParserT m (Range -> ParsedCore)
-        mkind = do
-          _ <- symbol "Φ"
+        mkind :: ParserT m (ParsedCore)
+        mkind = L.indentBlock scn $ do
+          symbol "μ"
           var <- anyvar 
-          _ <- symbol "⮜"
+          symbol "⮜"
           ty <- core precs
-          _ <- symbol "."
-          ctors <- L.indentBlock scn pctors
-          pure (\r -> Indχ r (OptBind (Just var, Just ty)) ctors)
+          symbol "."
+          pctors var ty
 
-        pctors :: ParserT m (L.IndentOpt (ParserT m) [(Text, OptBind Text ParsedCore)] (Text, OptBind Text ParsedCore))
-        pctors = pure (L.IndentSome Nothing pure pctor)
+        pctors :: Text -> ParsedCore -> ParserT m (L.IndentOpt (ParserT m) ParsedCore (Text, OptBind Text ParsedCore))
+        pctors var ty = pure (L.IndentMany Nothing (pure . (Indχ mempty (OptBind (Just var, Just ty)))) (pctor (update_precs [var] precs)))
 
-        pctor :: ParserT m (Text, OptBind Text ParsedCore)
-        pctor = do
-          var <- anyvar
-          _ <- symbol "⮜"
+        pctor :: Precedences -> ParserT m (Text, OptBind Text ParsedCore)
+        pctor precs = do
+          var <- trace "var" anyvar
+          symbol "⮜"
           (var, ) . OptBind . (Just var,) . Just <$> core precs
           
 

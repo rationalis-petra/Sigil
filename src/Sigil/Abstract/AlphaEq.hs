@@ -97,6 +97,11 @@ instance (Ord n, Binding b, AlphaEq n (b n (Core b n χ)), AlphaEq n (Coreχ b n
     (Dapχ _ tel val, Dapχ _ tel' val') ->
       let (tel_eq, rename') = αequal_tel rename tel tel'
       in tel_eq && αequal rename' val val'
+    (Indχ _ b ctors, Indχ _ b' ctors') ->
+      αequal rename b b' && foldl' (&&) True (zipWith (\(_, v) (_, v') -> αequal rename' v v') ctors ctors')
+      where 
+        rename' = ( maybe (fst rename) (\n -> Map.insert n (name b') (fst rename)) (name b)
+                  , maybe (snd rename) (\n -> Map.insert n (name b) (snd rename)) (name b'))
     (_, _) -> False
     where
       αequal_tel rename [] [] = (True, rename)

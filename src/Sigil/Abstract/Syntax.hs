@@ -190,6 +190,7 @@ data ExportModifier
   = ExWildcard
   | ExAsType
   | ExSeal
+  | ExSingleton
   deriving (Ord, Eq, Show)
 
 type ImportDef = (NonEmpty Text, ImportModifier)

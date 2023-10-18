@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module Sigil.Analysis.Typecheck
   ( Checkable(..)
   , CheckInterp(..)
@@ -16,6 +17,7 @@ module Sigil.Analysis.Typecheck
 
 import Control.Monad.Except (MonadError, throwError)
 import Control.Lens
+import Control.Monad (forM)
 import Data.Foldable
 import qualified Data.Set as Set
 
@@ -135,6 +137,16 @@ instance Checkable Name InternalCore InternalCore where
           v1' <- check' env_l v1 ty_norm_l
           v2' <- check' env_r v2 ty_norm_r
           pure (Eql tel' ty_m v1' v2', kind_m)
+
+        Ind (AnnBind (n, a)) ctors -> do
+          (a', asort) <- infer' env a
+          anorm <- normalize' env asort a 
+          let env' = insert n (Just anorm, asort) env
+          ctors' <- forM ctors $ \(label, AnnBind (l, ty)) -> do
+            ty' <- check' env' ty asort -- TODO: is this predicativity??
+            pure $ (label, AnnBind (l, ty'))
+          pure $ (Ind (AnnBind (n, a')) ctors', asort)
+          
         _ -> throwError' $ "infer not implemented for internal term:" <+> pretty term
   
   
@@ -172,12 +184,16 @@ instance Checkable Name InternalCore InternalCore where
 
 
 instance Checkable Name ResolvedCore InternalCore where 
+  infer :: forall e err m. (Environment Name e, MonadError err m, MonadGen m)
+    => CheckInterp m err e InternalCore -> e (Maybe InternalCore,InternalCore) -> ResolvedCore -> m (InternalCore, InternalCore)
   infer interp@(CheckInterp {..}) env term =
     let infer' = infer interp
         check' = check interp
         normalize' = normalize (lift_err . flip NormErr (range term))
-        throwError' = throwError . lift_err . flip PrettyErr (range term)
         lookup_err' = lookup_err (lift_err . flip PrettyErr (range term))
+
+        throwError' :: SigilDoc -> m a
+        throwError' = throwError . lift_err . flip PrettyErr (range term)
         
     in 
       case term of
@@ -254,6 +270,17 @@ instance Checkable Name ResolvedCore InternalCore where
           v1' <- check' env_l v1 ty_norm_l
           v2' <- check' env_r v2 ty_norm_r
           pure (Eql tel' ty_m v1' v2', kind_m)
+
+        Indχ _ (OptBind (Just n, Just a)) ctors -> do
+          (a', asort) <- infer' env a
+          anorm <- normalize' env asort a'
+          let env' = insert n (Just anorm, asort) env
+          ctors' <- forM ctors $ \(label, OptBind (ml, mty)) -> do
+            l <- maybe (throwError' "ctor must bind var") pure ml
+            ty <- maybe (throwError' "ctor must bind type") pure mty
+            ty' <- check' env' ty asort -- TODO: is this predicativity??
+            pure $ (label, AnnBind (l, ty'))
+          pure $ (Ind (AnnBind (n, a')) ctors', asort)
         _ -> throwError . lift_err . flip PrettyErr (range term) $ "infer not implemented for resolved term:" <+> pretty term
   
   
@@ -263,6 +290,7 @@ instance Checkable Name ResolvedCore InternalCore where
     let infer' = infer interp
         check' = check interp
         normalize' = normalize (lift_err . flip NormErr (range term))
+        -- throwError' :: (MonadError  ) Pretty -> m 
         throwError' = throwError . lift_err . flip PrettyErr (range term)
     in
       case (term, ty) of

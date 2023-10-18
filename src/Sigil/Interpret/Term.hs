@@ -5,6 +5,7 @@ module Sigil.Interpret.Term
 import Prelude hiding (head, lookup)
 import Data.Kind
 import Data.Maybe
+import Data.Text (Text)
 import Control.Monad((<=<))
 import Control.Monad.Except (MonadError, throwError)
 
@@ -58,6 +59,7 @@ data Sem m e
   | SAbs Name (Sem m e -> m (Sem m e))
   | SEql [(Name, (Sem m e, Sem m e, Sem m e), Sem m e)] (Sem m e) (Sem m e) (Sem m e)
   | SDap (Sem m e)
+  | SInd Name (Sem m e) [(Text, Name, (Sem m e))]
   | Neutral (Sem m e) (Neutral m e)
 
 data Neutral m e
@@ -119,6 +121,13 @@ read_nf (Normal ty val) = case (ty, val) of
     Dap [] <$> read_nf (Normal ty val)
 
   -- Types
+  (SUni _, SUni i) -> pure $ Uni i
+  (SUni k, SPrd name a b) -> do
+    let neua :: Sem m e 
+        neua = Neutral a $ NeuVar name
+    a' <- (read_nf $ Normal (SUni k) a)
+    b' <- (read_nf =<< Normal (SUni k) <$> (b `app` neua))
+    pure $ Prd (bind name a') b'
   (SUni k, SEql tel ty a a') -> do
     let read_nf_tel _ out [] = pure out
         read_nf_tel in_tel out ((name, (ty, v1, v2), id) : tel) = do 
@@ -131,13 +140,12 @@ read_nf (Normal ty val) = case (ty, val) of
       <*> read_nf (Normal (SUni k) ty)
       <*> read_nf (Normal ty a)
       <*> read_nf (Normal ty a')
-  (SUni _, SUni i) -> pure $ Uni i
-  (SUni k, SPrd name a b) -> do
-    let neua :: Sem m e 
-        neua = Neutral a $ NeuVar name
-    a' <- (read_nf $ Normal (SUni k) a)
-    b' <- (read_nf =<< Normal (SUni k) <$> (b `app` neua))
-    pure $ Prd (bind name a') b'
+  (SUni k, SInd name ty ctors) -> do
+    let read_nf_ctor (label, name, ty) = 
+          (label, ) . AnnBind . (name, ) <$> read_nf (Normal (SUni k) ty)
+    Ind 
+      <$> ((AnnBind . (name,)) <$> read_nf (Normal (SUni k) ty))
+      <*> mapM read_nf_ctor ctors
         
   (_, Neutral _ e) -> read_ne e 
   (_, _) -> throw ("bad read_nf: " <+> pretty val <> " : " <+> pretty ty)
@@ -211,6 +219,18 @@ eval term env = case term of
     val' <- eval val env'
     dap env val' 
 
+  Ind bnd ctors -> do 
+    nm <- fromMaybe (throw "Ind must bind a name") (fmap pure $ name bnd)
+    a <- fromMaybe (throw "Ind must bind a type") (fmap pure $ tipe bnd)
+    a' <- eval a env
+    let env' = (insert nm a' env)
+    ctors' <- mapM (\(lbl, bnd) -> do
+                       nm <- fromMaybe (throw "Ind ctor must bind a name") (fmap pure $ name bnd)
+                       a <- fromMaybe (throw "Ind ctor must bind a type") (fmap pure $ tipe bnd)
+                       a' <- eval a env'
+                       pure $ (lbl, nm, a'))
+                ctors
+    pure $ SInd nm a' ctors'
   -- Implicit terms 
   IPrd _ _ -> throw "don't know how to eval IPrd"
   IAbs _ _ -> throw "don't know how to eval IAbs"
@@ -248,6 +268,7 @@ eval_sem env term = case term of
     ty_sem <- eval_sem env ty   
     seql env' tel_sem ty_sem v1 v2
   SDap val -> SDap <$> eval_sem env val
+  SInd nm ty ctors -> SInd nm <$> eval_sem env ty <*> mapM (\(l, n, ty) -> (l, n, ) <$> eval_sem env ty) ctors
   Neutral _ val -> eval_neusem env val 
 
 
@@ -356,6 +377,7 @@ uni_level sem = case sem of
   SAbs _ _ -> 0
   SEql _ ty _ _ -> uni_level ty
   SDap val -> uni_level val
+  SInd _ ty _ -> uni_level ty
   Neutral ty _ -> max 0 (uni_level ty - 1)
 
 throw :: (MonadError err m, ?lift_err :: Doc ann -> err) => Doc ann -> m a
@@ -397,6 +419,10 @@ instance Pretty (Sem m e) where
                <+> "," <+> pretty_tel tel
         pretty_tel [] = ""
     SDap val -> "ρ." <+> pretty val
+
+    SInd nm val ctors ->
+      "μ" <+> pretty nm <+> "⮜" <+> pretty val
+      <+> nest 2 (vsep (map (\(l,n,a) -> pretty l <> "/" <> pretty n <+> "⮜" <+> pretty a) ctors))
     Neutral _ n -> pretty n
 
 instance Pretty (Neutral m e) where
