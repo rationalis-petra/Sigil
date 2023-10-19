@@ -18,8 +18,6 @@ module Sigil.Parse
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
-import Debug.Trace
-
 import Prelude hiding (head, last, tail, mod)
 import Control.Monad (join)
 import Control.Monad.Trans (lift)
@@ -303,7 +301,7 @@ core precs = do
 
         pctor :: Precedences -> ParserT m (Text, OptBind Text ParsedCore)
         pctor precs = do
-          var <- trace "var" anyvar
+          var <- anyvar
           symbol "⮜"
           (var, ) . OptBind . (Just var,) . Just <$> core precs
           
@@ -314,12 +312,14 @@ core precs = do
     pexpr :: ParserT m ParsedCore
     pexpr = mixfix patom (core precs) precs
       where 
-        patom = choice' [puniv]
+        patom = choice [puniv, pctor]
 
     puniv :: ParserT m ParsedCore
     puniv = with_range $
       (single '𝕌' *> (flip Uni <$> subscript_int))
        <||> const (flip Uni 0) <$> symbol "𝕌"
+    pctor :: ParserT m ParsedCore
+    pctor = with_range $ flip Ctr <$> (single ':' *> anyvar)
 
 
 {------------------------------ RUNNING A PARSER -------------------------------}

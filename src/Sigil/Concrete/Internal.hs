@@ -11,6 +11,7 @@ module Sigil.Concrete.Internal
   , pattern Eql
   , pattern Dap
   , pattern Ind
+  , pattern Ctr
   , pattern IAbs
   , pattern IPrd
   , pattern TyCon ) where
@@ -34,6 +35,7 @@ type instance Appχ Internal = ()
 type instance Eqlχ Internal = ()
 type instance Dapχ Internal = ()
 type instance Indχ Internal = ()
+type instance Ctrχ Internal = ()
 type instance IAbsχ Internal = ()
 type instance IPrdχ Internal = ()
 type instance TyConχ Internal = ()
@@ -49,7 +51,7 @@ type InternalEntry = Entry AnnBind Name Internal
 
 type InternalModule = Module AnnBind Name Internal  
 
-{-# COMPLETE Uni, Var, Prd, Abs, App, Eql, Dap, Ind, IPrd, IAbs, TyCon #-}
+{-# COMPLETE Uni, Var, Prd, Abs, App, Eql, Dap, Ind, Ctr, IPrd, IAbs, TyCon #-}
 
 pattern Uni :: Integer -> InternalCore
 pattern Uni n <- Uniχ () n
@@ -82,6 +84,10 @@ pattern Dap tel val <- Dapχ () tel val
 pattern Ind :: AnnBind Name InternalCore -> [(Text, AnnBind Name InternalCore)] -> InternalCore
 pattern Ind bind ctors <- Indχ () bind ctors
   where Ind bind ctors = Indχ () bind ctors
+
+pattern Ctr :: Text -> InternalCore
+pattern Ctr label <- Ctrχ () label 
+  where Ctr label = Ctrχ () label
 
 pattern IPrd :: AnnBind Name InternalCore -> InternalCore -> InternalCore
 pattern IPrd b ty <- Coreχ (IPrdχ () b ty)
@@ -128,8 +134,12 @@ instance Pretty InternalCore where
     Eql tel ty a b -> ("ι" <+> pretty_tel tel <+> "." <+> bracket ty <+> bracket a <+> bracket b)
     Dap tel val -> ("ρ" <+> pretty_tel tel <+> "." <+> pretty val)
 
-    Ind bind ctors -> "μ" <+> pretty_annbind True bind <+> 
-      nest 2 (vsep (map (\(l,b) -> pretty l <> "/" <> pretty_annbind True b) ctors))
+    Ind bind ctors -> vsep
+      [ "μ" <+> pretty_annbind True bind 
+      , nest 2 (vsep (map (\(l,b) -> pretty l <> "/" <> pretty_annbind True b) ctors))
+      ]
+
+    Ctr label -> ":" <> pretty label 
 
     TyCon _ _ -> "tycon"
   

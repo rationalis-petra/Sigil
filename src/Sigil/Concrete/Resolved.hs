@@ -50,5 +50,5 @@ instance HasRange ResolvedCore where
     Eqlχ r _ _ _ _ -> r
     Dapχ r _ _ -> r
     Indχ r _ _ -> r
-    Ctrχ r _ _ -> r
+    Ctrχ r _ -> r
     Recχ r _ _ _ -> r

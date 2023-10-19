@@ -147,8 +147,7 @@ instance ( Ord n
       where 
         subst_term (text, bind) = (text, substitute shadow' sub bind)
         shadow' = maybe shadow (\n -> Set.insert n shadow) (name bind)
-    Ctrχ χ ty label ->
-      Ctrχ χ (substitute shadow sub ty) label
+    Ctrχ χ label -> Ctrχ χ label
 
     Recχ χ recur val cases ->
       Recχ χ
@@ -190,7 +189,7 @@ instance ( Ord n
       in vars <> Set.difference (free_vars val) diff_vars
     Indχ _ bind terms -> let fvt = fold (map (free_vars . snd) terms) in 
       maybe fvt (\n -> Set.delete n fvt) (name bind) <> free_vars bind
-    Ctrχ _ ty _ -> free_vars ty
+    Ctrχ _ _ -> Set.empty
     Recχ _ recur val cases ->
       let fvc = fold . map free_case_vars $ cases
           free_case_vars (pat, term) = Set.difference (free_vars term) (pat_vars pat)
@@ -254,8 +253,7 @@ instance Regen (Core OptBind Name χ) where
         (sub', bind') <- freshen_bind bind sub
         ctors' <- mapM (\(t, b) -> ((t, ) . snd) <$> freshen_bind b sub') ctors
         pure $ Indχ χ bind' ctors'
-      Ctrχ χ ty label -> 
-        Ctrχ χ <$> go sub ty <*> pure label 
+      Ctrχ χ label -> pure $ Ctrχ χ label
       Recχ χ recur val cases -> do
         (sub', bind') <- freshen_bind recur sub
         Recχ χ bind' <$> go sub' val <*> mapM (freshen_case sub') cases
@@ -321,8 +319,7 @@ instance Regen (Core AnnBind Name χ) where
         (sub', bind') <- freshen_bind bind sub
         ctors' <- mapM (\(t, b) -> ((t, ) . snd) <$> freshen_bind b sub') ctors
         pure $ Indχ χ bind' ctors'
-      Ctrχ χ ty label -> 
-        Ctrχ χ <$> go sub ty <*> pure label 
+      Ctrχ χ label -> pure $ Ctrχ χ label
       Recχ χ recur val cases -> do
         (sub', bind') <- freshen_bind recur sub
         Recχ χ bind' <$> go sub' val <*> mapM (freshen_case sub') cases

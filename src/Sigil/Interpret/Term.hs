@@ -6,6 +6,7 @@ import Prelude hiding (head, lookup)
 import Data.Kind
 import Data.Maybe
 import Data.Text (Text)
+import Data.Foldable (find)
 import Control.Monad((<=<))
 import Control.Monad.Except (MonadError, throwError)
 
@@ -60,6 +61,7 @@ data Sem m e
   | SEql [(Name, (Sem m e, Sem m e, Sem m e), Sem m e)] (Sem m e) (Sem m e) (Sem m e)
   | SDap (Sem m e)
   | SInd Name (Sem m e) [(Text, Name, (Sem m e))]
+  | SCtr Text [Sem m e]
   | Neutral (Sem m e) (Neutral m e)
 
 data Neutral m e
@@ -88,7 +90,6 @@ data Normal (m :: Type -> Type) (e :: Type -> Type) = Normal (Sem m e) (Sem m e)
 {-------------------------------------------------------------------------------}
 
 
--- TODO: now we use IDs for names, need to ensure we do capture-avoiding substitution!!
 instance Term InternalCore where
   normalize lift_error env ty term =
     let ?lift_err = lift_error in
@@ -146,6 +147,17 @@ read_nf (Normal ty val) = case (ty, val) of
     Ind 
       <$> ((AnnBind . (name,)) <$> read_nf (Normal (SUni k) ty))
       <*> mapM read_nf_ctor ctors
+  (SInd _ _ ctors, SCtr label vals) ->
+    case find ((== label) . (\(l, _, _) -> l)) ctors of
+      Just (_, _, cty) -> recur (Ctr label) cty (reverse vals)
+        where
+          recur v _ [] = pure v
+          recur v (SPrd _ a b) (val:vals) = do
+            b' <- b `app` val
+            val' <- read_nf (Normal a val)
+            recur (App v val') b' vals
+          recur _ _ _ = throw "recur unequal!"
+      Nothing -> throw $ "Constructor cannot be found!"
         
   (_, Neutral _ e) -> read_ne e 
   (_, _) -> throw ("bad read_nf: " <+> pretty val <> " : " <+> pretty ty)
@@ -223,7 +235,7 @@ eval term env = case term of
     nm <- fromMaybe (throw "Ind must bind a name") (fmap pure $ name bnd)
     a <- fromMaybe (throw "Ind must bind a type") (fmap pure $ tipe bnd)
     a' <- eval a env
-    let env' = (insert nm a' env)
+    let env' = (insert nm (Neutral a' (NeuVar nm)) env)
     ctors' <- mapM (\(lbl, bnd) -> do
                        nm <- fromMaybe (throw "Ind ctor must bind a name") (fmap pure $ name bnd)
                        a <- fromMaybe (throw "Ind ctor must bind a type") (fmap pure $ tipe bnd)
@@ -231,6 +243,8 @@ eval term env = case term of
                        pure $ (lbl, nm, a'))
                 ctors
     pure $ SInd nm a' ctors'
+
+  Ctr label -> pure $ SCtr label []
   -- Implicit terms 
   IPrd _ _ -> throw "don't know how to eval IPrd"
   IAbs _ _ -> throw "don't know how to eval IAbs"
@@ -269,6 +283,7 @@ eval_sem env term = case term of
     seql env' tel_sem ty_sem v1 v2
   SDap val -> SDap <$> eval_sem env val
   SInd nm ty ctors -> SInd nm <$> eval_sem env ty <*> mapM (\(l, n, ty) -> (l, n, ) <$> eval_sem env ty) ctors
+  SCtr label vals -> SCtr label <$> mapM (eval_sem env) vals
   Neutral _ val -> eval_neusem env val 
 
 
@@ -283,6 +298,8 @@ eval_neusem env neu = case neu of
 
 app :: (MonadError err m, Environment Name e, MonadGen m, ?lift_err :: Doc ann -> err) => (Sem m e) -> (Sem m e) -> m (Sem m e)
 app (SAbs _ fnc) val = fnc val
+app (SCtr label vals) v =
+  pure $ SCtr label (v : vals)
 app (Neutral (SPrd _ a b) neu) v =
   Neutral <$> (b `app` v) <*> pure (NeuApp neu (Normal a v))
 app l r = throw ("bad args to app:" <+> pretty l <+> "and" <+> pretty r) 
@@ -318,7 +335,7 @@ eql env tel tipe v1 v2 = case tipe of
     aright <- eval_sem (foldl (\env (nm, (_, _, r), _) -> insert nm r env) env tel) a
     pure (SPrd u aleft $ SAbs u
            (\uval ->
-             pure $ SPrd v aright $ SAbs v 
+             pure $ SPrd v aright $ SAbs v
              (\vval ->
                SPrd id <$> seql (insert u uval . insert v vval $ env) tel a uval vval <*> (pure $ SAbs id
                (\idval -> do
@@ -378,6 +395,7 @@ uni_level sem = case sem of
   SEql _ ty _ _ -> uni_level ty
   SDap val -> uni_level val
   SInd _ ty _ -> uni_level ty
+  SCtr _ vals -> foldl max 0 (map uni_level vals)  
   Neutral ty _ -> max 0 (uni_level ty - 1)
 
 throw :: (MonadError err m, ?lift_err :: Doc ann -> err) => Doc ann -> m a
@@ -423,6 +441,7 @@ instance Pretty (Sem m e) where
     SInd nm val ctors ->
       "μ" <+> pretty nm <+> "⮜" <+> pretty val
       <+> nest 2 (vsep (map (\(l,n,a) -> pretty l <> "/" <> pretty n <+> "⮜" <+> pretty a) ctors))
+    SCtr label vals -> pretty (":" <> label) <+> sep (map pretty vals)
     Neutral _ n -> pretty n
 
 instance Pretty (Neutral m e) where
