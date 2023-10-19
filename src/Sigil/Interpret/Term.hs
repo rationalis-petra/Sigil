@@ -60,7 +60,7 @@ data Sem m e
   | SAbs Name (Sem m e -> m (Sem m e))
   | SEql [(Name, (Sem m e, Sem m e, Sem m e), Sem m e)] (Sem m e) (Sem m e) (Sem m e)
   | SDap (Sem m e)
-  | SInd Name (Sem m e) [(Text, Name, (Sem m e))]
+  | SInd Name (Sem m e) [(Text, Name, Sem m e -> m (Sem m e))]
   | SCtr Text [Sem m e]
   | Neutral (Sem m e) (Neutral m e)
 
@@ -141,15 +141,18 @@ read_nf (Normal ty val) = case (ty, val) of
       <*> read_nf (Normal (SUni k) ty)
       <*> read_nf (Normal ty a)
       <*> read_nf (Normal ty a')
-  (SUni k, SInd name ty ctors) -> do
-    let read_nf_ctor (label, name, ty) = 
-          (label, ) . AnnBind . (name, ) <$> read_nf (Normal (SUni k) ty)
+  (SUni k, SInd iname ity ctors) -> do
+    let read_nf_ctor (label, name, fnc) = 
+          (label, ) . AnnBind . (name, )
+            <$> (read_nf . (Normal (SUni k)) =<< fnc (Neutral ity (NeuVar iname)))
     Ind 
-      <$> ((AnnBind . (name,)) <$> read_nf (Normal (SUni k) ty))
+      <$> ((AnnBind . (iname,)) <$> read_nf (Normal (SUni k) ity))
       <*> mapM read_nf_ctor ctors
-  (SInd _ _ ctors, SCtr label vals) ->
+  (SInd nm ty ctors, SCtr label vals) ->
     case find ((== label) . (\(l, _, _) -> l)) ctors of
-      Just (_, _, cty) -> recur (Ctr label) cty (reverse vals)
+      Just (_, _, cty) -> do
+        cty' <- cty $ SInd nm ty ctors
+        recur (Ctr label) cty' (reverse vals)
         where
           recur v _ [] = pure v
           recur v (SPrd _ a b) (val:vals) = do
@@ -160,7 +163,7 @@ read_nf (Normal ty val) = case (ty, val) of
       Nothing -> throw $ "Constructor cannot be found!"
         
   (_, Neutral _ e) -> read_ne e 
-  (_, _) -> throw ("bad read_nf: " <+> pretty val <> " : " <+> pretty ty)
+  (_, _) -> throw ("bad read_nf:" <+> pretty val <+> "⮜" <+> pretty ty)
 
 
 read_ne :: (MonadError err m, MonadGen m, Environment Name e, ?lift_err :: Doc ann -> err) => Neutral m e -> m InternalCore
@@ -232,17 +235,16 @@ eval term env = case term of
     dap env val' 
 
   Ind bnd ctors -> do 
-    nm <- fromMaybe (throw "Ind must bind a name") (fmap pure $ name bnd)
-    a <- fromMaybe (throw "Ind must bind a type") (fmap pure $ tipe bnd)
-    a' <- eval a env
-    let env' = (insert nm (Neutral a' (NeuVar nm)) env)
+    inm <- fromMaybe (throw "Ind must bind a name") (fmap pure $ name bnd)
+    ity <- fromMaybe (throw "Ind must bind a type") (fmap pure $ tipe bnd)
+    ity' <- eval ity env
+    -- let env' = 
     ctors' <- mapM (\(lbl, bnd) -> do
                        nm <- fromMaybe (throw "Ind ctor must bind a name") (fmap pure $ name bnd)
                        a <- fromMaybe (throw "Ind ctor must bind a type") (fmap pure $ tipe bnd)
-                       a' <- eval a env'
-                       pure $ (lbl, nm, a'))
+                       pure $ (lbl, nm, (\val -> eval a (insert inm val env))))
                 ctors
-    pure $ SInd nm a' ctors'
+    pure $ SInd inm ity' ctors'
 
   Ctr label -> pure $ SCtr label []
   -- Implicit terms 
@@ -282,7 +284,7 @@ eval_sem env term = case term of
     ty_sem <- eval_sem env ty   
     seql env' tel_sem ty_sem v1 v2
   SDap val -> SDap <$> eval_sem env val
-  SInd nm ty ctors -> SInd nm <$> eval_sem env ty <*> mapM (\(l, n, ty) -> (l, n, ) <$> eval_sem env ty) ctors
+  SInd nm ty ctors -> SInd nm <$> eval_sem env ty <*> pure (map (\(l, n, fnc) -> (l, n, eval_sem env <=< fnc)) ctors)
   SCtr label vals -> SCtr label <$> mapM (eval_sem env) vals
   Neutral _ val -> eval_neusem env val 
 
@@ -440,7 +442,7 @@ instance Pretty (Sem m e) where
 
     SInd nm val ctors ->
       "μ" <+> pretty nm <+> "⮜" <+> pretty val
-      <+> nest 2 (vsep (map (\(l,n,a) -> pretty l <> "/" <> pretty n <+> "⮜" <+> pretty a) ctors))
+      <+> nest 2 (vsep (map (\(l,n,_) -> pretty l <> "/" <> pretty n <+> "⮜" <+> "...") ctors))
     SCtr label vals -> pretty (":" <> label) <+> sep (map pretty vals)
     Neutral _ n -> pretty n
 
