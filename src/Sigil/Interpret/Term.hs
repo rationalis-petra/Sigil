@@ -68,6 +68,8 @@ data Neutral m e
   = NeuVar Name
   | NeuApp (Neutral m e) (Normal m e)
   | NeuDap (Neutral m e) -- A neutral explicit substitution, must be empty!
+  | NeuRec Name (Sem m e) (Neutral m e)
+    [(Sem m e -> Maybe (m (Sem m e)), m (Pattern Name, Sem m e))]
 
 data Normal (m :: Type -> Type) (e :: Type -> Type) = Normal (Sem m e) (Sem m e)
 
@@ -171,6 +173,19 @@ read_ne neu = case neu of
   NeuVar name -> pure $ Var name
   NeuApp l r -> App <$> (read_ne l) <*> (read_nf r)
   NeuDap val -> Dap [] <$> (read_ne val)
+  NeuRec nm ty val cases -> do
+    ty' <- read_nf (Normal (SUni $ uni_level ty) ty)
+    (_, a, b) <- case ty of
+      SPrd rnm a b -> pure (rnm, a, b)
+      _ -> throw "bad read_ne in recursive"
+    b' <- b `app` a
+    val'<- read_ne val
+    let read_case (_, m) = do
+          (ptn, core) <- m
+          core' <- read_nf (Normal b' core)
+          pure $ (ptn, core')
+    cases' <- mapM read_case cases
+    pure $ Rec (AnnBind (nm, ty')) val' cases'
 
 
 eval :: forall m err e ann. (MonadError err m, MonadGen m, Environment Name e, ?lift_err :: Doc ann -> err) => InternalCore -> e (Sem m e) -> m (Sem m e)
@@ -247,6 +262,43 @@ eval term env = case term of
     pure $ SInd inm ity' ctors'
 
   Ctr label -> pure $ SCtr label []
+  Rec (AnnBind (rname, rty)) val cases -> do
+    rty' <- eval rty env
+    (pname, a, b) <- case rty' of 
+      SPrd pname a b -> pure (pname, a, b)
+      _ -> throw "Rec fn must have product type"
+    let rec_fn = SAbs pname (\val -> recur env rname (SPrd pname a b) val cases')
+        cases' = (map to_case_fn cases)
+
+        to_case_fn (pat, core) =
+          ( \val -> fmap (\env' -> (eval core (insert rname rec_fn env'))) (match env pat val)
+          , ((pat,) <$> (eval core =<< (insert rname (Neutral rty' (NeuVar rname)) <$> match_neu env pat a)))
+          )
+
+        match :: e (Sem m e) -> Pattern Name -> Sem m e -> Maybe (e (Sem m e))
+        match env (PatVar n) v = Just $ insert n v env
+        match env (PatCtr n subpats) (SCtr n' vals)
+          | n == n' = foldl (\menv (p, v) -> do -- TODO: check that foldl is corect!
+                                env <- menv
+                                match env p v) (Just env) (zip subpats vals)
+          | otherwise = Nothing
+        match _ _ _ = Nothing
+
+        match_neu :: e (Sem m e) -> Pattern Name -> Sem m e -> m (e (Sem m e))
+        match_neu env (PatVar n) ty = pure $ insert n (Neutral ty (NeuVar n)) env
+        match_neu env (PatCtr label subpats) (SInd _ _ ctors) = do
+          -- args <- ty_args label ctors
+          let ty_args = \case -- TODO: borked! include name!
+                (SPrd _ a b) -> [a] <> ty_args b
+                _ -> []
+          args <- case find ((== label) . (\(l,_,_) -> l)) ctors of
+            Just (_, _, ty) -> ty_args <$> ty (Neutral rty' (NeuVar rname))
+            Nothing -> throw "bad pattern match"
+          foldl (\m (pat, arg) -> m >>= \env -> match_neu env pat arg) (pure env) (zip subpats args)
+        match_neu _ _ ty = throw ("bad type in match_neu:" <+> pretty ty)
+    val' <- eval val env
+    recur env rname (SPrd pname a b) val' cases' 
+  
   -- Implicit terms 
   IPrd _ _ -> throw "don't know how to eval IPrd"
   IAbs _ _ -> throw "don't know how to eval IAbs"
@@ -297,6 +349,11 @@ eval_neusem env neu = case neu of
     r' <- eval_sem env r
     l' `app` r'
   NeuDap v -> dap env =<< eval_neusem env v
+  NeuRec name ty neu cases -> do 
+    ty' <- eval_sem env ty
+    neu' <- eval_neusem env neu
+    recur env name ty' neu' cases -- TODO: cases'
+      
 
 app :: (MonadError err m, Environment Name e, MonadGen m, ?lift_err :: Doc ann -> err) => (Sem m e) -> (Sem m e) -> m (Sem m e)
 app (SAbs _ fnc) val = fnc val
@@ -347,6 +404,19 @@ eql env tel tipe v1 v2 = case tipe of
                     b (App v1 (Var u)) (App v2 (Var v)))))))
   SUni n -> SEql tel (SUni n) <$> eval v1 env <*> eval v2 env
   _ -> throw ("Don't know how to eql:" <+> pretty tipe)
+
+
+recur :: (MonadError err m, Environment Name e, MonadGen m, ?lift_err :: Doc ann -> err)
+  => e (Sem m e) -> Name -> (Sem m e) -> (Sem m e) -> [(Sem m e -> Maybe (m (Sem m e)), m (Pattern Name, Sem m e))] -> m (Sem m e)
+recur _ rname rty@(SPrd _ _ b) val cases =
+    case val of 
+      SCtr _ _ -> case find (isJust) (map (($ val) . fst) cases) of 
+        Just (Just m) -> m
+        _ -> throw "failed to match"
+      Neutral _ neuval -> 
+        Neutral <$> (b `app` val) <*> pure (NeuRec rname rty neuval cases)
+      _ -> throw "recur must induct over a constructor"
+recur _ _ _ _ _ = throw "recur expects recursive type to be fn" 
 
 seql :: (MonadError err m, Environment Name e, MonadGen m, ?lift_err :: Doc ann -> err) => e (Sem m e) -> [(Name, (Sem m e, Sem m e, Sem m e), Sem m e)] -> (Sem m e)
   -> Sem m e -> Sem m e -> m (Sem m e)
@@ -450,7 +520,13 @@ instance Pretty (Neutral m e) where
   pretty neu = case neu of
     NeuVar n -> pretty n
     NeuApp l r -> pretty l <+> pretty r
-    NeuDap val -> "Ap" <+> pretty val
+    NeuDap val -> "ρ" <+> pretty val
+    NeuRec name rty val _ ->
+      vsep [ "φ" <+> pretty name <+> "⮜" <+> pretty rty <> "," <+> pretty val <> "."
+           , nest 2 "..."
+           ] 
+        
+
 
 instance Pretty (Normal m e) where
   pretty (Normal _ val) = pretty val

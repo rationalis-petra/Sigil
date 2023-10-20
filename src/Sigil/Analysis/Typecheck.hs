@@ -294,7 +294,43 @@ instance Checkable Name ResolvedCore InternalCore where
           pure $ (Ind (AnnBind (n, a')) ctors', asort)
 
         Ctrχ _ _ -> throwError' "Constructors cannot have their types inferred"
-        _ -> throwError . lift_err . flip PrettyErr (range term) $ "infer not implemented for resolved term:" <+> pretty term
+
+        Recχ _ (OptBind (Just rnm, Just rty)) val cases -> do
+          (rty', rsort) <- infer' env rty
+          rnorm <- normalize' env rsort rty'
+          (_, inty, out) <- case rnorm of
+            (Prd (AnnBind (nm, inty)) out) -> pure (nm, inty, out)
+            _ -> throwError' "Expecting recursive function have product type"
+          val' <- check' env val inty
+
+          let check_case env inty (pat, core) = do
+                env' <- update_env env inty pat
+                core' <- check' env' core out
+                pure $ (pat, core')
+
+              update_env :: e (Maybe InternalCore, InternalCore) -> InternalCore -> Pattern Name -> m (e (Maybe InternalCore, InternalCore))
+              update_env env inty = \case 
+                PatVar n -> pure $ insert n (Nothing, inty) env 
+                PatCtr label subpatterns -> do
+                  -- TODO: what about dependently-typed induction!
+                  args <- get_args label inty 
+                  -- TODO: ensure same length for zipping!
+                  foldl (\m (inty, subpat) -> m >>= \env -> update_env env inty subpat) (pure env) (zip args subpatterns) 
+
+              get_args label ty@(Ind (AnnBind (rn, _)) ctors) = do
+                case find ((== label) . fst) ctors of 
+                  Just (_, AnnBind (_, cty)) -> 
+                    let cty' = subst (rn ↦ ty) cty
+                        pargs (Prd (AnnBind (_, a)) b) = [a] <> pargs b
+                        pargs _ = []
+                    in pure $ pargs cty'
+                  Nothing -> throwError' "Failed to find label for recursion"
+              get_args _ _ = throwError' "Can't pattern match on non-inductive type"
+
+          cases' <- mapM (check_case (insert rnm (Nothing, rnorm) env) inty) cases
+          pure $ (Rec (AnnBind (rnm, rty')) val' cases', out)
+
+        _ -> throwError . lift_err . flip PrettyErr (range term) $ vsep ["infer not implemented for resolved term:", pretty term]
   
   
   -- Note: types are expected to be in normal form

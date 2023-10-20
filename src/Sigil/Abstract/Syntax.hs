@@ -317,15 +317,15 @@ pretty_core_builder pretty_name pretty_coreχ c =
   
     Indχ _ bind terms ->
       vsep [ "μ" <+> pretty_fn_bind bind <> "."
-           , nest 2 (vsep $ map (\(text, bind) -> pretty text <> "/" <> pretty_fn_bind bind) terms )]
+           , indent 2 (align (vsep $ map (\(text, bind) -> pretty text <> "/" <> pretty_fn_bind bind) terms))]
     Ctrχ _ label -> ":" <> pretty label
     Recχ _ recur val cases ->
-      vsep ["φ" <+> pretty_fn_bind recur <> "," <+> pretty_core val
-           , nest 2 (vsep $ map pretty_case cases) ]
+      vsep ["φ" <+> pretty_fn_bind recur <> "," <+> pretty_core val <> "."
+           , indent 2 (align (vsep $ map pretty_case cases)) ]
       where
         pretty_case (pat, body) = pretty_pat pat <+> "→" <+> pretty_core body
         pretty_pat = \case 
-          PatCtr n subpats -> pretty n <+> sep (map pbracket subpats)
+          PatCtr n subpats -> pretty (":" <> n) <+> sep (map pbracket subpats)
           PatVar n -> pretty_name n
         pbracket p = case p of
           PatCtr _ _ -> "(" <> pretty_pat p <> ")"

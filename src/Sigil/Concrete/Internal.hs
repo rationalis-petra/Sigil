@@ -3,6 +3,7 @@ module Sigil.Concrete.Internal
   , InternalCore
   , InternalEntry
   , InternalModule
+  , Pattern(..)
   , pattern Uni
   , pattern Var
   , pattern Prd
@@ -12,6 +13,7 @@ module Sigil.Concrete.Internal
   , pattern Dap
   , pattern Ind
   , pattern Ctr
+  , pattern Rec
   , pattern IAbs
   , pattern IPrd
   , pattern TyCon ) where
@@ -36,6 +38,7 @@ type instance Eqlχ Internal = ()
 type instance Dapχ Internal = ()
 type instance Indχ Internal = ()
 type instance Ctrχ Internal = ()
+type instance Recχ Internal = ()
 type instance IAbsχ Internal = ()
 type instance IPrdχ Internal = ()
 type instance TyConχ Internal = ()
@@ -51,7 +54,7 @@ type InternalEntry = Entry AnnBind Name Internal
 
 type InternalModule = Module AnnBind Name Internal  
 
-{-# COMPLETE Uni, Var, Prd, Abs, App, Eql, Dap, Ind, Ctr, IPrd, IAbs, TyCon #-}
+{-# COMPLETE Uni, Var, Prd, Abs, App, Eql, Dap, Ind, Ctr, Rec, IPrd, IAbs, TyCon #-}
 
 pattern Uni :: Integer -> InternalCore
 pattern Uni n <- Uniχ () n
@@ -88,6 +91,10 @@ pattern Ind bind ctors <- Indχ () bind ctors
 pattern Ctr :: Text -> InternalCore
 pattern Ctr label <- Ctrχ () label 
   where Ctr label = Ctrχ () label
+
+pattern Rec :: AnnBind Name InternalCore -> InternalCore -> [(Pattern Name, InternalCore)] -> InternalCore
+pattern Rec bind val cases <- Recχ () bind val cases
+  where Rec bind val cases = Recχ () bind val cases
 
 pattern IPrd :: AnnBind Name InternalCore -> InternalCore -> InternalCore
 pattern IPrd b ty <- Coreχ (IPrdχ () b ty)
@@ -135,11 +142,20 @@ instance Pretty InternalCore where
     Dap tel val -> ("ρ" <+> pretty_tel tel <+> "." <+> pretty val)
 
     Ind bind ctors -> vsep
-      [ "μ" <+> pretty_annbind True bind 
-      , nest 2 (vsep (map (\(l,b) -> pretty l <> "/" <> pretty_annbind True b) ctors))
+      [ "μ" <+> pretty_annbind True bind <> "."
+      , indent 2 (align (vsep (map (\(l,b) -> pretty l <> "/" <> pretty_annbind True b) ctors)))
       ]
 
     Ctr label -> ":" <> pretty label 
+
+    Rec recur val cases -> vsep
+      [ "φ" <+> pretty_annbind True recur <> "," <+> pretty val <> "."
+      , indent 2 (align (vsep (map (\(pat, val) -> pretty_pat pat <+> "→" <+> pretty val) cases)))
+      ]
+      where 
+        pretty_pat = \case
+          (PatCtr n pats) -> pretty (":" <> n) <+> sep (map pretty_pat pats)
+          (PatVar n) -> pretty n
 
     TyCon _ _ -> "tycon"
   

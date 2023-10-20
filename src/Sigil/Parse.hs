@@ -26,6 +26,7 @@ import qualified Data.Text as Text
 import Data.Text (Text)
 import Data.Either (lefts, rights)
 import Data.Maybe (maybeToList)
+import Data.Foldable (fold)
 import Data.List.NonEmpty (NonEmpty((:|)))
 
 import qualified Text.Megaparsec as Megaparsec
@@ -155,7 +156,7 @@ entry precs = mutual
 
       case args of 
         [] -> error "impossible!"
-        (name:xs) -> do
+        (name : xs) -> do
           case ann of
             Just (name', _) ->
               if (name == name') then
@@ -297,7 +298,10 @@ core precs = do
           pctors var ty
 
         pctors :: Text -> ParsedCore -> ParserT m (L.IndentOpt (ParserT m) ParsedCore (Text, OptBind Text ParsedCore))
-        pctors var ty = pure (L.IndentMany Nothing (pure . (Indχ mempty (OptBind (Just var, Just ty)))) (pctor (update_precs [var] precs)))
+        pctors var ty =
+          pure (L.IndentMany Nothing
+                (pure . (Indχ mempty (OptBind (Just var, Just ty))))
+                (pctor (update_precs [var] precs)))
 
         pctor :: Precedences -> ParserT m (Text, OptBind Text ParsedCore)
         pctor precs = do
@@ -307,7 +311,37 @@ core precs = do
           
 
     prec :: ParserT m ParsedCore
-    prec = fail "no φ implemented"
+    prec = mkrec
+      where 
+        mkrec = L.indentBlock scn $ do
+          symbol "φ"
+          var <- anyvar
+          symbol "⮜"
+          ty <- core precs
+          symbol ","
+          val <- core precs
+          symbol "."
+          pcases var ty val
+
+        pcases var ty val =
+          pure $ (L.IndentMany Nothing
+                  (pure . Recχ mempty (OptBind (Just var, Just ty)) val)
+                  (pcase (update_precs [var] precs)))
+
+        pcase precs = do
+          pat <- ppattern 
+          symbol "→"
+          (pat,) <$> core (update_precs (pat_vars pat) precs)
+
+        pat_vars = \case 
+          PatVar n -> [n]
+          PatCtr _ ns -> fold $ map pat_vars ns
+
+        ppattern :: ParserT m (Pattern Text)
+        ppattern =
+          (PatCtr <$> (single ':' *> anyvar) <*> many ppattern)
+          <|> (PatVar <$> (try $ anyvar >>= (\v -> if (v == "→") then fail "ppattern" else pure v)))
+        
 
     pexpr :: ParserT m ParsedCore
     pexpr = mixfix patom (core precs) precs
