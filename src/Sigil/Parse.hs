@@ -66,7 +66,7 @@ with_range p = do
   pure $ f (Range (Just (start, end)))
 
 
-mod :: Monad m => ([Text] -> [ImportDef] -> m Precedences) -> ParserT m ParsedModule
+mod :: Monad m => (NonEmpty Text -> [ImportDef] -> m Precedences) -> ParserT m ParsedModule
 mod get_precs = do
   (title, ports) <- module_header
   let imports = lefts ports
@@ -83,14 +83,18 @@ mod get_precs = do
   pure $ Module title imports exports body
 
   where
-    module_header :: ParserT m ([Text], [Either ImportDef ExportDef])
+    module_header :: ParserT m (NonEmpty Text, [Either ImportDef ExportDef])
     module_header = do
       L.nonIndented scn (L.indentBlock scn modul)
       where 
-        modul :: ParserT m (L.IndentOpt (ParserT m) ([Text], [Either ImportDef ExportDef]) [Either ImportDef ExportDef])
+        modul :: ParserT m (L.IndentOpt (ParserT m) (NonEmpty Text, [Either ImportDef ExportDef]) [Either ImportDef ExportDef])
         modul = do 
           symbol "module"
-          title <- sepBy anyvar (C.char '.')
+          title <- do
+            l <- sepBy anyvar (C.char '.')
+            case l of 
+              (x:xs) -> pure $ x :| xs
+              [] -> fail "title must be nonempty"
           pure (L.IndentMany Nothing (pure . (title, ) . join) modulePart)
       
         modulePart :: ParserT m [Either ImportDef ExportDef]

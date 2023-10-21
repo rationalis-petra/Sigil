@@ -1,5 +1,8 @@
 .stack-work/
 todo.org
+brainstorm.org
+test.sl
+.hlint.yaml
 stack.yaml.lock
 sigil.cabal
 *~

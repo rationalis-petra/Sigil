@@ -9,6 +9,7 @@ import Control.Monad (void)
 import Control.Monad.Except (MonadError, throwError, catchError)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Data.List.NonEmpty
 import Data.Text (Text, unpack)
 import Data.Text.IO
 import System.IO hiding (getLine, putStr, readFile)
@@ -56,13 +57,11 @@ interactive (Interpreter {..}) opts = do
       hFlush stdout
       line <- getLine
       if not (should_quit line) then do
-        putStr "doing eval_line.."
         (result, state') <- run state $ eval_line line 
-        putStr "evaluated line.."
         case result of
           Right (val, ty) -> do
-            putDocLn $ "final value:" <+> nest 2 (pretty val)
-            putDocLn $ "type" <+> nest 2 (pretty ty)
+            putDocLn $ "val:" <+> nest 2 (pretty val)
+            putDocLn $ "type:" <+> nest 2 (pretty ty)
           Left err -> putDocLn $ err
         loop state' opts
       else
@@ -74,7 +73,8 @@ interactive (Interpreter {..}) opts = do
 
     eval_line :: Text -> m (InternalCore, InternalCore)
     eval_line line = do
-      env <- get_env Nothing []
+      env <- get_env (Just ("repl" :| [])) []
+      --precs <- get_module_precs ("repl" :| []) 
       parsed <- parseToErr (core default_precs <* eof) "console-in" line 
       resolved <- resolve_closed parsed
         `catchError` (throwError . (<+>) "Resolution:")
@@ -101,7 +101,11 @@ interactive (Interpreter {..}) opts = do
     eval_file :: Text -> s -> IO s
     eval_file filename state = do
       text <- readFile (unpack filename)
-      (result, state') <- run state $ check_mod filename text 
+      (result, state') <- run state $ do
+        mod <- check_mod filename text
+        intern_module ("repl" :| []) mod
+        pure mod
+        
       case result of
         Right modul -> do
           putStr "\n"

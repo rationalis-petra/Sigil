@@ -171,7 +171,7 @@ type Forallχ (φ :: Type -> Constraint) χ
 
 
 data Module b v χ  
-  = Module { _module_header :: [Text]
+  = Module { _module_header :: NonEmpty Text
            , _module_imports :: [ImportDef]
            , _module_exports :: [ExportDef]
            , _module_entries :: [Entry b v χ]
@@ -393,5 +393,5 @@ pretty_mod_builder :: (Entry b n χ -> Doc ann) -> Module b n χ -> Doc ann
 pretty_mod_builder pretty_entry m =
   -- TOOD: account for imports/exports
   vsep $
-    ("module" <+> (foldl' (<>) "" . zipWith (<>) ("" : repeat ".") . fmap pretty $ (m^.module_header)))
+    ("module" <+> (foldl' (<>) "" . zipWith (<>) ("" : repeat ".") . fmap pretty . toList $ (m^.module_header)))
     : emptyDoc : intersperse emptyDoc (fmap (align . pretty_entry) (m^.module_entries))
