@@ -85,8 +85,11 @@ data Interpreter m err env s t = Interpreter
   -- environment manipulation
   -- load a module into the interpreter's state
   , intern_module :: Path Text -> InternalModule -> m ()
-  , get_env :: Maybe (Path Text) -> [ImportDef] -> m env
-  , get_precs :: [Text] -> [ImportDef] -> m Precedences
+
+  -- get the initial environment/precedences for a given module (path) with a
+  -- set of imports
+  , get_env :: Path Text -> [ImportDef] -> m env
+  , get_precs :: Path Text -> [ImportDef] -> m Precedences
 
   -- The Monad m
   , run :: forall a. s -> m a -> IO (Either err a, s)

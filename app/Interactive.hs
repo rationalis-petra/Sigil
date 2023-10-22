@@ -7,8 +7,6 @@ import Prelude hiding (mod, getLine, putStr, readFile)
 
 import Control.Monad (void)
 import Control.Monad.Except (MonadError, throwError, catchError)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
 import Data.List.NonEmpty
 import Data.Text (Text, unpack)
 import Data.Text.IO
@@ -20,7 +18,6 @@ import Prettyprinter.Render.Sigil
 
 import Sigil.Abstract.Environment
 import Sigil.Parse  
-import Sigil.Parse.Mixfix
 import Sigil.Analysis.NameResolution
 import Sigil.Analysis.Typecheck
 import Sigil.Interpret.Interpreter
@@ -32,18 +29,6 @@ newtype InteractiveOpts = InteractiveOpts
   }
   deriving (Show, Read, Eq)
 
-default_precs :: Precedences
-default_precs = Precedences
-  (Map.fromList
-   [ ("sum", PrecedenceNode Set.empty (Set.fromList ["prod"]))
-   , ("prod", PrecedenceNode Set.empty (Set.fromList ["ppd"]))
-   , ("ppd", PrecedenceNode Set.empty (Set.fromList ["tight"]))
-   , ("ctrl", PrecedenceNode Set.empty (Set.fromList ["tight"]))
-   , ("tight", PrecedenceNode Set.empty (Set.fromList ["tight"]))
-   , ("tight", PrecedenceNode Set.empty (Set.fromList ["close"]))
-   , ("close", PrecedenceNode Set.empty Set.empty)
-   ])
-  "sum" "ppd" "ppd" "close"
 
 interactive :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e)
   => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> InteractiveOpts -> IO ()
@@ -73,9 +58,9 @@ interactive (Interpreter {..}) opts = do
 
     eval_line :: Text -> m (InternalCore, InternalCore)
     eval_line line = do
-      env <- get_env (Just ("repl" :| [])) []
-      --precs <- get_module_precs ("repl" :| []) 
-      parsed <- parseToErr (core default_precs <* eof) "console-in" line 
+      env <- get_env ("repl" :| []) []
+      precs <- get_precs ("repl" :| []) []
+      parsed <- parseToErr (core precs <* eof) "console-in" line 
       resolved <- resolve_closed parsed
         `catchError` (throwError . (<+>) "Resolution:")
       (term, ty) <- infer (CheckInterp interp_eval interp_eq spretty) env resolved
@@ -116,8 +101,9 @@ interactive (Interpreter {..}) opts = do
 
     check_mod :: Text -> Text -> m InternalModule
     check_mod filename file = do
-      env <- get_env Nothing []
-      parsed <- parse (mod (\_ _ -> pure default_precs) <* eof) filename file 
+      env <- get_env (filename :| []) []
+      precs <- get_precs (filename :| []) []
+      parsed <- parse (mod (\_ _ -> pure precs) <* eof) filename file 
         `catchError` (throwError . (<+>) "Parse:")
       resolved <- resolve_closed parsed
         `catchError` (throwError . (<+>) "Resolution:")

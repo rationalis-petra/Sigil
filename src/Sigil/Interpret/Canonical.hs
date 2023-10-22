@@ -17,21 +17,31 @@ module Sigil.Interpret.Canonical
 import Control.Monad.State (StateT, modify, runStateT)
 import Control.Monad.Except (ExceptT, runExceptT)
 import qualified Data.Map as Map
---import Data.Text (Text)
-
---import Prettyprinter  
---import Prettyprinter.Render.Sigil (SigilDoc0
+import qualified Data.Set as Set
 
 import Sigil.Parse.Mixfix
 import Sigil.Abstract.Environment
 import Sigil.Concrete.Internal
 import Sigil.Interpret.Interpreter
---import Sigil.Interpret.Unify
 import Sigil.Interpret.Term
 
 newtype Context = Context { world :: World InternalModule } -- threads :: ??
 
 type CanonM err = StateT (World InternalModule) (ExceptT err Gen)
+
+default_precs :: Precedences
+default_precs = Precedences
+  (Map.fromList
+   [ ("sum", PrecedenceNode Set.empty (Set.fromList ["prod"]))
+   , ("prod", PrecedenceNode Set.empty (Set.fromList ["ppd"]))
+   , ("ppd", PrecedenceNode Set.empty (Set.fromList ["tight"]))
+   , ("ctrl", PrecedenceNode Set.empty (Set.fromList ["tight"]))
+   , ("tight", PrecedenceNode Set.empty (Set.fromList ["tight"]))
+   , ("tight", PrecedenceNode Set.empty (Set.fromList ["close"]))
+   , ("close", PrecedenceNode Set.empty Set.empty)
+   ])
+  "sum" "ppd" "ppd" "close"
+ 
 
 canonical_interpreter :: Environment Name e => (InterpreterErr -> err)
   -> Interpreter (CanonM err) err (e (Maybe InternalCore, InternalCore)) (World InternalModule) InternalCore
@@ -51,7 +61,7 @@ canonical_interpreter liftErr = Interpreter
   , get_env = \_ _ -> pure env_empty
 
   , get_precs = \_ _ ->
-      pure $ Precedences Map.empty "in" "pre" "post" "close"
+      pure default_precs
 
   , run = \s mon -> 
       pure $ case run_gen $ runExceptT $ runStateT mon s of 

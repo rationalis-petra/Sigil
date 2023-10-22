@@ -10,10 +10,9 @@ import qualified Control.Exception as Ex
 import Control.Concurrent (forkFinally)
   
 import Data.Bifunctor
-import qualified Data.Map as Map
 import qualified Data.ByteString as Bs
-import qualified Data.Set as Set
 import Text.Megaparsec hiding (runParser)
+import Data.List.NonEmpty (NonEmpty(..))
 import Data.Text.IO
 import Data.Text (Text, pack)
 
@@ -30,8 +29,8 @@ import Prettyprinter.Render.Sigil
 import Prettyprinter.Render.Text
 
 import Sigil.Abstract.Environment hiding (bind)
+import Sigil.Abstract.Syntax (ImportDef)
 import Sigil.Concrete.Internal
-import Sigil.Parse.Mixfix
 import Sigil.Parse
 import Sigil.Analysis.NameResolution
 import Sigil.Analysis.Typecheck
@@ -39,26 +38,12 @@ import Sigil.Interpret.Interpreter
 
 import Server.Agent
 
--- We use an existential type to allow substituting different interpreters with
--- different monads
 
 data ServerOpts = ServerOpts
   { port :: Int
   }
   deriving (Show, Read, Eq)
 
-default_precs :: Precedences
-default_precs = Precedences
-  (Map.fromList
-   [ ("sum"  , PrecedenceNode Set.empty (Set.fromList ["prod"]))
-   , ("prod" , PrecedenceNode Set.empty (Set.fromList ["ppd"]))
-   , ("ppd"  , PrecedenceNode Set.empty (Set.fromList ["tight"]))
-   , ("ctrl" , PrecedenceNode Set.empty (Set.fromList ["tight"]))
-   , ("tight", PrecedenceNode Set.empty (Set.fromList ["tight"]))
-   , ("tight", PrecedenceNode Set.empty (Set.fromList ["close"]))
-   , ("close", PrecedenceNode Set.empty Set.empty)
-   ])
-  "sum" "ppd" "ppd" "close"
 
 server :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
   Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> ServerOpts -> IO ()
@@ -118,7 +103,7 @@ processMessage :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environmen
   => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> s -> Socket -> InMessage -> IO s
 processMessage (Interpreter {..}) state socket = \case
   EvalExpr uid _ code -> do -- TODO: update to use path!
-    (result, state') <- run state $ eval_msg code
+    (result, state') <- run state $ eval_msg Nothing code 
     let object = case result of
           Right (val, _) -> toJSON $ OutResult uid (renderStrict (layoutPretty defaultLayoutOptions (pretty val)))
           Left err -> toJSON $ OutError uid (renderStrict (layoutPretty defaultLayoutOptions err))
@@ -128,10 +113,13 @@ processMessage (Interpreter {..}) state socket = \case
     pure state'
    
   where 
-    eval_msg :: Text -> m (InternalCore, InternalCore)
-    eval_msg line = do
-      env <- get_env Nothing []
-      parsed <- parseToErr (core default_precs <* eof) "server-in" line 
+    eval_msg :: Maybe (NonEmpty Text, [ImportDef]) -> Text -> m (InternalCore, InternalCore)
+    eval_msg module_spec line = do
+      let path = maybe ("repl" :| []) fst module_spec
+          imports = maybe [] snd module_spec
+      env <- get_env path imports
+      precs <- get_precs path imports
+      parsed <- parseToErr (core precs <* eof) "server-in" line 
       resolved <- resolve_closed parsed
         `catchError` (throwError . (<+>) "Resolution:")
       (term, ty) <- infer (CheckInterp interp_eval interp_eq spretty) env resolved
