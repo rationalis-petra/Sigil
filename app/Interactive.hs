@@ -3,21 +3,25 @@ module Interactive
   , interactive ) where
 
 
-import Prelude hiding (mod, getLine, putStr, readFile)
+import Prelude hiding (mod, getLine, putStr, putStrLn, readFile)
 
 import Control.Monad (void)
 import Control.Monad.Except (MonadError, throwError, catchError)
+import Control.Lens (makeLenses, (^.), (%~))
 import Data.List.NonEmpty
 import Data.Text (Text, unpack)
 import Data.Text.IO
-import System.IO hiding (getLine, putStr, readFile)
+import System.IO hiding (getLine, putStr, putStrLn, readFile)
 
 import Text.Megaparsec hiding (parse, runParser)
+import Text.Megaparsec.Char as C
 import Prettyprinter
 import Prettyprinter.Render.Sigil
 
+import Sigil.Abstract.Syntax
 import Sigil.Abstract.Environment
-import Sigil.Parse  
+import Sigil.Parse.Lexer
+import Sigil.Parse
 import Sigil.Analysis.NameResolution
 import Sigil.Analysis.Typecheck
 import Sigil.Interpret.Interpreter
@@ -30,36 +34,53 @@ newtype InteractiveOpts = InteractiveOpts
   deriving (Show, Read, Eq)
 
 
+newtype InteractiveState = InteractiveState
+  { _imports :: [ImportDef]
+  }
+  deriving (Show, Eq)
+
+$(makeLenses ''InteractiveState)
+
+data Command
+  = Eval Text
+  | Import ImportDef
+  | Quit
+  | Malformed SigilDoc
+
 interactive :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e)
   => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> InteractiveOpts -> IO ()
 interactive (Interpreter {..}) opts = do
     s <- eval_file (ifile opts) start_state
-    loop s opts 
+    loop s (InteractiveState [])
   where
-    loop :: s -> InteractiveOpts -> IO ()
-    loop state opts =  do
+    loop :: s -> InteractiveState -> IO ()
+    loop state istate =  do
       putStr "> "
       hFlush stdout
       line <- getLine
-      if not (should_quit line) then do
-        (result, state') <- run state $ eval_line line 
-        case result of
-          Right (val, ty) -> do
-            putDocLn $ "val:" <+> nest 2 (pretty val)
-            putDocLn $ "type:" <+> nest 2 (pretty ty)
-          Left err -> putDocLn $ err
-        loop state' opts
-      else
-        void $ run state stop
-   
-    should_quit :: Text -> Bool
-    should_quit ";q" = True
-    should_quit _ = False
+      case read_command line of  
+        Eval line -> do
+          (result, state') <- run state $ eval_line istate line 
+          case result of
+            Right (val, ty) -> do
+              putDocLn $ "val:" <+> nest 2 (pretty val)
+              putDocLn $ "type:" <+> nest 2 (pretty ty)
+            Left err -> putDocLn $ err
+          loop state' istate
 
-    eval_line :: Text -> m (InternalCore, InternalCore)
-    eval_line line = do
-      env <- get_env ("repl" :| []) []
-      precs <- get_precs ("repl" :| []) []
+        Import def -> loop state ((imports %~ (def :)) istate)
+
+        Quit -> void $ run state stop
+
+        Malformed err -> do
+          putDocLn $ "Malformed command: " <+> err
+          loop state istate
+       
+
+    eval_line :: InteractiveState -> Text -> m (InternalCore, InternalCore)
+    eval_line istate line = do
+      env <- get_env ("repl" :| []) (istate^.imports)
+      precs <- get_precs ("repl" :| []) (istate^.imports)
       parsed <- parseToErr (core precs <* eof) "console-in" line 
       resolved <- resolve_closed parsed
         `catchError` (throwError . (<+>) "Resolution:")
@@ -88,7 +109,7 @@ interactive (Interpreter {..}) opts = do
       text <- readFile (unpack filename)
       (result, state') <- run state $ do
         mod <- check_mod filename text
-        intern_module ("repl" :| []) mod
+        intern_module (mod^.module_header) mod
         pure mod
         
       case result of
@@ -109,3 +130,39 @@ interactive (Interpreter {..}) opts = do
         `catchError` (throwError . (<+>) "Resolution:")
       check_module (CheckInterp interp_eval interp_eq spretty) env resolved
         `catchError` (throwError . (<+>) "Inference:")
+
+read_command :: Text -> Command
+read_command cmd = case parseToErr command_parser "console-in" cmd of
+  Right cmd -> cmd
+  Left err -> Malformed err
+
+type Parser = Parsec Text Text
+
+command_parser :: Parser Command
+command_parser = do
+  c <- sc *> lookAhead (satisfy (const True))
+  case c of  
+    ';' -> do
+      void $ C.char ';'
+      cmd <- ( (const Quit <$> symbol "q")
+        <|> (symbol "import" *> pImport))
+      sc <* eof
+      pure cmd
+    _ -> Eval <$> takeWhileP (Just "any") (const True)
+  where 
+    pImport = do
+      let
+        sep :: Parser a -> Parser b -> Parser [a]
+        sep p separator = ((: []) <$> p <|> pure []) >>= \v ->
+            (v <> ) <$> many (try (separator *> p))
+
+      l <- sep anyvar (C.char '.' <* sc)
+      path <- case l of 
+        [] -> fail "import path must be nonempty"
+        (x:xs) -> pure (x:|xs)
+      modifier <- pModifier <|> pure ImSingleton
+      pure $ Import (path, modifier)
+
+    pModifier :: Parser ImportModifier
+    pModifier = 
+      const ImWildcard <$> (lexeme (C.char '.') *> symbol "(..)")

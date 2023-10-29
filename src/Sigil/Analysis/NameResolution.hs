@@ -9,6 +9,7 @@ import Control.Lens
 import Data.Map (Map, lookup, insert, empty)
 import Data.Text (Text)
 import Data.Foldable (foldl')
+import Data.List.NonEmpty (NonEmpty(..))
 
 import Sigil.Abstract.Syntax
 import Sigil.Abstract.Environment hiding (Environment(..)) 
@@ -39,7 +40,7 @@ instance ResolveTo ParsedCore ResolvedCore where
     Uni rn n -> pure $ Uniχ rn n
     Var rn name -> case lookup name vars of
       Just n -> pure $ Varχ rn $ Name $ Right (n, name)
-      Nothing -> pure $ Varχ rn $ Name $ Left [name]
+      Nothing -> pure $ Varχ rn $ Name $ Left (name :| [])
     Prd rn (OptBind (t, a)) ty -> do
       id <- fresh_id
       let n = (\text -> Name $ Right (id,text)) <$> t

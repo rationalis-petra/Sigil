@@ -7,6 +7,7 @@ module Sigil.Interpret.Interpreter
   , InterpreterErr(..)
   , Image(..)
   , insert_at_path
+  , get_modulo_path
   ) where
 
 
@@ -61,6 +62,17 @@ insert_at_path path a (World subtree) =
         where 
           subworld = insert_at_path (t :| ts) a (World Map.empty)
 
+get_modulo_path :: Path Text -> World a -> (Maybe (a, [Text]))
+get_modulo_path path (World subtree) =
+  case path of 
+    (p :| []) -> case Map.lookup p subtree of 
+      Just ((Just v), _) -> Just (v, [])
+      _ -> Nothing
+    (p :| (t:ts)) -> case Map.lookup p subtree of 
+      Just (_, (Just w)) -> get_modulo_path (t :| ts) w
+      Just (Just v, _) -> Just (v, (t : ts))
+      _ -> Nothing
+
 data Image a = Image (World a) (Restarts a)
 
 type Restarts a = [IO a]
@@ -112,8 +124,10 @@ data ArithFun = Add | Sub | Mul | Div
 data InterpreterErr
   = EvalErr SigilDoc
   | TCErr TCErr 
+  | InternalErr SigilDoc 
 
 instance SigilPretty InterpreterErr where
   spretty (EvalErr doc) = doc
   spretty (TCErr err) = spretty err
+  spretty (InternalErr doc) = doc 
 

@@ -67,7 +67,8 @@ import Prettyprinter
 import Sigil.Abstract.Unify
 import Sigil.Abstract.AlphaEq
 import Sigil.Abstract.Environment
-import Sigil.Abstract.Substitution
+import qualified Sigil.Abstract.Substitution as Sub
+import Sigil.Abstract.Substitution hiding (empty, lookup, insert)
 
 import Sigil.Concrete.Internal
 --import Sigil.Interpret.Term
@@ -112,7 +113,7 @@ type ContT a m c = ((c -> m a) -> m a)
 
 type UnifyResult a =
   Maybe ( Binds a
-        , Substitution a
+        , Substitution Name a
         , [SingleConstraint a])
 
 data FlatFormula a = FlatFormula
@@ -134,7 +135,7 @@ type FBind'            = FBind InternalCore
 type Formula'          = Formula InternalCore
 type UnifyResult'      = UnifyResult InternalCore
 --type FlatFormula'      = Formula (Core AnnBind Name χ)
-type Substitution'     = Substitution InternalCore
+type Substitution'     = Substitution Name InternalCore
 type SingleConstraint' = SingleConstraint InternalCore
 
 makeLenses ''FlatFormula
@@ -584,7 +585,7 @@ unify_eq quant_vars a b = case (a, b) of
           subst_bty sub term l = case (term,l) of 
             (Prd b ty, (x, xi):xmr) ->
               (:) (x, vbuild $ subst sub (snd $ unann b))
-                <$> (subst_bty (insert (aname b) xi sub) ty xmr)
+                <$> (subst_bty (Sub.insert (aname b) xi sub) ty xmr)
             (_, []) -> pure []
             _ -> throwError "_ is not well typed for _ on _"
 

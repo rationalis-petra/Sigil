@@ -3,6 +3,7 @@ module Sigil.Abstract.Environment
   ( UniqueName
   , QualName
   , Name(..)
+  , name_text
 
   -- Paths
   , Path
@@ -41,8 +42,7 @@ import Control.Monad.State (State, StateT, runState, get, modify)
 import Control.Monad.Reader (ReaderT)
   
 import Data.List (sortOn)
-import Data.List.NonEmpty (NonEmpty)
-import Data.Ord (Down(Down))
+import Data.List.NonEmpty (NonEmpty(..))
 import Data.Text (Text, pack)
 import qualified Data.Map as Map
 import Data.Map (Map)
@@ -65,11 +65,15 @@ type Path = NonEmpty
 type UniqueName = (Integer, Text)
 
 -- A qualified name is one which depends on the value of a toplevel definition
-type QualName = [Text]
+type QualName = Path Text
 
 -- data DBName = QDBName QualName | DeBruijn Int (Maybe Text)
 newtype Name = Name (Either QualName UniqueName)
   deriving (Eq, Ord)
+
+name_text :: Name -> Text
+name_text (Name (Left (t :| ts))) = last (t : ts)
+name_text (Name (Right (_, t))) = t
 
 
 {------------------------------ BIND ABSTRACTION -------------------------------}
@@ -173,73 +177,53 @@ freshen q = pure q
 {-------------------------------------------------------------------------------}
 
 
-class (Functor e, Foldable e) => Environment n e | e -> n where
+class Environment n e | e -> n where
   lookup_err :: MonadError err m => (Doc ann -> err) -> n -> e a -> m a 
   lookup :: n -> e a -> Maybe a 
   insert :: n -> a -> e a -> e a
   env_empty :: e a
-  union :: e a -> e a -> e a
-  -- Traverse + Fold ???
   eval_helper :: Monad m => (n -> a -> e b -> m b) -> e a -> m (e b)
-  
+
+data GlobalEnv a = GlobalEnv
+  { _glookup :: QualName -> Maybe a
+  , _geval :: forall m b. Monad m => (Name -> a -> Env b -> m b) -> m (GlobalEnv b)
+  }
 
 data Env a = Env
   { _env_binds :: Map Name (a, Int)
-  , _lvl :: Int
+  , _lvl :: Int -- Level is used to sort keys for evaluation when necessary
+  , _world :: GlobalEnv a
   }
 
 $(makeLenses ''Env)
+$(makeLenses ''GlobalEnv)
 
-instance Functor Env where   
-  fmap f (Env b l) = Env (fmap (_1 %~ f) b) l
-
-instance Foldable Env where
-  foldl f z e = foldl f z env'
-    where
-      env' =
-        fmap (fst . snd) $
-        sortOn (snd . snd) $
-        Map.toList (e^.env_binds)
-
-  -- TODO: mgiht be dodge! (notably: make sure environment level is correct!!)
-  foldr f z e = foldr f z env'
-    where
-      env' =
-        fmap (fst . snd) $
-        sortOn (Down . snd . snd) $
-        Map.toList (e^.env_binds)
-
--- instance Traversable Env where
---   traverse f env = foldl (\a (id, (val, lvl)) ->
---                             f val <*> a)
-
---       env' 
-  -- eval_helper eval env = foldl (\m (id, (val, lvl)) -> m >>= \env' -> do
-  --                                  val' <- eval val env'
-  --                                  pure $ re_add id (val', lvl) env') (pure env_empty) env'
-    -- where
 
 instance Environment Name Env where
   lookup_err liftErr n@(Name (Right _)) env = case Map.lookup n (env^.env_binds) of 
-    Nothing -> throwError $ liftErr $ ("variable not in scope: " <> pretty n)
+    Nothing -> throwError $ liftErr $ ("local variable not in scope: " <> pretty n)
     Just (x, _) -> pure x
-  lookup_err liftErr (Name (Left v)) _ = throwError $ liftErr $ ("cannot lookup global var!" <+> pretty v)
+  lookup_err liftErr n@(Name (Left l)) env = case (env^.world^.glookup) l of 
+    Nothing -> throwError $ liftErr $ ("global variable not in scope: " <> pretty n)
+    Just v -> pure v
 
   lookup n@(Name (Right _)) env = case Map.lookup n (env^.env_binds) of 
     Nothing -> Nothing
     Just (x,_) -> pure x
-  lookup (Name (Left _)) _ = Nothing
+  lookup (Name (Left l)) env = (env^.world^.glookup) l
 
   insert n@(Name (Right _)) v env =
     let lvl' = env^.lvl + 1
         env_binds' = Map.insert n (v, env^.lvl) (env^.env_binds)
-    in Env env_binds' lvl'
-  insert _ _ _ = error "cannot insert qualified var"
+    in Env env_binds' lvl' (env^.world)
+  insert _ _ env = env
 
-  union (Env binds lvl) (Env binds' lvl') = 
-    Env (Map.union binds (fmap (_2 %~ (+) lvl) binds')) (lvl + lvl')
+  -- union (Env binds lvl w) (Env binds' lvl' w') = 
+  --   Env (Map.union binds (fmap (_2 %~ (+) lvl) binds')) (lvl + lvl') (union w w')
 
-  env_empty = Env Map.empty 0
+  env_empty = let genv_empty :: GlobalEnv a
+                  genv_empty = (GlobalEnv (const Nothing) (\_ -> pure genv_empty))
+    in Env Map.empty 0 genv_empty
 
   -- eval_helper: this must evaluate bindings from /outermost/ to /innermost/,
   -- hence we first convert to a List, sort on lvl and then fold!
@@ -247,13 +231,14 @@ instance Environment Name Env where
     foldl (\m (name, (val, lvl)) -> m >>= \env' -> do
               val' <- eval name val env'
               pure $ re_add name (val', lvl) env')
-      (pure env_empty) env'
+      (Env Map.empty 0 <$> (env^.world^.geval) eval)
+      env'
     where
       env' =
         sortOn (snd . snd) $
         Map.toList (env^.env_binds)
       
-      re_add name (val, lvl) (Env b _) = Env (Map.insert name (val, lvl) b) lvl
+      re_add name (val, lvl) (Env b _ w) = Env (Map.insert name (val, lvl) b) lvl w
 
   
 {---------------------------------- INSTANCES ----------------------------------}

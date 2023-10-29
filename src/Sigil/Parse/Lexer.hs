@@ -58,7 +58,10 @@ subscript_int = lexeme $ to_int 1 . reverse <$> many1 sub_numchar
     to_int _ [] = 0
     to_int n (x:xs) = n * x + to_int (n * 10) xs
 
-    sub_numchar = choice
+    sub_numchar :: ParserT m Integer
+    sub_numchar = choice sn_list
+    sn_list :: [ParserT m Integer]
+    sn_list = 
       [ satisfy (== '₀') $>  0
       , satisfy (== '₁') $>  1  
       , satisfy (== '₂') $>  2  

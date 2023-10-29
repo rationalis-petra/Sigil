@@ -350,7 +350,7 @@ core precs = do
     pexpr :: ParserT m ParsedCore
     pexpr = mixfix patom (core precs) precs
       where 
-        patom = choice [puniv, pctor]
+        patom = puniv <|> pctor
 
     puniv :: ParserT m ParsedCore
     puniv = with_range $

@@ -371,5 +371,5 @@ pi = flip (foldr (Prdχ mempty)) . fmap (OptBind . bimap Just Just)
 sentry :: Text -> ParsedCore -> ParsedEntry
 sentry name val = Singleχ mempty (OptBind (Just name, Nothing)) val
 
-modul :: [Text] -> [ImportDef] -> [ExportDef] -> [ParsedEntry] -> ParsedModule
+modul :: NonEmpty Text -> [ImportDef] -> [ExportDef] -> [ParsedEntry] -> ParsedModule
 modul = Module 

@@ -25,7 +25,7 @@ module Sigil.Abstract.Syntax
   , Mutualχ
   , Singleχ
 
-  -- lenses
+  -- Lenses
   , module_header
   , module_imports
   , module_exports

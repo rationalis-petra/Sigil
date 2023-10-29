@@ -100,5 +100,5 @@ run_with_backend ::
   -> a -> IO ()
 run_with_backend backend func val = case backend of
   Native -> func (canonical_interpreter spretty
-                  :: Interpreter (CanonM SigilDoc) SigilDoc (Env (Maybe InternalCore, InternalCore)) (World InternalModule) InternalCore) val
+                  :: Interpreter (CanonM SigilDoc) SigilDoc (Env (Maybe InternalCore, InternalCore)) Context InternalCore) val
   b -> putStrLn $ pack ("Cannot run with backend:" <> show b)

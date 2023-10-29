@@ -25,8 +25,8 @@ import Prettyprinter
 import Prettyprinter.Render.Sigil
 
 import Sigil.Abstract.Environment
+import Sigil.Abstract.Substitution (subst, (↦), free_vars)
 import Sigil.Abstract.Syntax
-import Sigil.Abstract.Substitution
 import Sigil.Concrete.Resolved
 import Sigil.Concrete.Decorations.Range
 import Sigil.Concrete.Internal

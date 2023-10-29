@@ -2,6 +2,9 @@ module Sigil.Abstract.Substitution
   ( Substitution
   , Subst(..)
   , subst
+  , insert
+  , lookup
+  , empty
   , (↦)
   , Regen(..) ) where
 
@@ -20,53 +23,45 @@ import Data.Foldable
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import Data.Set (Set)
+import qualified Data.Map as Map
+import Data.Map (Map)
 
 import Sigil.Abstract.Syntax
-import Sigil.Abstract.Environment
+import Sigil.Abstract.Environment hiding (Environment(..))
 
 
-newtype Substitution a = Substitution (Env a)
+newtype Substitution n a = Substitution (Map n a)
   deriving (Functor, Foldable)
 
 class Subst n s a | a -> s n where
-  substitute :: Environment n e => Set n -> e s -> a -> a
+  substitute :: Set n -> Substitution n s -> a -> a
   free_vars :: a -> Set n
   
 class Regen a where  
   regen :: MonadGen m => a -> m a
   
-subst :: (Subst n s a, Environment n e) => e s -> a -> a
+subst :: (Subst n s a) => Substitution n s -> a -> a
 subst = substitute Set.empty
 
-(↦) :: Name -> a -> Substitution a
-n ↦ v = insert n v env_empty
+empty :: Substitution n a
+empty = Substitution Map.empty
 
-instance Subst Name a a => Semigroup (Substitution a) where
+lookup :: (Ord n) => n -> Substitution n a -> Maybe a
+lookup var (Substitution m) = Map.lookup var m
+
+insert :: (Ord n) => n -> a -> Substitution n a -> Substitution n a
+insert var val (Substitution m) = Substitution $ Map.insert var val m
+
+(↦) :: (Ord n) => n -> a -> Substitution n a
+n ↦ v = insert n v empty
+
+instance (Ord n, Subst n a a) => Semigroup (Substitution n a) where
   (Substitution m1) <> (Substitution m2) =
-    Substitution $ union m2 $ fmap (subst m2) m1
+    Substitution $ Map.union m2 $ fmap (subst (Substitution m2)) m1
 
-instance Subst Name a a => Monoid (Substitution a) where
-  mempty = Substitution env_empty
+instance (Ord n, Subst n a a) => Monoid (Substitution n a) where
+  mempty = empty
 
-instance Environment Name Substitution where
-  lookup_err lift_err var (Substitution env) =
-    lookup_err lift_err var env
-
-  lookup var (Substitution env) =
-    lookup var env
-
-  insert n val (Substitution env) =
-    Substitution $ insert n val env
-
-  union (Substitution l) (Substitution r) = 
-    Substitution (union l r)
-
-  env_empty =
-    Substitution env_empty
-
-  eval_helper eval (Substitution s) =
-    let eval' n v env = eval n v (Substitution env)
-    in Substitution <$> eval_helper eval' s
 
 {--------------------------- SUBSTITUTION INSTANCES ----------------------------}
 {-                                                                             -}
@@ -210,7 +205,7 @@ instance ( Ord n
 
 
 instance Regen (Core OptBind Name χ) where 
-  regen = go (Substitution env_empty) where
+  regen = go empty where
     freshen_bind (OptBind (n, ty)) sub = do
       n' <- mapM freshen n
       let sub' = maybe sub (flip (uncurry insert) sub) ((,) <$> n <*> n')
@@ -276,7 +271,7 @@ instance Regen (Core OptBind Name χ) where
               pure (insert n n' sub, PatVar n')
 
 instance Regen (Core AnnBind Name χ) where 
-  regen = go (Substitution env_empty) where
+  regen = go empty where
     freshen_bind (AnnBind (n, ty)) sub = do
       n' <- freshen n
       let sub' = insert n n' sub

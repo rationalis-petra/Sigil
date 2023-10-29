@@ -64,6 +64,7 @@ default-extensions:
 - MultiParamTypeClasses
 - FunctionalDependencies
 - OverloadedStrings
+- OverloadedLists
 - RankNTypes
 - TemplateHaskell
 - RecordWildCards

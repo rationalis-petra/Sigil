@@ -1,6 +1,7 @@
 module Spec.Sigil.Abstract.AlphaEq (alphaeq_spec) where
 
 import Data.Text (Text)
+import Data.List.NonEmpty (NonEmpty(..))
 
 import Sigil.Abstract.Syntax
 import Sigil.Abstract.Environment
@@ -103,5 +104,5 @@ idn n t = Name $ Right (n, t)
 (≜) :: Name -> CoreUD -> EntryUD
 n ≜ val = Singleχ void (OptBind (Just n, Nothing)) val
 
-modul :: [Text] -> [ImportDef] -> [ExportDef] -> [EntryUD] -> ModuleUD
+modul :: (NonEmpty Text) -> [ImportDef] -> [ExportDef] -> [EntryUD] -> ModuleUD
 modul = Module
