@@ -28,8 +28,9 @@ import Prettyprinter
 import Prettyprinter.Render.Sigil
 import Prettyprinter.Render.Text
 
-import Sigil.Abstract.Environment hiding (bind)
+import Sigil.Abstract.Names hiding (bind)
 import Sigil.Abstract.Syntax (ImportDef)
+import Sigil.Abstract.Environment
 import Sigil.Concrete.Internal
 import Sigil.Parse
 import Sigil.Analysis.NameResolution

@@ -10,7 +10,8 @@ import Data.Text (pack)
 import Options.Applicative
 import Prettyprinter.Render.Sigil
 
-import Sigil.Abstract.Environment (Environment, Env, Name, MonadGen)
+import Sigil.Abstract.Names (Name, MonadGen)
+import Sigil.Abstract.Environment (Environment, Env)
 import Sigil.Interpret.Interpreter 
 import Sigil.Interpret.Canonical 
 import Sigil.Concrete.Internal

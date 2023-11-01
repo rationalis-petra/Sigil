@@ -37,7 +37,7 @@ import Prettyprinter.Render.Sigil (SigilDoc)
 import Prettyprinter hiding (lparen, rparen)
 
 import Sigil.Abstract.Syntax
-import Sigil.Abstract.Environment (OptBind(..), name)
+import Sigil.Abstract.Names (OptBind(..), name)
 import Sigil.Concrete.Decorations.Range
 import Sigil.Concrete.Parsed
 

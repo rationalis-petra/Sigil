@@ -11,8 +11,8 @@ import Data.Text (Text)
 import Data.Foldable (foldl')
 import Data.List.NonEmpty (NonEmpty(..))
 
+import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
-import Sigil.Abstract.Environment hiding (Environment(..)) 
 
 import Sigil.Concrete.Parsed
 import Sigil.Concrete.Resolved

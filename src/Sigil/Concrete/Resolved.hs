@@ -8,7 +8,7 @@ module Sigil.Concrete.Resolved
 
 import Prettyprinter
 
-import Sigil.Abstract.Environment
+import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
 import Sigil.Concrete.Decorations.Range
 

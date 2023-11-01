@@ -27,7 +27,7 @@ import qualified Data.Map as Map
 import Data.Map (Map)
 
 import Sigil.Abstract.Syntax
-import Sigil.Abstract.Environment hiding (Environment(..))
+import Sigil.Abstract.Names
 
 
 newtype Substitution n a = Substitution (Map n a)

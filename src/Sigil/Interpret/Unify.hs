@@ -66,7 +66,7 @@ import Prettyprinter
 
 import Sigil.Abstract.Unify
 import Sigil.Abstract.AlphaEq
-import Sigil.Abstract.Environment
+import Sigil.Abstract.Names
 import qualified Sigil.Abstract.Substitution as Sub
 import Sigil.Abstract.Substitution hiding (empty, lookup, insert)
 

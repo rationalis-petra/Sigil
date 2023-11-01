@@ -1,270 +1,220 @@
 module Sigil.Abstract.Environment
-  -- Name Types
-  ( UniqueName
-  , QualName
-  , Name(..)
-  , name_text
-
-  -- Paths
-  , Path
-
-  -- Binding
-  , Binding(..)
-  , OptBind(..)
-  , AnnBind(..)
-  , pretty_bind
+  -- World 
+  ( World(..)
+  , get_modulo_path
+  , insert_at_path
 
   -- Environment
   , Environment(..)
+  , EModule(..)
+  , epath, evals , eimports, eexports
   , Env
-
-  -- Fresh Variable Generation
-  , MonadGen(..)
-  , fresh_var
-  , fresh_varn
-  , freshen
-  , Gen
-  , run_gen ) where
-
+  , globals
+  , eval_helper
+  ) where
 
 {--------------------------------- ENVIRONMENT ---------------------------------}
-{- This file contains abstractions relating to environments and names.         -}
 {-                                                                             -}
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
-
 import Prelude hiding (head, lookup)
 import Control.Lens
-import Control.Monad.Trans.Class (lift)
-import Control.Monad.Except (MonadError, ExceptT, throwError)
-import Control.Monad.State (State, StateT, runState, get, modify)
-import Control.Monad.Reader (ReaderT)
+import Control.Monad.Except (MonadError, throwError)
   
+import Data.Foldable (find)
 import Data.List (sortOn)
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.List.NonEmpty (NonEmpty(..))
-import Data.Text (Text, pack)
+import Data.Text (Text)
+import qualified Data.Set as Set
+import Data.Set (Set)
 import qualified Data.Map as Map
 import Data.Map (Map)
 
 import Prettyprinter  
+import Topograph  
+
+import Sigil.Abstract.Names
+import Sigil.Abstract.Syntax 
   
-{------------------------------------ PATHS ------------------------------------}
+
+{------------------------------------ WORLD ------------------------------------}
 {-                                                                             -}
-{-                                                                             -}
-{-------------------------------------------------------------------------------}
-
-type Path = NonEmpty
-
-{------------------------------------ NAMES ------------------------------------}
-{-                                                                             -}
-{-                                                                             -}
-{-------------------------------------------------------------------------------}
-
--- A name with a unique identifier 
-type UniqueName = (Integer, Text)
-
--- A qualified name is one which depends on the value of a toplevel definition
-type QualName = Path Text
-
--- data DBName = QDBName QualName | DeBruijn Int (Maybe Text)
-newtype Name = Name (Either QualName UniqueName)
-  deriving (Eq, Ord)
-
-name_text :: Name -> Text
-name_text (Name (Left (t :| ts))) = last (t : ts)
-name_text (Name (Right (_, t))) = t
-
-
-{------------------------------ BIND ABSTRACTION -------------------------------}
-{- There are 3 variants of binding we can have:                                -}
-{- + Name but no type, e.g. λ [x] x                                            -}
-{- + Type but no name, e.g. ℤ → ℤ                                              -}
-{- + Both Name and type, e.g. λ [x:ℤ] (x + 1) or (A:𝕌) → A → A                 -}
-{- Specific binding types may encompass any subset of these three, and the     -}
-{- typeclass abstraction should account for any possible subset.               -}
-{- Hence, name and type return maybes, and the only way to construct a binding -}
-{- requires both a name and a type.                                            -}
-{-------------------------------------------------------------------------------}
-
-
-class Binding b where 
-  name :: b n a -> Maybe n
-  tipe :: b n a -> Maybe a
-  bind :: n -> a -> b n a
-
-
-{----------------------------- CONCRETE BINDINGS -------------------------------}
--- Bindings: 
--- TODO: add bindings with optionally no name!
-
--- An annotated binding
-newtype AnnBind n ty = AnnBind { unann :: (n, ty) }
-  deriving Eq
-
--- Binding instance for AnnBind
-instance Functor (AnnBind n) where
-  fmap f (AnnBind (n, ty)) = AnnBind (n, f ty)
-
-instance Foldable (AnnBind n) where
-  foldr f z (AnnBind (_, ty)) = f ty z
-  foldl f z (AnnBind (_, ty)) = f z ty
-
-instance Traversable (AnnBind n) where
-  traverse f (AnnBind (n, ty)) = (\r -> AnnBind (n, r)) <$> f ty
-
-instance Binding AnnBind where
-  name (AnnBind (n, _)) = Just n
-  tipe (AnnBind (_, ty)) = Just ty
-  bind n ty = AnnBind (n, ty)
-
--- An optionally annotated binding
-newtype OptBind n ty = OptBind { unOpt :: (Maybe n, Maybe ty) }
-  deriving Eq
-
-instance Functor (OptBind n) where
-  fmap f (OptBind (n, ty)) = OptBind (n, fmap f ty)
-
-instance Binding OptBind where   
-  name (OptBind (n, _)) = n
-  tipe (OptBind (_, ty)) = ty
-  bind n ty = OptBind (Just n, Just ty)
-
-
-{--------------------------------- GENERATION ----------------------------------}
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
   
-class Monad m => MonadGen m where 
-  fresh_id :: m Integer
+newtype World a = World (Map Text (Maybe a, Maybe (World a)))
 
-newtype Gen a = Gen { ungen :: State Integer a }
-  deriving (Functor, Applicative, Monad)
+insert_at_path :: Path Text -> a -> World a -> World a
+insert_at_path path a (World subtree) =
+  case path of 
+    (p :| []) -> case Map.lookup p subtree of 
+      Just (_, v) -> World $ Map.insert p (Just a, v) subtree
+      Nothing -> World $ Map.insert p (Just a, Nothing) subtree
 
-instance MonadGen Gen where 
-  fresh_id = do
-    id <- Gen get
-    Gen (modify (+ 1))
-    pure id
+    (p :| (t:ts)) -> case Map.lookup p subtree of 
+      Just (v, Just subworld) -> World $ Map.insert p (v, Just subworld') subtree
+        where
+          subworld' = insert_at_path (t :| ts) a subworld
+      Just (v, Nothing) -> World $ Map.insert p (v, Just subworld) subtree
+        where 
+          subworld = insert_at_path (t :| ts) a (World Map.empty)
+      Nothing -> World $ Map.insert p (Nothing, Just subworld) subtree
+        where 
+          subworld = insert_at_path (t :| ts) a (World Map.empty)
 
-instance MonadGen m => MonadGen (ExceptT e m) where
-  fresh_id = lift fresh_id
+get_modulo_path :: Path Text -> World a -> (Maybe (a, [Text]))
+get_modulo_path path (World subtree) =
+  case path of 
+    (p :| []) -> case Map.lookup p subtree of 
+      Just ((Just v), _) -> Just (v, [])
+      _ -> Nothing
+    (p :| (t:ts)) -> case Map.lookup p subtree of 
+      Just (_, (Just w)) -> get_modulo_path (t :| ts) w
+      Just (Just v, _) -> Just (v, (t : ts))
+      _ -> Nothing
 
-instance MonadGen m => MonadGen (StateT e m) where
-  fresh_id = lift fresh_id
 
-instance MonadGen m => MonadGen (ReaderT e m) where
-  fresh_id = lift fresh_id
+data EModule a = EModule
+  { _epath :: [Path Text]
+  , _eimports :: [ImportDef]
+  , _eexports :: [ExportDef]
+  , _evals :: [(Name, Text, a)]
+  }
 
-run_gen :: Gen a -> a
-run_gen = fst . flip runState 0 . ungen
+data Env a = Env
+  { _env_binds :: Map Name (a, Int)
+  , _lvl :: Int -- Level is used to sort keys for evaluation when necessary
+  , _globals :: Map (Path Text) a
+  , _env_imports :: [ImportDef]
+  , _world :: World (EModule a)
+  }
 
-fresh_var :: MonadGen m => Text -> m Name
-fresh_var s = fresh_id >>= pure . Name . Right . (, s)
-
-fresh_varn :: MonadGen m => Text -> m Name
-fresh_varn s = fresh_id >>= pure . Name . Right . (\n -> (n, s <> (pack . show) n))
-
-freshen :: MonadGen m => Name -> m Name
-freshen (Name (Right (_, s))) = fresh_var s
-freshen q = pure q
+$(makeLenses ''Env)
+$(makeLenses ''EModule)
 
 
 {--------------------------------- ENVIRONMENT ---------------------------------}
 {-                                                                             -}
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
-
 
 class Environment n e | e -> n where
   lookup_err :: MonadError err m => (Doc ann -> err) -> n -> e a -> m a 
   lookup :: n -> e a -> Maybe a 
   insert :: n -> a -> e a -> e a
   env_empty :: e a
-  eval_helper :: Monad m => (n -> a -> e b -> m b) -> e a -> m (e b)
+  -- TODO: change this method to work with local + global environments!
+  -- notably, the NAME is causing issues!
 
-data GlobalEnv a = GlobalEnv
-  { _glookup :: QualName -> Maybe a
-  , _geval :: forall m b. Monad m => (Name -> a -> Env b -> m b) -> m (GlobalEnv b)
-  }
-
-data Env a = Env
-  { _env_binds :: Map Name (a, Int)
-  , _lvl :: Int -- Level is used to sort keys for evaluation when necessary
-  , _world :: GlobalEnv a
-  }
-
-$(makeLenses ''Env)
-$(makeLenses ''GlobalEnv)
-
+instance (Pretty n, Ord n) => Environment n (Map n) where
+  lookup_err lift_err n env = case Map.lookup n env of
+    Nothing -> throwError $ lift_err $ ("variable not in scope:" <+> pretty n)
+    Just v -> pure v
+  lookup = Map.lookup
+  insert = Map.insert
+  env_empty = Map.empty
 
 instance Environment Name Env where
-  lookup_err liftErr n@(Name (Right _)) env = case Map.lookup n (env^.env_binds) of 
-    Nothing -> throwError $ liftErr $ ("local variable not in scope: " <> pretty n)
+  lookup_err lift_err n@(Name (Right _)) env = case Map.lookup n (env^.env_binds) of 
+    Nothing -> throwError $ lift_err $ ("local variable not in scope:" <+> pretty n)
     Just (x, _) -> pure x
-  lookup_err liftErr n@(Name (Left l)) env = case (env^.world^.glookup) l of 
-    Nothing -> throwError $ liftErr $ ("global variable not in scope: " <> pretty n)
+  lookup_err lift_err n@(Name (Left l)) env = case Map.lookup l (env^.globals) of 
+    Nothing -> throwError $ lift_err $ ("global variable not in scope:" <+> pretty n)
     Just v -> pure v
 
   lookup n@(Name (Right _)) env = case Map.lookup n (env^.env_binds) of 
     Nothing -> Nothing
     Just (x,_) -> pure x
-  lookup (Name (Left l)) env = (env^.world^.glookup) l
+  lookup (Name (Left p)) env = Map.lookup p (env^.globals)
 
   insert n@(Name (Right _)) v env =
     let lvl' = env^.lvl + 1
         env_binds' = Map.insert n (v, env^.lvl) (env^.env_binds)
-    in Env env_binds' lvl' (env^.world)
+    in Env env_binds' lvl' (env^.globals) (env^.env_imports) (env^.world)
   insert _ _ env = env
 
-  -- union (Env binds lvl w) (Env binds' lvl' w') = 
-  --   Env (Map.union binds (fmap (_2 %~ (+) lvl) binds')) (lvl + lvl') (union w w')
-
-  env_empty = let genv_empty :: GlobalEnv a
-                  genv_empty = (GlobalEnv (const Nothing) (\_ -> pure genv_empty))
-    in Env Map.empty 0 genv_empty
-
-  -- eval_helper: this must evaluate bindings from /outermost/ to /innermost/,
-  -- hence we first convert to a List, sort on lvl and then fold!
-  eval_helper eval env =
-    foldl (\m (name, (val, lvl)) -> m >>= \env' -> do
-              val' <- eval name val env'
-              pure $ re_add name (val', lvl) env')
-      (Env Map.empty 0 <$> (env^.world^.geval) eval)
-      env'
-    where
-      env' =
-        sortOn (snd . snd) $
-        Map.toList (env^.env_binds)
-      
-      re_add name (val, lvl) (Env b _ w) = Env (Map.insert name (val, lvl) b) lvl w
+  env_empty = Env Map.empty 0 Map.empty [] (World Map.empty)
 
   
-{---------------------------------- INSTANCES ----------------------------------}
-{-                                                                             -}
-{-------------------------------------------------------------------------------}
 
-instance (Pretty n, Pretty ty) => Pretty (OptBind n ty) where
-  pretty bind = case bind of  
-    OptBind (Just n, Nothing) -> pretty n
-    OptBind (Just n, Just ty) -> pretty n <+> "⮜" <+> pretty ty
-    OptBind (Nothing, Nothing) -> "_"
-    OptBind (Nothing, Just ty) -> "_⮜" <> pretty ty
+eval_helper :: forall err ann m a b. MonadError err m => (Doc ann -> err) -> (Map Name b -> Name -> a -> m b) -> Env a -> m (Map Name b)
+eval_helper lift_err eval env = do
+  -- Step 1: construct dependency graph
+  let construct_graph :: World (EModule a) -> Map (Path Text) (Set (Path Text))
+      construct_graph (World trees) = Map.foldrWithKey (go []) Map.empty trees
+        where
+          go :: [Text] -> Text -> (Maybe (EModule a), Maybe (World (EModule a))) -> Map (Path Text) (Set (Path Text)) -> Map (Path Text) (Set (Path Text))
+          go psf name (m, t) map = map''
+            where
+              map' = case m of
+                Just modul -> Map.insert (NonEmpty.reverse (name :| psf)) (dependencies modul) map
+                Nothing -> map
+              map'' = case t of
+                Just (World subtree) -> Map.foldrWithKey (go (name : psf)) map' subtree
+                Nothing -> map'
 
-instance (Pretty n, Pretty ty) => Pretty (AnnBind n ty) where
-  pretty bind = case bind of
-    AnnBind (n, ty) -> pretty n <+> "⮜" <+> pretty ty
+          dependencies :: EModule a -> Set (Path Text)
+          dependencies = Set.fromList . map fst . (view eimports) 
 
-instance Pretty Name where 
-  pretty (Name name) = case name of
-    Left qname -> pretty qname -- TODO prettify
-    Right (_, var) -> pretty var
+  -- Step 2: evaluate modules
+  let eval_graph :: World (EModule a) -> G (Path Text) i -> m (World (EModule b))
+      eval_graph old (G {..}) = go old (World $ Map.empty) (map gFromVertex gVertices)
 
-pretty_bind :: (Pretty n, Pretty ty, Binding b) => Bool -> b n ty -> Doc ann
-pretty_bind fnc b = case (name b, tipe b) of
-  (Just n, Just ty) -> "(" <> pretty n <+> "⮜" <+> pretty ty <> ")"
-  (Nothing, Nothing) -> "_"
-  (Just n, Nothing) -> if fnc then pretty n else "(" <> pretty n <> "⮜_)"
-  (Nothing, Just ty) -> if fnc then "(_⮜" <> pretty ty <> ")" else pretty ty
+      go :: World (EModule a) -> World (EModule b) -> [Path Text] -> m (World (EModule b))
+      go _ world [] = pure world
+      go old_world world (path:paths) = do 
+        mod <- case get_modulo_path path old_world of 
+          Just (val,[]) -> pure val
+          _ -> throwError $ lift_err ("failed to get module:" <+> pretty path)
+        mod' <- eval_emodule world mod 
+        let world' = insert_at_path path mod' world 
+        go old_world world' paths
 
+      eval_emodule :: World (EModule b) -> EModule a -> m (EModule b)
+      eval_emodule world (EModule path imports exports vals) = do 
+        env <- get_globals imports world
+        let eval_vals :: Map Name b -> [(Name, Text, a)] -> m [(Name, Text, b)]
+            eval_vals _ [] = pure []
+            eval_vals env ((name, text, val) : vals) = do
+              val' <- eval env name val 
+              ((name, text, val') :) <$> eval_vals (Map.insert name val' env) vals
+        EModule path imports exports <$> eval_vals env vals
+
+  -- Step 3: use imports to get current environment
+      get_globals :: [ImportDef] -> World (EModule b) -> m (Map Name b)
+      get_globals [] _ = pure Map.empty
+      get_globals ((path, im):is) world = case im of 
+        -- TODO: respect export modifiers of module!
+        ImSingleton -> case get_modulo_path path world of 
+          Just (modul, [nme]) -> case find (\(_, t, _) -> t == nme) (modul^.evals) of 
+            Just (name, _, val) -> Map.insert name val <$> (get_globals is world)
+            _ -> throwError $ lift_err ("singleton import of" <+> pretty path <+> "failed")
+          _ -> throwError $ lift_err ("import of" <+> pretty path <+> "failed")
+        _ -> throwError $ lift_err "cannot import non-singleton yet!"
+
+  -- Step 4: evaluate the local environment
+      add_locals :: Map Name b -> m (Map Name b)
+      add_locals new_env = go new_env $ sortOn (snd . snd) $ Map.toList (env^.env_binds)
+        where 
+          go :: Map Name b -> [(Name, (a, Int))] -> m (Map Name b)
+          go env [] = pure env 
+          go env ((name, (val, _)) : vals) = do 
+            val' <- eval env name val
+            go (Map.insert name val' env) vals
+
+  -- Step 5: put it all together!
+  let
+    res :: Either [Path Text] (m (Map Name b))
+    res = runG (construct_graph (env^.world)) $ \graph -> do
+        world' <- eval_graph (env^.world) graph
+        env <- get_globals (env^.env_imports) world'
+        add_locals  env
+  case res of 
+    Left path -> throwError $ lift_err ("cycle in dependency graph:" <> pretty path)
+    Right m -> m
+   
+
+  

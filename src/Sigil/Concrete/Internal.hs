@@ -21,7 +21,7 @@ module Sigil.Concrete.Internal
 import Data.Text (Text)
 import Prettyprinter
 
-import Sigil.Abstract.Environment
+import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
 import Sigil.Concrete.Decorations.Implicit
 import Sigil.Concrete.Decorations.Range

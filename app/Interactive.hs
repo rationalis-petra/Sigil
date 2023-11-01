@@ -18,6 +18,7 @@ import Text.Megaparsec.Char as C
 import Prettyprinter
 import Prettyprinter.Render.Sigil
 
+import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
 import Sigil.Abstract.Environment
 import Sigil.Parse.Lexer

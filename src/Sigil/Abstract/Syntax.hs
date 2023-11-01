@@ -59,7 +59,7 @@ import Data.Text hiding (zipWith, foldl', tail, head, intersperse, map)
 
 import Prettyprinter
 
-import Sigil.Abstract.Environment
+import Sigil.Abstract.Names
 
 {---------------------------------- CORE TYPE ----------------------------------}
 {- The Core Type represents the calculus upon which Sigil. is based. It is      -}
@@ -180,9 +180,9 @@ data Module b v χ
 data ImportModifier
   = ImWildcard
   | ImSingleton
-  | ImAlias Text
-  | ImPortExcept (Set Text)
-  | ImPortGroup (Set Text)
+  | ImAlias Text Text
+  | ImExcept (Set Text)
+  | ImGroup (Set Text)
   deriving (Ord, Eq, Show)
 
 -- TODO Sealing

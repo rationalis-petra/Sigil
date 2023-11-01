@@ -7,8 +7,8 @@ module Sigil.Concrete.Decorations.Implicit
 
 import qualified Data.Map as Map   
 
+import Sigil.Abstract.Names 
 import Sigil.Abstract.Syntax 
-import Sigil.Abstract.Environment 
 import Sigil.Abstract.AlphaEq 
 
 data ImplCore b n χ

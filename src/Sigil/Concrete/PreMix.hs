@@ -23,9 +23,8 @@ import Data.Text
 
 import Prettyprinter
 
-import Sigil.Abstract.Environment
+import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
---import Sigil.Abstract.AlphaEq
 import Sigil.Concrete.Decorations.Range
 
 data PreMix

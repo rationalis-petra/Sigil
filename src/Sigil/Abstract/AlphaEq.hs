@@ -16,7 +16,7 @@ import Data.Map (Map)
 import Data.Foldable (foldl')
 
 import Sigil.Abstract.Syntax
-import Sigil.Abstract.Environment
+import Sigil.Abstract.Names
 
 
 {-------------------------------- AlphaEq Class --------------------------------}

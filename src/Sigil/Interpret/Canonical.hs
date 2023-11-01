@@ -22,7 +22,9 @@ import qualified Data.Set as Set
 
 import Control.Lens (makeLenses, (^.), (%=), use)
 import Prettyprinter
+--import Topograph
 
+import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
 import Sigil.Abstract.Environment
 import Sigil.Parse.Mixfix
@@ -53,10 +55,10 @@ default_precs = Precedences
    , ("close", PrecedenceNode Set.empty Set.empty)
    ])
   "sum" "ppd" "ppd" "close"
- 
 
-canonical_interpreter :: Environment Name e => (InterpreterErr -> err)
-  -> Interpreter (CanonM err) err (e (Maybe InternalCore, InternalCore)) Context InternalCore
+
+canonical_interpreter :: (InterpreterErr -> err)
+  -> Interpreter (CanonM err) err (Env (Maybe InternalCore, InternalCore)) Context InternalCore
 canonical_interpreter liftErr = Interpreter
   { reify = pure
   , reflect = pure
@@ -70,7 +72,10 @@ canonical_interpreter liftErr = Interpreter
   , intern_module = \path modul ->
       world %= insert_at_path path modul
 
-  , get_env = \_ _ -> pure env_empty
+  , get_env = \_ _ -> error "get_env undefined"
+  -- , get_env = \_ _ -> do
+  --     world <- use world
+  --     pure ((globals .~ mk_global_env world) env_empty)
 
   , get_precs = \_ imports -> do
       -- For the time being, we don't care about precedence group
@@ -104,16 +109,3 @@ canonical_interpreter liftErr = Interpreter
   , to_image = error "to_image not implemented"
   , from_image = error "to_image not implemented"
   }
-
-
-
-
--- build_eval_env_from :: Environment Name e => Path Text -> CanonM (e (Maybe InternalCore, InternalCore))
--- build_eval_env_from = error "build_eval_env"
- -- build_eval_env_from path = do
- --  menv <- get_module_env path <$> get
- --  case menv of 
- --    Just modul -> env
- --    Nothing ->
- --      throwError ("Can't find module at path" <+> pretty path)
-

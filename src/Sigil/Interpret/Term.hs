@@ -3,15 +3,18 @@ module Sigil.Interpret.Term
   ( Term(..) ) where
 
 import Prelude hiding (head, lookup)
+import Control.Monad((<=<))
+import Control.Monad.Except (MonadError, throwError)
 import Data.Kind
 import Data.Maybe
 import Data.Text (Text)
 import Data.Foldable (find)
-import Control.Monad((<=<))
-import Control.Monad.Except (MonadError, throwError)
+--import qualified Data.Map as Map
+import Data.Map (Map)
 
 import Prettyprinter
 
+import Sigil.Abstract.Names
 import Sigil.Abstract.Environment
 import Sigil.Abstract.AlphaEq
 import Sigil.Concrete.Internal
@@ -27,8 +30,8 @@ import Sigil.Concrete.Internal
 
 
 class Term a where
-  normalize :: (MonadError err m, MonadGen m, Environment Name e) => (Doc ann -> err) -> e (Maybe a,a) -> a -> a -> m a
-  equiv :: (MonadError err m, MonadGen m, Environment Name e) => (Doc ann -> err) -> e (Maybe a,a) -> a -> a -> a -> m Bool
+  normalize :: (MonadError err m, MonadGen m) => (Doc ann -> err) -> Env (Maybe a,a) -> a -> a -> m a
+  equiv :: (MonadError err m, MonadGen m) => (Doc ann -> err) -> Env (Maybe a,a) -> a -> a -> a -> m Bool
 
 
 {------------------------------- IMPLEMENTATION --------------------------------}
@@ -54,24 +57,24 @@ class Term a where
 {-------------------------------------------------------------------------------}
 
 
-data Sem m e
+data Sem m
   = SUni Integer
-  | SPrd Name (Sem m e) (Sem m e)
-  | SAbs Name (Sem m e -> m (Sem m e))
-  | SEql [(Name, (Sem m e, Sem m e, Sem m e), Sem m e)] (Sem m e) (Sem m e) (Sem m e)
-  | SDap (Sem m e)
-  | SInd Name (Sem m e) [(Text, Name, Sem m e -> m (Sem m e))]
-  | SCtr Text [Sem m e]
-  | Neutral (Sem m e) (Neutral m e)
+  | SPrd Name (Sem m) (Sem m)
+  | SAbs Name (Sem m -> m (Sem m))
+  | SEql [(Name, (Sem m, Sem m, Sem m), Sem m)] (Sem m) (Sem m) (Sem m)
+  | SDap (Sem m)
+  | SInd Name (Sem m) [(Text, Name, Sem m -> m (Sem m))]
+  | SCtr Text [Sem m]
+  | Neutral (Sem m) (Neutral m)
 
-data Neutral m e
+data Neutral m
   = NeuVar Name
-  | NeuApp (Neutral m e) (Normal m e)
-  | NeuDap (Neutral m e) -- A neutral explicit substitution, must be empty!
-  | NeuRec Name (Sem m e) (Neutral m e)
-    [(Sem m e -> Maybe (m (Sem m e)), m (Pattern Name, Sem m e))]
+  | NeuApp (Neutral m) (Normal m)
+  | NeuDap (Neutral m) -- A neutral explicit substitution, must be empty!
+  | NeuRec Name (Sem m) (Neutral m)
+    [(Sem m -> Maybe (m (Sem m)), m (Pattern Name, Sem m))]
 
-data Normal (m :: Type -> Type) (e :: Type -> Type) = Normal (Sem m e) (Sem m e)
+data Normal (m :: Type -> Type) = Normal (Sem m) (Sem m)
 
 
 {-------------------------------- TERM INSTANCE --------------------------------}
@@ -106,11 +109,11 @@ instance Term InternalCore where
       ?lift_err = lift_error
 
 
-read_nf :: forall e err ann m. (MonadError err m, MonadGen m, Environment Name e, ?lift_err :: Doc ann -> err) => Normal m e -> m InternalCore
+read_nf :: forall err ann m. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Normal m -> m InternalCore
 read_nf (Normal ty val) = case (ty, val) of 
   -- Values
   (SPrd name a b, f) -> do
-    let neua :: Sem m e 
+    let neua :: Sem m
         neua = Neutral a $ NeuVar name
     
         lvl = uni_level a
@@ -126,7 +129,7 @@ read_nf (Normal ty val) = case (ty, val) of
   -- Types
   (SUni _, SUni i) -> pure $ Uni i
   (SUni k, SPrd name a b) -> do
-    let neua :: Sem m e 
+    let neua :: Sem m
         neua = Neutral a $ NeuVar name
     a' <- (read_nf $ Normal (SUni k) a)
     b' <- (read_nf =<< Normal (SUni k) <$> (b `app` neua))
@@ -168,7 +171,7 @@ read_nf (Normal ty val) = case (ty, val) of
   (_, _) -> throw ("bad read_nf:" <+> pretty val <+> "⮜" <+> pretty ty)
 
 
-read_ne :: (MonadError err m, MonadGen m, Environment Name e, ?lift_err :: Doc ann -> err) => Neutral m e -> m InternalCore
+read_ne :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Neutral m -> m InternalCore
 read_ne neu = case neu of 
   NeuVar name -> pure $ Var name
   NeuApp l r -> App <$> (read_ne l) <*> (read_nf r)
@@ -188,7 +191,7 @@ read_ne neu = case neu of
     pure $ Rec (AnnBind (nm, ty')) val' cases'
 
 
-eval :: forall m err e ann. (MonadError err m, MonadGen m, Environment Name e, ?lift_err :: Doc ann -> err) => InternalCore -> e (Sem m e) -> m (Sem m e)
+eval :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => InternalCore -> Map Name (Sem m) -> m (Sem m)
 eval term env = case term of
   Uni n -> pure $ SUni n
   Prd bnd b -> do
@@ -212,8 +215,8 @@ eval term env = case term of
 
     -- Extract reflections
     -- TODO: eliminate unused binds
-    let eval_tel :: [(AnnBind Name (InternalCore, InternalCore, InternalCore), InternalCore)] -> e (Sem m e)
-          -> m ([(Name, (Sem m e, Sem m e, Sem m e), Sem m e)], e (Sem m e))
+    let eval_tel :: [(AnnBind Name (InternalCore, InternalCore, InternalCore), InternalCore)] -> Map Name (Sem m)
+          -> m ([(Name, (Sem m, Sem m, Sem m), Sem m)], Map Name (Sem m))
         eval_tel [] env = pure ([], env)
         eval_tel ((bnd, id) : tel) env = do 
           name <- fromMaybe (throw "Eql Telescope must bind a name") (fmap pure $ name bnd)
@@ -239,11 +242,11 @@ eval term env = case term of
     -- pure $ SEql tel' ty' v1' v2'
 
   Dap tel val -> do
-    let eval_tel :: e (Sem m e) -> [(AnnBind Name (InternalCore, InternalCore, InternalCore), InternalCore)] -> m (e (Sem m e))
+    let eval_tel :: Map Name (Sem m) -> [(AnnBind Name (InternalCore, InternalCore, InternalCore), InternalCore)] -> m (Map Name (Sem m))
         eval_tel env [] = pure env
         eval_tel env ((bind, val) : tel) = do 
           name <- fromMaybe (throw "Ap Telescope must bind a name") (fmap pure $ name bind)
-          val' <- eval val env 
+          val' <- eval val env
           eval_tel (insert name val' env) tel
     env' <- eval_tel env tel
     val' <- eval val env'
@@ -275,7 +278,7 @@ eval term env = case term of
           , ((pat,) <$> (eval core =<< (insert rname (Neutral rty' (NeuVar rname)) <$> match_neu env pat a)))
           )
 
-        match :: e (Sem m e) -> Pattern Name -> Sem m e -> Maybe (e (Sem m e))
+        match :: Map Name (Sem m) -> Pattern Name -> Sem m -> Maybe (Map Name (Sem m))
         match env (PatVar n) v = Just $ insert n v env
         match env (PatCtr n subpats) (SCtr n' vals)
           | n == n' = foldl (\menv (p, v) -> do -- TODO: check that foldl is corect!
@@ -284,7 +287,7 @@ eval term env = case term of
           | otherwise = Nothing
         match _ _ _ = Nothing
 
-        match_neu :: e (Sem m e) -> Pattern Name -> Sem m e -> m (e (Sem m e))
+        match_neu :: Map Name (Sem m) -> Pattern Name -> Sem m -> m (Map Name (Sem m))
         match_neu env (PatVar n) ty = pure $ insert n (Neutral ty (NeuVar n)) env
         match_neu env (PatCtr label subpats) (SInd _ _ ctors) = do
           -- args <- ty_args label ctors
@@ -305,7 +308,7 @@ eval term env = case term of
   TyCon _ _ -> throw "don't know how to eval tycon"
 
 
-eval_sem :: forall m err e ann. (MonadError err m, MonadGen m, Environment Name e, ?lift_err :: Doc ann -> err) => e (Sem m e) -> (Sem m e) -> m (Sem m e)
+eval_sem :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Map Name (Sem m) -> (Sem m) -> m (Sem m)
 eval_sem env term = case term of
   SUni n -> pure $ SUni n
   SPrd n a b -> do
@@ -314,8 +317,8 @@ eval_sem env term = case term of
   SAbs n f -> do
     pure $ SAbs n (eval_sem env <=< f)
   SEql tel ty v1 v2 -> do
-    let eval_tel :: [(Name, (Sem m e, Sem m e, Sem m e), Sem m e)] -> e (Sem m e)
-          -> m ([(Name, (Sem m e, Sem m e, Sem m e), Sem m e)], e (Sem m e))
+    let eval_tel :: [(Name, (Sem m, Sem m, Sem m), Sem m)] -> Map Name (Sem m)
+          -> m ([(Name, (Sem m, Sem m, Sem m), Sem m)], Map Name (Sem m))
         eval_tel [] env = pure ([], env)
         eval_tel ((name, (ty, v1, v2), id) : tel) env = do 
           id' <- eval_sem env id  
@@ -341,7 +344,7 @@ eval_sem env term = case term of
   Neutral _ val -> eval_neusem env val 
 
 
-eval_neusem :: forall m err e ann. (MonadError err m, MonadGen m, Environment Name e, ?lift_err :: Doc ann -> err) => e (Sem m e) -> (Neutral m e) -> m (Sem m e)
+eval_neusem :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Map Name (Sem m) -> (Neutral m) -> m (Sem m)
 eval_neusem env neu = case neu of 
   NeuVar n -> lookup_err ?lift_err n env
   NeuApp l (Normal _ r) -> do
@@ -355,7 +358,7 @@ eval_neusem env neu = case neu of
     recur env name ty' neu' cases -- TODO: cases'
       
 
-app :: (MonadError err m, Environment Name e, MonadGen m, ?lift_err :: Doc ann -> err) => (Sem m e) -> (Sem m e) -> m (Sem m e)
+app :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => (Sem m) -> (Sem m) -> m (Sem m)
 app (SAbs _ fnc) val = fnc val
 app (SCtr label vals) v =
   pure $ SCtr label (v : vals)
@@ -363,7 +366,7 @@ app (Neutral (SPrd _ a b) neu) v =
   Neutral <$> (b `app` v) <*> pure (NeuApp neu (Normal a v))
 app l r = throw ("bad args to app:" <+> pretty l <+> "and" <+> pretty r) 
 
-dap :: (MonadError err m, Environment Name e, MonadGen m, ?lift_err :: Doc ann -> err) => e (Sem m e) -> (Sem m e) -> m (Sem m e)
+dap :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Map Name (Sem m) -> (Sem m) -> m (Sem m)
 dap env term = case term of
   Neutral ty neu -> pure $ Neutral (SEql [] ty (Neutral ty neu) (Neutral ty neu)) (NeuDap neu)
   SAbs _ fnc -> do
@@ -381,8 +384,8 @@ dap env term = case term of
   SUni n -> pure $ SDap $ SUni n
   _ -> throw ("Don't know how to dap:" <+> pretty term)
 
-eql :: (MonadError err m, Environment Name e, MonadGen m, ?lift_err :: Doc ann -> err) => e (Sem m e) -> [(Name, (Sem m e, Sem m e, Sem m e), Sem m e)] -> (Sem m e)
-  -> InternalCore -> InternalCore -> m (Sem m e)
+eql :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Map Name (Sem m) -> [(Name, (Sem m, Sem m, Sem m), Sem m)] -> Sem m
+  -> InternalCore -> InternalCore -> m (Sem m)
 eql env tel tipe v1 v2 = case tipe of
   Neutral _ _ -> SEql tel tipe <$> eval v1 env <*> eval v2 env -- TODO: is this neutral??
   SPrd name a fnc -> do
@@ -406,8 +409,8 @@ eql env tel tipe v1 v2 = case tipe of
   _ -> throw ("Don't know how to eql:" <+> pretty tipe)
 
 
-recur :: (MonadError err m, Environment Name e, MonadGen m, ?lift_err :: Doc ann -> err)
-  => e (Sem m e) -> Name -> (Sem m e) -> (Sem m e) -> [(Sem m e -> Maybe (m (Sem m e)), m (Pattern Name, Sem m e))] -> m (Sem m e)
+recur :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err)
+  => Map Name (Sem m) -> Name -> Sem m -> Sem m -> [(Sem m -> Maybe (m (Sem m)), m (Pattern Name, Sem m))] -> m (Sem m)
 recur _ rname rty@(SPrd _ _ b) val cases =
     case val of 
       SCtr _ _ -> case find (isJust) (map (($ val) . fst) cases) of 
@@ -418,8 +421,8 @@ recur _ rname rty@(SPrd _ _ b) val cases =
       _ -> throw "recur must induct over a constructor"
 recur _ _ _ _ _ = throw "recur expects recursive type to be fn" 
 
-seql :: (MonadError err m, Environment Name e, MonadGen m, ?lift_err :: Doc ann -> err) => e (Sem m e) -> [(Name, (Sem m e, Sem m e, Sem m e), Sem m e)] -> (Sem m e)
-  -> Sem m e -> Sem m e -> m (Sem m e)
+seql :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Map Name (Sem m) -> [(Name, (Sem m, Sem m, Sem m), Sem m)] -> Sem m
+  -> Sem m -> Sem m -> m (Sem m)
 seql env tel tipe v1 v2 = case tipe of
   Neutral _ _ -> SEql tel tipe <$> eval_sem env v1 <*> eval_sem env v2 -- TODO: is this neutral??
   SPrd name a fnc -> do
@@ -444,22 +447,22 @@ seql env tel tipe v1 v2 = case tipe of
   SUni n -> SEql tel (SUni n) <$> eval_sem env v1 <*> eval_sem env v2
   _ -> throw ("Don't know how to eql:" <+> pretty tipe)
 
-env_eval :: (MonadError err m, MonadGen m, Environment Name e, ?lift_err :: Doc ann -> err) => e (Maybe InternalCore, InternalCore) -> m (e (Sem m e))
-env_eval = eval_helper eval_var 
+env_eval :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Env (Maybe InternalCore, InternalCore) -> m (Map Name (Sem m))
+env_eval = eval_helper ?lift_err eval_var 
   where
-    eval_var :: (MonadError err m, MonadGen m, Environment Name e, ?lift_err :: Doc ann -> err) =>
-                Name -> (Maybe InternalCore, InternalCore) -> e (Sem m e) -> m (Sem m e)
-    eval_var n (Nothing, ty) env = mkvar n ty env
-    eval_var _ (Just val, _) env = eval val env
+    eval_var :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) =>
+                Map Name (Sem m) -> Name -> (Maybe InternalCore, InternalCore) -> m (Sem m)
+    eval_var env n (Nothing, ty) = mkvar env n ty
+    eval_var env _ (Just val, _) = eval val env
     
-    mkvar :: (MonadError err m, MonadGen m, Environment Name e, ?lift_err :: Doc ann -> err) =>
-              Name -> InternalCore -> e (Sem m e) -> m (Sem m e)
-    mkvar n ty env = do
+    mkvar :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) =>
+              Map Name (Sem m) -> Name -> InternalCore -> m (Sem m)
+    mkvar env n ty = do
       ty' <- eval ty env
       pure $ Neutral ty' (NeuVar n)
   
 -- TODO: fix this function - it is wrong!
-uni_level :: Sem m e -> Integer
+uni_level :: Sem m -> Integer
 uni_level sem = case sem of 
   SUni n -> n
   SPrd _ l r -> max (uni_level l) (uni_level r)
@@ -480,7 +483,7 @@ throw doc = throwError $ ?lift_err doc
 {-------------------------------------------------------------------------------}
 
 
-instance Pretty (Sem m e) where
+instance Pretty (Sem m) where
   pretty sem = case sem of 
     SUni n -> "𝕌" <> pretty_subscript n
       where
@@ -516,7 +519,7 @@ instance Pretty (Sem m e) where
     SCtr label vals -> pretty (":" <> label) <+> sep (map pretty vals)
     Neutral _ n -> pretty n
 
-instance Pretty (Neutral m e) where
+instance Pretty (Neutral m) where
   pretty neu = case neu of
     NeuVar n -> pretty n
     NeuApp l r -> pretty l <+> pretty r
@@ -528,6 +531,6 @@ instance Pretty (Neutral m e) where
         
 
 
-instance Pretty (Normal m e) where
+instance Pretty (Normal m) where
   pretty (Normal _ val) = pretty val
 

@@ -6,8 +6,6 @@ module Sigil.Interpret.Interpreter
   , World(..)
   , InterpreterErr(..)
   , Image(..)
-  , insert_at_path
-  , get_modulo_path
   ) where
 
 
@@ -26,58 +24,24 @@ module Sigil.Interpret.Interpreter
 
 
 import Data.Text (Text)
-import qualified Data.Map as Map
-import Data.Map (Map)
-import Data.List.NonEmpty
 
 import Prettyprinter.Render.Sigil
 
+import Sigil.Abstract.Names
 import Sigil.Abstract.Environment
 import Sigil.Analysis.Typecheck
 import Sigil.Abstract.Syntax (ImportDef)
 import Sigil.Parse.Mixfix (Precedences)
---import Sigil.Abstract.Substitution
 import Sigil.Concrete.Internal
 
 
 {---------------------------------- INTERFACE ----------------------------------}
 
-newtype World a = World (Map Text (Maybe a, Maybe (World a)))
-
-insert_at_path :: Path Text -> a -> World a -> World a
-insert_at_path path a (World subtree) =
-  case path of 
-    (p :| []) -> case Map.lookup p subtree of 
-      Just (_, v) -> World $ Map.insert p (Just a, v) subtree
-      Nothing -> World $ Map.insert p (Just a, Nothing) subtree
-
-    (p :| (t:ts)) -> case Map.lookup p subtree of 
-      Just (v, Just subworld) -> World $ Map.insert p (v, Just subworld') subtree
-        where
-          subworld' = insert_at_path (t :| ts) a subworld
-      Just (v, Nothing) -> World $ Map.insert p (v, Just subworld) subtree
-        where 
-          subworld = insert_at_path (t :| ts) a (World Map.empty)
-      Nothing -> World $ Map.insert p (Nothing, Just subworld) subtree
-        where 
-          subworld = insert_at_path (t :| ts) a (World Map.empty)
-
-get_modulo_path :: Path Text -> World a -> (Maybe (a, [Text]))
-get_modulo_path path (World subtree) =
-  case path of 
-    (p :| []) -> case Map.lookup p subtree of 
-      Just ((Just v), _) -> Just (v, [])
-      _ -> Nothing
-    (p :| (t:ts)) -> case Map.lookup p subtree of 
-      Just (_, (Just w)) -> get_modulo_path (t :| ts) w
-      Just (Just v, _) -> Just (v, (t : ts))
-      _ -> Nothing
 
 data Image a = Image (World a) (Restarts a)
 
 type Restarts a = [IO a]
 
--- TODO: Interpreter 
 -- m = monad
 -- env = environment
 -- s = state

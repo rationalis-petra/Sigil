@@ -6,7 +6,7 @@ module Sigil.Compile.ANF (ANFExp(..), ANFVal(..)) where
 -- • A Type system
 -- • Join points
 
-import Sigil.Abstract.Environment
+import Sigil.Abstract.Names
 
 
 data ANFExp

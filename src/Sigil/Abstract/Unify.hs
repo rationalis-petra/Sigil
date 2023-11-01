@@ -8,7 +8,7 @@ import qualified Data.List as List
 
 import Prettyprinter
 
-import Sigil.Abstract.Environment
+import Sigil.Abstract.Names
 import Sigil.Abstract.Substitution
 
 
