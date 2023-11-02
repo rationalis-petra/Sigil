@@ -24,6 +24,7 @@ module Sigil.Interpret.Interpreter
 
 
 import Data.Text (Text)
+import Data.Map (Map)
 
 import Prettyprinter.Render.Sigil
 
@@ -66,6 +67,7 @@ data Interpreter m err env s t = Interpreter
   -- set of imports
   , get_env :: Path Text -> [ImportDef] -> m env
   , get_precs :: Path Text -> [ImportDef] -> m Precedences
+  , get_resolve :: Path Text -> [ImportDef] -> m (Map Text QualName)
 
   -- The Monad m
   , run :: forall a. s -> m a -> IO (Either err a, s)

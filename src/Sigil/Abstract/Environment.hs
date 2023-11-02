@@ -8,7 +8,7 @@ module Sigil.Abstract.Environment
   , Environment(..)
   , EModule(..)
   , epath, evals , eimports, eexports
-  , Env
+  , Env(..)
   , globals
   , eval_helper
   ) where
@@ -47,6 +47,8 @@ import Sigil.Abstract.Syntax
   
 newtype World a = World (Map Text (Maybe a, Maybe (World a)))
 
+instance Functor World where
+  fmap f (World wmap) = World $ fmap (bimap (fmap f) (fmap (fmap f))) wmap
 insert_at_path :: Path Text -> a -> World a -> World a
 insert_at_path path a (World subtree) =
   case path of 
@@ -78,7 +80,7 @@ get_modulo_path path (World subtree) =
 
 
 data EModule a = EModule
-  { _epath :: [Path Text]
+  { _epath :: Path Text
   , _eimports :: [ImportDef]
   , _eexports :: [ExportDef]
   , _evals :: [(Name, Text, a)]
@@ -118,23 +120,24 @@ instance (Pretty n, Ord n) => Environment n (Map n) where
   env_empty = Map.empty
 
 instance Environment Name Env where
-  lookup_err lift_err n@(Name (Right _)) env = case Map.lookup n (env^.env_binds) of 
-    Nothing -> throwError $ lift_err $ ("local variable not in scope:" <+> pretty n)
+  lookup_err lift_err n env = case Map.lookup n (env^.env_binds) of 
     Just (x, _) -> pure x
-  lookup_err lift_err n@(Name (Left l)) env = case Map.lookup l (env^.globals) of 
-    Nothing -> throwError $ lift_err $ ("global variable not in scope:" <+> pretty n)
-    Just v -> pure v
+    Nothing -> case n of
+      Name (Left p) -> case Map.lookup p (env^.globals) of
+        Nothing -> throwError $ lift_err $ ("global variable not in scope:" <+> pretty n)
+        Just v -> pure v
+      _ -> throwError $ lift_err $ ("local variable not in scope:" <+> pretty n)
 
-  lookup n@(Name (Right _)) env = case Map.lookup n (env^.env_binds) of 
-    Nothing -> Nothing
+  lookup n env = case Map.lookup n (env^.env_binds) of 
     Just (x,_) -> pure x
-  lookup (Name (Left p)) env = Map.lookup p (env^.globals)
+    Nothing -> case n of
+      Name (Left p) -> Map.lookup p (env^.globals)
+      _ -> Nothing
 
-  insert n@(Name (Right _)) v env =
+  insert n v env =
     let lvl' = env^.lvl + 1
         env_binds' = Map.insert n (v, env^.lvl) (env^.env_binds)
     in Env env_binds' lvl' (env^.globals) (env^.env_imports) (env^.world)
-  insert _ _ env = env
 
   env_empty = Env Map.empty 0 Map.empty [] (World Map.empty)
 
@@ -179,7 +182,7 @@ eval_helper lift_err eval env = do
         let eval_vals :: Map Name b -> [(Name, Text, a)] -> m [(Name, Text, b)]
             eval_vals _ [] = pure []
             eval_vals env ((name, text, val) : vals) = do
-              val' <- eval env name val 
+              val' <- eval env name val
               ((name, text, val') :) <$> eval_vals (Map.insert name val' env) vals
         EModule path imports exports <$> eval_vals env vals
 
@@ -190,10 +193,15 @@ eval_helper lift_err eval env = do
         -- TODO: respect export modifiers of module!
         ImSingleton -> case get_modulo_path path world of 
           Just (modul, [nme]) -> case find (\(_, t, _) -> t == nme) (modul^.evals) of 
-            Just (name, _, val) -> Map.insert name val <$> (get_globals is world)
+            Just (_, t, val) -> Map.insert (Name (Left (NonEmpty.append path (t :| [])))) val <$> (get_globals is world)
             _ -> throwError $ lift_err ("singleton import of" <+> pretty path <+> "failed")
-          _ -> throwError $ lift_err ("import of" <+> pretty path <+> "failed")
-        _ -> throwError $ lift_err "cannot import non-singleton yet!"
+          _ -> throwError $ lift_err ("singleton import of" <+> pretty path <+> "failed")
+        ImWildcard -> case get_modulo_path path world of 
+          Just (modul, []) ->
+            foldl (\m (_, t, val) -> Map.insert (Name (Left (NonEmpty.append path (t :| [])))) val <$> m)
+                  (get_globals is world) (modul^.evals)
+          _ -> throwError $ lift_err ("wildcard import of" <+> pretty path <+> "failed")
+        _ -> throwError $ lift_err "cannot import non-singleton/wildcard yet!"
 
   -- Step 4: evaluate the local environment
       add_locals :: Map Name b -> m (Map Name b)

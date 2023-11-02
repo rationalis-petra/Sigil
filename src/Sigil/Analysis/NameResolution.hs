@@ -1,13 +1,16 @@
 module Sigil.Analysis.NameResolution
   ( ResolveTo(..)
   , resolve_closed
+  , resolve_module
   ) where
 
 
 import Prelude hiding (lookup)
 import Control.Lens
-import Data.Map (Map, lookup, insert, empty)
-import Data.Text (Text)
+import qualified Data.List.NonEmpty as NonEmpty
+import Data.List.NonEmpty ()
+import Data.Map (Map, lookup, insert)
+import Data.Text (Text, unpack)
 import Data.Foldable (foldl')
 import Data.List.NonEmpty (NonEmpty(..))
 
@@ -17,18 +20,20 @@ import Sigil.Abstract.Syntax
 import Sigil.Concrete.Parsed
 import Sigil.Concrete.Resolved
 
+import Debug.Trace  
 
-{------------------------------- ID GENERATION ---------------------------------}
+
+{--------------------------------- RESOLUTION ----------------------------------}
 {-                                                                             -}
 {-                                                                             -}
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
 class ResolveTo a b | a -> b where
-  resolve :: MonadGen m => Map Text Integer -> a -> m b
+  resolve :: MonadGen m => Map Text (Either Integer QualName) -> a -> m b
 
-resolve_closed :: (MonadGen m, ResolveTo a b) => a -> m b
-resolve_closed = resolve empty
+resolve_closed :: (MonadGen m, ResolveTo a b) => Map Text QualName -> a -> m b
+resolve_closed rmap = resolve (fmap Right rmap)
 
 instance ResolveTo a b => ResolveTo (a, a, a) (b, b, b) where
   resolve vars (x, y, z) = (,,) <$> rv x <*> rv y <*> rv z
@@ -39,19 +44,20 @@ instance ResolveTo ParsedCore ResolvedCore where
     Core -> pure $ Coreχ ()
     Uni rn n -> pure $ Uniχ rn n
     Var rn name -> case lookup name vars of
-      Just n -> pure $ Varχ rn $ Name $ Right (n, name)
-      Nothing -> pure $ Varχ rn $ Name $ Left (name :| [])
+      Just (Left n) -> pure $ Varχ rn $ Name $ Right (n, name)
+      Just (Right q) -> pure $ Varχ rn $ Name $ Left q
+      Nothing -> error (unpack $ "bad name: " <> name) -- pure $ Varχ rn $ Name $ Left (name :| [])
     Prd rn (OptBind (t, a)) ty -> do
       id <- fresh_id
       let n = (\text -> Name $ Right (id,text)) <$> t
-          vars' = maybe vars (\t -> insert t id vars) t
+          vars' = maybe vars (\t -> insert t (Left id) vars) t
       a' <- mapM (resolve vars) a
       Prdχ rn (OptBind (n, a')) <$> resolve vars' ty
     Abs rn (OptBind (t, ty)) e -> do
       id <- fresh_id
       let
         n = (\text -> Name $ Right (id,text)) <$> t 
-        vars' = maybe vars (\t -> insert t id vars) t
+        vars' = maybe vars (\t -> insert t (Left id) vars) t
       ty' <- mapM (resolve vars) ty
       Absχ rn (OptBind (n, ty')) <$> resolve vars' e
     App rn l r -> Appχ rn <$> resolve vars l <*> resolve vars r
@@ -64,7 +70,7 @@ instance ResolveTo ParsedCore ResolvedCore where
     Ind rn (OptBind (t, a)) ctors -> do
       id <- fresh_id 
       let n = (\text -> Name $ Right (id, text)) <$> t
-          vars' = maybe vars (\t -> insert t id vars) t
+          vars' = maybe vars (\t -> insert t (Left id) vars) t
       a' <- mapM (resolve vars) a
       Indχ rn (OptBind (n, a')) <$> mapM (resolve_ctor vars') ctors
       where 
@@ -77,7 +83,7 @@ instance ResolveTo ParsedCore ResolvedCore where
     Rec rn (OptBind (n, a)) val cases -> do
       id <- fresh_id 
       let n' = (\text -> Name $ Right (id, text)) <$> n
-          vars' = maybe vars (\t -> insert t id vars) n
+          vars' = maybe vars (\t -> insert t (Left id) vars) n
       a' <- mapM (resolve vars) a 
       val' <- resolve vars val 
       cases' <- mapM (resolve_case vars') cases
@@ -97,69 +103,72 @@ instance ResolveTo ParsedCore ResolvedCore where
           PatVar n -> do
             id <- fresh_id
             let p' = PatVar $ Name $ Right $ (id, n)
-            pure $ (p', insert n id vars)
+            pure $ (p', insert n (Left id) vars)
 
     where
       resolve_tel vars [] = pure (vars, [])
       resolve_tel vars ((OptBind (t, a), val) : tel) = do
         id <- fresh_id 
         let n = (\text -> Name $ Right (id, text)) <$> t
-            vars' = maybe vars (\t -> insert t id vars) t
+            vars' = maybe vars (\t -> insert t (Left id) vars) t
         a' <- mapM (resolve vars) a 
         val' <- resolve vars' val 
         (vars'', tel') <- resolve_tel vars' tel
         pure $ (vars'', ((OptBind (n, a'), val') : tel'))
 
 
-instance ResolveTo ParsedEntry ResolvedEntry where
-  resolve vars entry = case entry of
-    Singleχ rn (OptBind (t,a)) val -> do
-      id <- fresh_id 
-      let n = Name . Right . (id,) <$> t
-          vars' = maybe vars (\t -> insert t id vars) t
-      a' <- mapM (resolve vars) a
-      val' <- resolve vars' val
-      pure $ Singleχ rn (OptBind (n, a')) val'
+resolve_entry :: MonadGen m => Path Text -> Map Text (Either Integer QualName) -> ParsedEntry -> m ResolvedEntry
+resolve_entry path vars entry = case entry of
+  Singleχ rn (OptBind (t,a)) val -> do
+    let qn = (path <>) . (:| []) <$> t
+        n = Name . Left <$> qn
+        vars' = case (t, qn) of
+          (Just tx, Just nm) -> trace ("inserting: " <> unpack tx <> " → " <> show nm) insert tx (Right nm) vars
+          _ -> vars
+    a' <- mapM (resolve vars) a
+    val' <- resolve vars' val
+    pure $ Singleχ rn (OptBind (n, a')) val'
 
-    Mutualχ rn terms -> do
-      (vars', binds) <- resolve_types vars terms
-      terms' <- mapM (\((_,val,_),(n',type')) -> do
-                         val' <- resolve vars' val
-                         pure (n', val', type'))
-                       (zip terms binds)
-      
-      pure $ Mutualχ rn terms'
-      where 
-        resolve_types :: MonadGen m => Map Text Integer -> [(Text, ParsedCore, ParsedCore)] -> m (Map Text Integer, [(Name, ResolvedCore)])
-        resolve_types vars ((n, t, _) : ts) = do
-          id <- fresh_id
-          let n' = Name $ Right (id, n)
-              vars' = insert n id vars
-          t' <- resolve vars t
-          (vars', binds') <- resolve_types vars' ts
-          pure (vars', (n',t') : binds')
-        resolve_types vars [] = pure (vars, [])
-
-instance ResolveTo ParsedModule ResolvedModule where
-  -- TODO: interface with environment somehow? (based on imports/exports)
-  resolve vars modul = do
-    entries' <- resolve_entries vars (modul^.module_entries)
-    pure $ (module_entries .~ entries') modul
-
+  Mutualχ rn terms -> do
+    (vars', binds) <- resolve_types vars terms
+    terms' <- mapM (\((_,val,_),(n',type')) -> do
+                       val' <- resolve vars' val
+                       pure (n', val', type'))
+                     (zip terms binds)
+    
+    pure $ Mutualχ rn terms'
     where 
-      resolve_entries :: MonadGen m => Map Text Integer -> [ParsedEntry] -> m [ResolvedEntry]
-      resolve_entries _ [] = pure []
-      resolve_entries vars (e:es) = do
-        e' <- resolve vars e
-        let vars' = update_vars vars e'
-        (e' :) <$> resolve_entries vars' es 
+      resolve_types :: MonadGen m => Map Text (Either Integer QualName) -> [(Text, ParsedCore, ParsedCore)] -> m (Map Text (Either Integer QualName), [(Name, ResolvedCore)])
+      resolve_types vars ((n, t, _) : ts) = do
+        id <- fresh_id
+        let n' = Name $ Right (id, n)
+            vars' = insert n (Left id) vars
+        t' <- resolve vars t
+        (vars', binds') <- resolve_types vars' ts
+        pure (vars', (n',t') : binds')
+      resolve_types vars [] = pure (vars, [])
 
-      update_vars vars entry = case entry of 
-        Singleχ _ (OptBind (n,_)) _ -> do
-          maybe vars (\(id, text) -> insert text id vars) (get_local_name =<< n)
-        Mutualχ _ mutuals -> do
-          foldl' (\vars (n,_,_) -> maybe vars (\(id,text) -> insert text id vars) (get_local_name n)) vars mutuals
-          --maybe vars (\(id,text) -> Map.insert n id vars) ((,) <$> get_id n <*> get_text n)
+-- TODO: interface with environment somehow? (based on imports/exports)
 
-      get_local_name (Name (Right p)) = Just p
-      get_local_name _ = Nothing
+resolve_module :: MonadGen m => Path Text -> Map Text (Either Integer QualName) -> ParsedModule -> m ResolvedModule
+resolve_module path vars modul = do
+  entries' <- resolve_entries vars (modul^.module_entries)
+  pure $ (module_entries .~ entries') modul
+
+  where 
+    resolve_entries :: MonadGen m => Map Text (Either Integer QualName) -> [ParsedEntry] -> m [ResolvedEntry]
+    resolve_entries _ [] = pure []
+    resolve_entries vars (e:es) = do
+      e' <- resolve_entry path vars e
+      let vars' = update_vars vars e'
+      (e' :) <$> resolve_entries vars' es 
+
+    update_vars vars entry = case entry of 
+      Singleχ _ (OptBind (n,_)) _ -> do
+        maybe vars (\(nm, txt) -> insert txt nm vars) (get_local_name <$> n)
+      Mutualχ _ mutuals -> do
+        foldl' (\vars (n,_,_) -> (\(nm,text) -> insert text nm vars) (get_local_name n)) vars mutuals
+        --maybe vars (\(id,text) -> Map.insert n id vars) ((,) <$> get_id n <*> get_text n)
+
+    get_local_name (Name (Right (id, text))) = (Left id, text)
+    get_local_name (Name (Left p)) = (Right p, NonEmpty.last p)

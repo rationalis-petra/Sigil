@@ -120,8 +120,9 @@ processMessage (Interpreter {..}) state socket = \case
           imports = maybe [] snd module_spec
       env <- get_env path imports
       precs <- get_precs path imports
+      resolve_vars <- get_resolve path imports
       parsed <- parseToErr (core precs <* eof) "server-in" line 
-      resolved <- resolve_closed parsed
+      resolved <- resolve_closed resolve_vars parsed
         `catchError` (throwError . (<+>) "Resolution:")
       (term, ty) <- infer (CheckInterp interp_eval interp_eq spretty) env resolved
         `catchError` (throwError . (<+>) "Inference:")

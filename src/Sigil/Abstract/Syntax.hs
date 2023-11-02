@@ -171,7 +171,7 @@ type Forallχ (φ :: Type -> Constraint) χ
 
 
 data Module b v χ  
-  = Module { _module_header :: NonEmpty Text
+  = Module { _module_header :: Path Text
            , _module_imports :: [ImportDef]
            , _module_exports :: [ExportDef]
            , _module_entries :: [Entry b v χ]

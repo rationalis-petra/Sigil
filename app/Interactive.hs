@@ -82,8 +82,9 @@ interactive (Interpreter {..}) opts = do
     eval_line istate line = do
       env <- get_env ("repl" :| []) (istate^.imports)
       precs <- get_precs ("repl" :| []) (istate^.imports)
+      resolution <- get_resolve ("repl" :| []) (istate^.imports)
       parsed <- parseToErr (core precs <* eof) "console-in" line 
-      resolved <- resolve_closed parsed
+      resolved <- resolve_closed resolution parsed
         `catchError` (throwError . (<+>) "Resolution:")
       (term, ty) <- infer (CheckInterp interp_eval interp_eq spretty) env resolved
         `catchError` (throwError . (<+>) "Inference:")
@@ -125,9 +126,10 @@ interactive (Interpreter {..}) opts = do
     check_mod filename file = do
       env <- get_env (filename :| []) []
       precs <- get_precs (filename :| []) []
+      resolve_vars <- get_resolve (filename :| []) []
       parsed <- parse (mod (\_ _ -> pure precs) <* eof) filename file 
         `catchError` (throwError . (<+>) "Parse:")
-      resolved <- resolve_closed parsed
+      resolved <- resolve_module (filename :| []) (fmap Right resolve_vars) parsed
         `catchError` (throwError . (<+>) "Resolution:")
       check_module (CheckInterp interp_eval interp_eq spretty) env resolved
         `catchError` (throwError . (<+>) "Inference:")

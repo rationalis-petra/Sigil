@@ -9,7 +9,6 @@ import Data.Kind
 import Data.Maybe
 import Data.Text (Text)
 import Data.Foldable (find)
---import qualified Data.Map as Map
 import Data.Map (Map)
 
 import Prettyprinter
