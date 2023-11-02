@@ -121,13 +121,14 @@ interactive (Interpreter {..}) opts = do
 
     check_mod :: Text -> Text -> m InternalModule
     check_mod filename file = do
-      env <- get_env (filename :| []) []
-      precs <- get_precs (filename :| []) []
-      resolve_vars <- get_resolve (filename :| []) []
-      parsed <- parse (mod (\_ _ -> pure precs) <* eof) filename file 
+      parsed <- parse (mod get_precs <* eof) filename file 
         `catchError` (throwError . (<+>) "Parse:")
-      resolved <- resolve_module (filename :| []) (fmap Right resolve_vars) parsed
+
+      resolve_vars <- get_resolve (parsed^.module_header) (parsed^.module_imports)
+      resolved <- resolve_module (parsed^.module_header) (fmap Right resolve_vars) parsed
         `catchError` (throwError . (<+>) "Resolution:")
+
+      env <- get_env (parsed^.module_header) (parsed^.module_imports)
       check_module (CheckInterp interp_eval interp_eq spretty) env resolved
         `catchError` (throwError . (<+>) "Inference:")
 

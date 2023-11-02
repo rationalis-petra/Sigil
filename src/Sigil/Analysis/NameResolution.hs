@@ -146,8 +146,8 @@ resolve_entry path vars entry = case entry of
         pure (vars', (n',t') : binds')
       resolve_types vars [] = pure (vars, [])
 
--- TODO: interface with environment somehow? (based on imports/exports)
 
+-- TODO: interface with environment somehow? (based on imports/exports)
 resolve_module :: MonadGen m => Path Text -> Map Text (Either Integer QualName) -> ParsedModule -> m ResolvedModule
 resolve_module path vars modul = do
   entries' <- resolve_entries vars (modul^.module_entries)
