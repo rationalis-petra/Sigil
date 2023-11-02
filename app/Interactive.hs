@@ -115,11 +115,8 @@ interactive (Interpreter {..}) opts = do
         pure mod
         
       case result of
-        Right modul -> do
-          putStr "\n"
-          putDocLn $ "module:" <+> nest 2 (pretty modul)
-          putStr "\n"
         Left err -> putDocLn err
+        _ -> pure ()
       pure state'
 
     check_mod :: Text -> Text -> m InternalModule

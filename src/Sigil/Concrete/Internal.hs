@@ -210,6 +210,7 @@ instance Pretty InternalCore where
       
       iscore (Uni _) = True
       iscore (Var _) = True
+      iscore (Ctr _) = True
       iscore _ = False
 
       unwind (App l r) = unwind l <> [r]

@@ -20,8 +20,6 @@ import Sigil.Abstract.Syntax
 import Sigil.Concrete.Parsed
 import Sigil.Concrete.Resolved
 
-import Debug.Trace  
-
 
 {--------------------------------- RESOLUTION ----------------------------------}
 {-                                                                             -}
@@ -123,7 +121,7 @@ resolve_entry path vars entry = case entry of
     let qn = (path <>) . (:| []) <$> t
         n = Name . Left <$> qn
         vars' = case (t, qn) of
-          (Just tx, Just nm) -> trace ("inserting: " <> unpack tx <> " → " <> show nm) insert tx (Right nm) vars
+          (Just tx, Just nm) -> insert tx (Right nm) vars
           _ -> vars
     a' <- mapM (resolve vars) a
     val' <- resolve vars' val
