@@ -12,16 +12,22 @@ module Sigil.Parse
 
 
 {------------------------------------ PARSER -----------------------------------}
-{- The Parsing algorithm contains two distinct parts: the 'primary grammar'    -}
+{- The Parsing algorithm contains two distinct parts: the 'core grammar'       -}
 {- and a mixfix subgrammar. These two parts are expressed in two different     -}
 {- parsers.                                                                    -}
 {-                                                                             -}
+{- This file contains the 'pore grammar', which describes how to parse         -}
+{- modules and various built-int constructs like functions, pattern matching   -}
+{- etc. Function application is handed off to the mixfix subgrammar, which     -}
+{- can only pase 'core' terms if they are enclosed in parentheses.             -}
 {-------------------------------------------------------------------------------}
+
 
 import Prelude hiding (head, last, tail, mod)
 import Control.Monad (join)
 import Control.Monad.Trans (lift)
 import Control.Monad.Except (MonadError, throwError)
+import Control.Monad.Reader (runReaderT, runReader, local) -- ask
 import qualified Data.Text as Text
 import Data.Text (Text)
 import Data.Either (lefts, rights)
@@ -45,10 +51,7 @@ import Sigil.Parse.Combinator
 import Sigil.Parse.Mixfix
 import Sigil.Parse.Lexer
 
-{-------------------------------- MODULE PARSER --------------------------------}
-{- The module parser parses                                                    -}
-{-                                                                             -}
-{-------------------------------------------------------------------------------}      
+
 
 
 update_precs_def :: Precedences -> ParsedEntry -> Precedences
@@ -65,13 +68,17 @@ with_range p = do
   end <- getSourcePos
   pure $ f (Range (Just (start, end)))
 
+{-------------------------------- MODULE PARSER --------------------------------}
+{- The module parser parses                                                    -}
+{-                                                                             -}
+{-------------------------------------------------------------------------------}      
 
 mod :: Monad m => (NonEmpty Text -> [ImportDef] -> m Precedences) -> ParserT m ParsedModule
 mod get_precs = do
   (title, ports) <- module_header
   let imports = lefts ports
       exports = rights ports
-  precs <- lift $ get_precs title imports
+  precs <- lift $ lift $ get_precs title imports
 
   body <-
     let go precs =
@@ -288,6 +295,27 @@ core precs = do
             
 
   -- SEE  https://markkarpov.com/tutorial/megaparsec.html#indentationsensitive-parsing
+    -- pind :: ParserT m ParsedCore
+    -- pind = mkind --with_range (mkind)
+    --   where 
+    --     mkind :: ParserT m (ParsedCore)
+    --     mkind = do
+    --       symbol "μ"
+    --       var <- anyvar 
+    --       symbol "⮜"
+    --       ty <- core precs
+    --       symbol "."
+    --       ctors <- try $ many (pctor precs)
+    --       pure $ (Indχ mempty (OptBind (Just var, Just ty))) ctors
+
+    --     pctor :: Precedences -> ParserT m (Text, OptBind Text ParsedCore)
+    --     pctor precs = do
+    --       --pos <- ask
+    --       --_ <- L.indentGuard scn GT (mkPos 2)
+    --       scn
+    --       var <- anyvar
+    --       symbol "⮜"
+    --       (var, ) . OptBind . (Just var,) . Just <$> core precs
 
     pind :: ParserT m ParsedCore
     pind = mkind --with_range (mkind)
@@ -302,7 +330,7 @@ core precs = do
           pctors var ty
 
         pctors :: Text -> ParsedCore -> ParserT m (L.IndentOpt (ParserT m) ParsedCore (Text, OptBind Text ParsedCore))
-        pctors var ty =
+        pctors var ty = do
           pure (L.IndentMany Nothing
                 (pure . (Indχ mempty (OptBind (Just var, Just ty))))
                 (pctor (update_precs [var] precs)))
@@ -342,9 +370,11 @@ core precs = do
           PatCtr _ ns -> fold $ map pat_vars ns
 
         ppattern :: ParserT m (Pattern Text)
-        ppattern =
-          (PatCtr <$> (single ':' *> anyvar) <*> many ppattern)
-          <|> (PatVar <$> (try $ anyvar >>= (\v -> if (v == "→") then fail "ppattern" else pure v)))
+        ppattern = do 
+          level <- L.indentLevel
+          local (const $ level) $
+            (PatCtr <$> (single ':' *> anyvar) <*> many ppattern)
+            <|> (PatVar <$> (try $ anyvar >>= (\v -> if (v == "→") then fail "ppattern" else pure v)))
         
 
     pexpr :: ParserT m ParsedCore
@@ -365,20 +395,20 @@ core precs = do
 
 parse :: MonadError SigilDoc m => ParserT m a -> Text -> Text -> m a
 parse p file input = do
-  result <- Megaparsec.runParserT p (Text.unpack file) input 
+  result <- runReaderT (Megaparsec.runParserT p (Text.unpack file) input) pos1
   case result of 
     Left err -> throwError $ pretty $ errorBundlePretty err
     Right val -> pure val
 
 
 runParser :: Parser a -> Text -> Text -> Either (Doc ann) a
-runParser p file input = case Megaparsec.runParser p (Text.unpack file) input of
+runParser p file input = case runReader (Megaparsec.runParserT p (Text.unpack file) input) pos1 of
   Left err -> Left $ pretty $ errorBundlePretty err
   Right val -> Right val
 
 
 parseToErr :: (MonadError (Doc ann) m) => Parser a -> Text -> Text -> m a
-parseToErr p file input = case Megaparsec.runParser p (Text.unpack file) input of
+parseToErr p file input = case runReader (Megaparsec.runParserT p (Text.unpack file) input) pos1 of
   Left err -> throwError $ pretty $ errorBundlePretty err
   Right val -> pure val
 

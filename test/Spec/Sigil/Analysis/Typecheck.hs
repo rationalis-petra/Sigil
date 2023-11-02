@@ -6,6 +6,7 @@ import Data.Text (Text)
 import Prettyprinter
 import Prettyprinter.Render.Sigil
 
+import Sigil.Abstract.Names
 import Sigil.Abstract.Environment
 import Sigil.Concrete.Internal
 import Sigil.Analysis.Typecheck hiding (normalize)

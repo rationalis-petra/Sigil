@@ -18,6 +18,7 @@ module Sigil.Parse.Combinator
 
 
 import Prelude hiding (head, last, tail)
+import Control.Monad.Reader (Reader, ReaderT)
 import Data.Vector (Vector, head, last, tail)
 import Data.Text (Text)
 
@@ -26,8 +27,8 @@ import Text.Megaparsec hiding (runParser)
 {--------------------------------- PARSER TYPE ---------------------------------}
 
 
-type ParserT = ParsecT Text Text
-type Parser = Parsec Text Text
+type ParserT m = ParsecT Text Text (ReaderT Pos m)
+type Parser = ParsecT Text Text (Reader Pos)
 
 
 {--------------------------------- COMBINATORS ---------------------------------}
@@ -41,20 +42,20 @@ betweenM vec p = case length vec of
   _ -> head vec *> ((:) <$> p <*> betweenM (tail vec) p)
 
 -- Parse many of an element (min 1) 
-many1 :: ParserT m a -> ParserT m [a]
+many1 :: (MonadParsec e s m) => m a -> m [a]
 many1 p = (:) <$> p <*> many p 
 
-thread :: Monad m => (a -> ParserT m a) -> a -> ParserT m a   
+thread :: (MonadParsec e s m) => (a -> m a) -> a -> m a   
 thread p val = (p val >>= thread p) <||> pure val
 
-thread1 :: Monad m => (a -> ParserT m a) -> a -> ParserT m a   
+thread1 :: (MonadParsec e s m) => (a -> m a) -> a -> m a   
 thread1 p val = p val >>= thread p
 
 -- choice with backtracking
-choice' :: [ParserT m a] -> ParserT m a
+choice' :: (MonadParsec e s m) => [m a] -> m a
 choice' = choice . fmap try
 
 infixl 3 <||>
 -- <|> with backtracking
-(<||>) :: ParserT m a -> ParserT m a -> ParserT m a
+(<||>) :: (MonadParsec e s m) => m a -> m a -> m a
 l <||> r = try l <|> try r

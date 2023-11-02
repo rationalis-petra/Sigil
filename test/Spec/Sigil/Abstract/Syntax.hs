@@ -6,8 +6,8 @@ import Data.Bifunctor (bimap)
 import Prettyprinter
 import Prettyprinter.Render.Text 
 
+import Sigil.Abstract.Names  
 import Sigil.Abstract.Syntax  
-import Sigil.Abstract.Environment  
 
 import TestFramework
 import Spec.Sigil.Abstract.CoreUD

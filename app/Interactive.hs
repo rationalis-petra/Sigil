@@ -13,6 +13,7 @@ import Data.Text (Text, unpack)
 import Data.Text.IO
 import System.IO hiding (getLine, putStr, putStrLn, readFile)
 
+import qualified Text.Megaparsec as Megaparsec
 import Text.Megaparsec hiding (parse, runParser)
 import Text.Megaparsec.Char as C
 import Prettyprinter
@@ -133,13 +134,13 @@ interactive (Interpreter {..}) opts = do
         `catchError` (throwError . (<+>) "Inference:")
 
 read_command :: Text -> Command
-read_command cmd = case parseToErr command_parser "console-in" cmd of
+read_command cmd = case Megaparsec.runParser command_parser "console-in" cmd of
   Right cmd -> cmd
-  Left err -> Malformed err
+  Left err -> Malformed $ pretty $ errorBundlePretty err
 
-type Parser = Parsec Text Text
+type CmdParser = Parsec Text Text
 
-command_parser :: Parser Command
+command_parser :: CmdParser Command
 command_parser = do
   c <- sc *> lookAhead (satisfy (const True))
   case c of  
@@ -153,7 +154,7 @@ command_parser = do
   where 
     pImport = do
       let
-        sep :: Parser a -> Parser b -> Parser [a]
+        sep :: CmdParser a -> CmdParser b -> CmdParser [a]
         sep p separator = ((: []) <$> p <|> pure []) >>= \v ->
             (v <> ) <$> many (try (separator *> p))
 
@@ -164,6 +165,6 @@ command_parser = do
       modifier <- pModifier <|> pure ImSingleton
       pure $ Import (path, modifier)
 
-    pModifier :: Parser ImportModifier
+    pModifier :: CmdParser ImportModifier
     pModifier = 
       const ImWildcard <$> (lexeme (C.char '.') *> symbol "(..)")

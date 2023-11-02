@@ -7,8 +7,8 @@ module Spec.Sigil.Abstract.CoreUD
 
 import Prettyprinter
 
+import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
-import Sigil.Abstract.Environment
 import Sigil.Abstract.AlphaEq
 
 -- undecorated tree  

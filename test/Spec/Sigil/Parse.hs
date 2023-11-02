@@ -15,8 +15,8 @@ import Prettyprinter.Render.Sigil
 import TestFramework
 import Sigil.Parse
 import Sigil.Parse.Mixfix
+import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
-import Sigil.Abstract.Environment
 import Sigil.Abstract.AlphaEq
 import Sigil.Concrete.Parsed
 

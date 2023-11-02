@@ -7,7 +7,7 @@ import Prettyprinter
 import Prettyprinter.Render.Sigil
 
 import Sigil.Abstract.Unify
-import Sigil.Abstract.Environment
+import Sigil.Abstract.Names
 import Sigil.Concrete.Internal
 import Sigil.Interpret.Unify
 

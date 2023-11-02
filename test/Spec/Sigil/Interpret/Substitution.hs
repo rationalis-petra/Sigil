@@ -5,7 +5,7 @@ import Data.Set (fromList)
 
 import Prettyprinter
 
-import Sigil.Abstract.Environment
+import Sigil.Abstract.Names
 import Sigil.Abstract.Substitution
 import Sigil.Concrete.Internal
 

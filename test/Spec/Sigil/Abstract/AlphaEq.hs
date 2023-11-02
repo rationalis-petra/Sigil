@@ -3,8 +3,8 @@ module Spec.Sigil.Abstract.AlphaEq (alphaeq_spec) where
 import Data.Text (Text)
 import Data.List.NonEmpty (NonEmpty(..))
 
+import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
-import Sigil.Abstract.Environment
 import Sigil.Abstract.AlphaEq
 
 import TestFramework
