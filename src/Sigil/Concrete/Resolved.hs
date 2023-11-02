@@ -28,7 +28,6 @@ type instance Recχ Resolved = Range
 
 type ResolvedCore = Core OptBind Name Resolved
 
-type instance Mutualχ Resolved = Range
 type instance Singleχ Resolved = Range
 
 type ResolvedEntry = Entry OptBind Name Resolved

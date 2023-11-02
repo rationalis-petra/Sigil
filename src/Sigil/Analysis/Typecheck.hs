@@ -391,7 +391,6 @@ check_entry :: (Environment Name e, MonadError err m, MonadGen m)
 check_entry interp@(CheckInterp {..}) env mod =
   let infer' = infer interp
       check' = check interp
-      normalize' = normalize (lift_err . flip NormErr (Range Nothing))
       throwError' = throwError . lift_err . flip PrettyErr (Range Nothing)
   in case mod of 
     Singleχ _ bind val -> do
@@ -405,22 +404,6 @@ check_entry interp@(CheckInterp {..}) env mod =
           (val_typd, val_ty) <- infer' env val
           pure (Singleχ () (AnnBind (n, val_ty)) val_typd)
         OptBind (Nothing, _) -> throwError' $ "Expecting Single definition to have a name"
-      
-    Mutualχ _ terms -> do
-      types <- mapM check_ty terms
-      let env' = foldl' (\env (n, ty) -> insert n (Nothing, ty) env) env types
-      terms' <- mapM (check_term env') (zip terms (map snd types))
-      pure $ Mutualχ () terms'
-      where 
-        check_ty (n,a,_) = do
-          (a_typd, a_ty) <- infer' env a
-          a_normal <- normalize' env a_ty a_typd
-          pure (n, a_normal)
-        
-        check_term env ((n,_,val), tipe) = do
-          val' <- check' env val tipe
-          pure (n, val', tipe)
-    
 
 
 -- TODO: swap environment → world?
@@ -435,15 +418,6 @@ check_module interp@(CheckInterp {..}) env mod = do
     check_entries env (d:ds) = do
       d' <- check_entry interp env d
       case d' of
-        Mutualχ () defs -> do
-          env' <- foldl' (\cmp (n, ty, val) -> do
-                             env <- cmp
-                             ty' <- eval_ty env ty
-                             val' <- eval env ty val
-                             pure $ insert n (Just val', ty') env)
-                  (pure env) defs
-          ds' <- check_entries env' ds
-          pure (d' : ds')
         Singleχ () (AnnBind (n, ty)) val -> do
           ty' <- eval_ty env ty
           val' <- eval env ty val

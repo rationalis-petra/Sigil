@@ -44,11 +44,8 @@ type instance IPrdχ Internal = ()
 type instance TyConχ Internal = ()
 
 type instance Singleχ Internal = ()
-type instance Mutualχ Internal = ()
 
 type InternalCore = Core AnnBind Name Internal
-
-type instance Mutualχ Internal = ()
 
 type InternalEntry = Entry AnnBind Name Internal
 

@@ -39,7 +39,6 @@ type instance Prdχ PreMix = Range
 type instance Absχ PreMix = Range
 type instance Appχ PreMix = Range
 
-type instance Mutualχ PreMix = Range
 type instance Singleχ PreMix = Range
 
 

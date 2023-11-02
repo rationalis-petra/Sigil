@@ -58,7 +58,6 @@ update_precs_def :: Precedences -> ParsedEntry -> Precedences
 update_precs_def precs def =
   case def of 
     Singleχ _ bind _ -> update_precs (maybeToList . name $ bind) precs
-    Mutualχ _ mutuals -> update_precs (map (\(n,_,_) -> n) mutuals) precs
   
 
 with_range :: ParserT m (Range -> a) -> ParserT m a
@@ -127,7 +126,7 @@ mod get_precs = do
 
 {--------------------------------- DEF PARSER ----------------------------------}
 {- The def parser parses definitions, which have one of the following forms:   -}
-{- • Single/Mutual definitions. These consist of a series of declarations      -}
+{- • Single definitions. These consist of a series of declarations             -}
 {-   (var : expr) followed by a series of definitions (var arg* ≜ expr)        -}
 {-   in which any declared name is in scope. For example:                      -}
 {-                                                                             -}

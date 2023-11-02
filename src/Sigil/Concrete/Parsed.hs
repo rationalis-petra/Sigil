@@ -60,7 +60,6 @@ type instance Recχ Parsed = Range
 
 type ParsedCore = Core OptBind Text Parsed
 
-type instance Mutualχ Parsed = Range
 type instance Singleχ Parsed = Range
 
 type ParsedEntry = Entry OptBind Text Parsed

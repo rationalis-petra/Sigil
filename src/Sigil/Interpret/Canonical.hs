@@ -100,14 +100,12 @@ canonical_interpreter liftErr = Interpreter
               add_entry :: [Text] -> Map (Path Text) (Maybe InternalCore, InternalCore) -> InternalEntry -> Map (Path Text) (Maybe InternalCore, InternalCore)
               add_entry psf gmap entry = case entry of
                 Singleχ _ (AnnBind (n, ty)) val -> Map.insert (NonEmpty.reverse (name_text n :| psf)) (Just val, ty) gmap 
-                Mutualχ _ _ -> error "add_entry not implemented for mutual!"
               
 
           to_eworld :: World InternalModule -> World (EModule (Maybe InternalCore, InternalCore))
           to_eworld world = flip fmap world $ \mod ->
             EModule (mod^.module_header) (mod^.module_imports) (mod^.module_exports) $ flip fmap (mod^.module_entries) $ \case
              Singleχ _ (AnnBind (n,ty)) val -> (n, (name_text n), (Just val, ty))
-             Mutualχ _ _ -> error "to_globmap not implemented for mutual!"
 
       pure $ Env Map.empty 0 (to_globmap world) imports (to_eworld world)
 
@@ -125,8 +123,7 @@ canonical_interpreter liftErr = Interpreter
           ImWildcard -> 
             pure $ join $ map
               (\case
-                  Singleχ _ (AnnBind (n, _)) _ -> [name_text n]
-                  Mutualχ _ bs -> map (\(n,_,_) -> name_text n) bs)
+                  Singleχ _ (AnnBind (n, _)) _ -> [name_text n])
               (mdle^.module_entries)
           _ -> throwError $ liftErr $ InternalErr "only deal in wildcard modifiers!"
 
@@ -146,8 +143,7 @@ canonical_interpreter liftErr = Interpreter
                 foldl
                   (\mnd entry ->
                      case entry of
-                       Singleχ _ (AnnBind (n, _)) _ -> Map.insert (name_text n) (NonEmpty.append path (name_text n :| [])) <$> mnd
-                       Mutualχ _ _ -> error "mutual in get_resolve/get_imports")
+                       Singleχ _ (AnnBind (n, _)) _ -> Map.insert (name_text n) (NonEmpty.append path (name_text n :| [])) <$> mnd)
                   (get_imports gmap imports)
                   (mdle^.module_entries)
               _ -> throwError $ liftErr $ InternalErr "only deal in wildcard modifiers!"

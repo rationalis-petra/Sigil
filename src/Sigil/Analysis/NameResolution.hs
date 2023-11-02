@@ -11,7 +11,6 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Data.List.NonEmpty ()
 import Data.Map (Map, lookup, insert)
 import Data.Text (Text, unpack)
-import Data.Foldable (foldl')
 import Data.List.NonEmpty (NonEmpty(..))
 
 import Sigil.Abstract.Names
@@ -127,26 +126,6 @@ resolve_entry path vars entry = case entry of
     val' <- resolve vars' val
     pure $ Singleχ rn (OptBind (n, a')) val'
 
-  Mutualχ rn terms -> do
-    (vars', binds) <- resolve_types vars terms
-    terms' <- mapM (\((_,val,_),(n',type')) -> do
-                       val' <- resolve vars' val
-                       pure (n', val', type'))
-                     (zip terms binds)
-    
-    pure $ Mutualχ rn terms'
-    where 
-      resolve_types :: MonadGen m => Map Text (Either Integer QualName) -> [(Text, ParsedCore, ParsedCore)] -> m (Map Text (Either Integer QualName), [(Name, ResolvedCore)])
-      resolve_types vars ((n, t, _) : ts) = do
-        id <- fresh_id
-        let n' = Name $ Right (id, n)
-            vars' = insert n (Left id) vars
-        t' <- resolve vars t
-        (vars', binds') <- resolve_types vars' ts
-        pure (vars', (n',t') : binds')
-      resolve_types vars [] = pure (vars, [])
-
-
 -- TODO: interface with environment somehow? (based on imports/exports)
 resolve_module :: MonadGen m => Path Text -> Map Text (Either Integer QualName) -> ParsedModule -> m ResolvedModule
 resolve_module path vars modul = do
@@ -164,9 +143,6 @@ resolve_module path vars modul = do
     update_vars vars entry = case entry of 
       Singleχ _ (OptBind (n,_)) _ -> do
         maybe vars (\(nm, txt) -> insert txt nm vars) (get_local_name <$> n)
-      Mutualχ _ mutuals -> do
-        foldl' (\vars (n,_,_) -> (\(nm,text) -> insert text nm vars) (get_local_name n)) vars mutuals
-        --maybe vars (\(id,text) -> Map.insert n id vars) ((,) <$> get_id n <*> get_text n)
 
     get_local_name (Name (Right (id, text))) = (Left id, text)
     get_local_name (Name (Left p)) = (Right p, NonEmpty.last p)

@@ -54,21 +54,6 @@ instance (Ord n, Binding b, AlphaEq n (Core b n χ), AlphaEq n (b n (Core b n χ
         rename' = ( maybe (fst rename) (\n -> Map.insert n (name b') (fst rename)) (name b)
                   , maybe (snd rename) (\n -> Map.insert n (name b) (snd rename)) (name b'))
 
-    (Mutualχ _ terms, Mutualχ _ terms') -> defs_eq rename' terms terms'
-      where
-        rename' =
-          foldl' (\r ((n,_,_), (n',_,_)) ->
-                    bimap (Map.insert n (Just n')) (Map.insert n' (Just n)) r)
-                        rename
-                        (zip terms terms')
-
-        defs_eq _ [] [] = True
-        defs_eq r ((_,ty,val) : terms) ((_,ty',val') : terms') =
-          αequal r ty ty' && αequal r val val' && defs_eq r terms terms'
-        defs_eq _ _ _ = False
-          
-    (_, _) -> False
-
 instance (Ord n, Binding b, AlphaEq n (b n (Core b n χ)), AlphaEq n (Coreχ b n χ)) => AlphaEq n (Core b n χ) where
   αequal rename v v' = case (v, v') of 
     (Coreχ r, Coreχ r') ->

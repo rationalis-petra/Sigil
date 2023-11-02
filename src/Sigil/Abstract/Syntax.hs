@@ -22,7 +22,6 @@ module Sigil.Abstract.Syntax
   , Indχ
   , Ctrχ
   , Recχ
-  , Mutualχ
   , Singleχ
 
   -- Lenses
@@ -200,10 +199,8 @@ type ExportDef = (NonEmpty Text, ExportModifier)
 -- TODO: add fields!
 data Entry b n χ
   = Singleχ (Singleχ χ) (b n (Core b n χ)) (Core b n χ)
-  | Mutualχ (Mutualχ χ) [(n, Core b n χ, Core b n χ)]
 
 type family Singleχ χ
-type family Mutualχ χ 
 
 $(makeLenses ''Module)
 
@@ -219,9 +216,6 @@ instance (Forall Eq b n χ) => Eq (Entry b n χ) where
   v1 == v2 = case (v1, v2) of 
     (Singleχ _ name tipe, Singleχ _ name' tipe') ->
       name == name' && tipe == tipe'
-    (Mutualχ _ lst, Mutualχ _ lst') ->
-      and (zipWith (==) lst lst')
-    _ -> False
 
 
 instance (Forall Eq b n χ )
@@ -381,12 +375,6 @@ pretty_entry_builder name pretty_name pretty_bind pretty_core entry =
     (Singleχ _ bind val) ->
       vsep [ pretty_bind bind
            , maybe "_" pretty_name (name bind) <+> "≜" <+> align (pretty_core val) ]
-    (Mutualχ _ entries) ->
-      vsep $
-        fmap pretty_decl entries <> fmap pretty_def entries
-      where 
-        pretty_decl (n, t, _) = pretty_name n <+> "⮜" <+> pretty_core t
-        pretty_def (n, _, v) = pretty_name n <+> "≜" <+> pretty_core v
 
 
 pretty_mod_builder :: (Entry b n χ -> Doc ann) -> Module b n χ -> Doc ann
