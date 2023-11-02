@@ -26,7 +26,6 @@ type instance Absχ UD = Void
 type instance Appχ UD = Void
 type instance Eqlχ UD = Void
 type instance Dapχ UD = Void
-type instance Mutualχ UD = Void
 type instance Singleχ UD = Void
 
 type CoreUD = Core OptBind Name UD
