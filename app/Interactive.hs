@@ -3,13 +3,13 @@ module Interactive
   , interactive ) where
 
 
-import Prelude hiding (mod, getLine, putStr, putStrLn, readFile)
+import Prelude hiding (mod, getLine, putStr, putStrLn, readFile, null)
 
 import Control.Monad (void)
 import Control.Monad.Except (MonadError, throwError, catchError)
 import Control.Lens (makeLenses, (^.), (%~))
 import Data.List.NonEmpty
-import Data.Text (Text, unpack)
+import Data.Text (Text, unpack, null)
 import Data.Text.IO
 import System.IO hiding (getLine, putStr, putStrLn, readFile)
 
@@ -46,13 +46,14 @@ $(makeLenses ''InteractiveState)
 data Command
   = Eval Text
   | Import ImportDef
+  | Load Text
   | Quit
   | Malformed SigilDoc
 
 interactive :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e)
   => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> InteractiveOpts -> IO ()
 interactive (Interpreter {..}) opts = do
-    s <- eval_file (ifile opts) start_state
+    s <- if not (null (ifile opts)) then eval_file (ifile opts) start_state else pure start_state
     loop s (InteractiveState [])
   where
     loop :: s -> InteractiveState -> IO ()
@@ -70,6 +71,10 @@ interactive (Interpreter {..}) opts = do
             Left err -> putDocLn $ err
           loop state' istate
 
+        Load filename -> do 
+          state' <- eval_file filename state
+          loop state' istate
+          
         Import def -> loop state ((imports %~ (def :)) istate)
 
         Quit -> void $ run state stop
@@ -150,7 +155,8 @@ command_parser = do
     ';' -> do
       void $ C.char ';'
       cmd <- ( (const Quit <$> symbol "q")
-        <|> (symbol "import" *> pImport))
+        <|> (symbol "import" *> pImport)
+        <|> (symbol "load" *> pLoadFile))
       sc <* eof
       pure cmd
     _ -> Eval <$> takeWhileP (Just "any") (const True)
@@ -171,3 +177,13 @@ command_parser = do
     pModifier :: CmdParser ImportModifier
     pModifier = 
       const ImWildcard <$> (lexeme (C.char '.') *> symbol "(..)")
+
+    pLoadFile = do  
+      Load <$>
+        takeWhileP (Just "non-whitespace")
+          (\case
+            ' '  -> False
+            '\t' -> False
+            '\n' -> False
+            '\r' -> False
+            _    -> True)
