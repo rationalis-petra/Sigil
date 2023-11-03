@@ -85,7 +85,7 @@ interactive (Interpreter {..}) opts = do
       precs <- get_precs ("repl" :| []) (istate^.imports)
       resolution <- get_resolve ("repl" :| []) (istate^.imports)
       parsed <- parseToErr (core precs <* eof) "console-in" line 
-      resolved <- resolve_closed resolution parsed
+      resolved <- resolve_closed (("unbound name" <+>) . pretty) resolution parsed
         `catchError` (throwError . (<+>) "Resolution:")
       (term, ty) <- infer (CheckInterp interp_eval interp_eq spretty) env resolved
         `catchError` (throwError . (<+>) "Inference:")
@@ -126,7 +126,10 @@ interactive (Interpreter {..}) opts = do
         `catchError` (throwError . (<+>) "Parse:")
 
       resolve_vars <- get_resolve (parsed^.module_header) (parsed^.module_imports)
-      resolved <- resolve_module (parsed^.module_header) (fmap Right resolve_vars) parsed
+      resolved <- resolve_module
+                    (("unbound name" <+>) . pretty)
+                    (parsed^.module_header)
+                    (fmap Right resolve_vars) parsed
         `catchError` (throwError . (<+>) "Resolution:")
 
       env <- get_env (parsed^.module_header) (parsed^.module_imports)

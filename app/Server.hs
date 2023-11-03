@@ -122,7 +122,7 @@ processMessage (Interpreter {..}) state socket = \case
       precs <- get_precs path imports
       resolve_vars <- get_resolve path imports
       parsed <- parseToErr (core precs <* eof) "server-in" line 
-      resolved <- resolve_closed resolve_vars parsed
+      resolved <- resolve_closed (("unbound name" <+>) . pretty) resolve_vars parsed
         `catchError` (throwError . (<+>) "Resolution:")
       (term, ty) <- infer (CheckInterp interp_eval interp_eq spretty) env resolved
         `catchError` (throwError . (<+>) "Inference:")

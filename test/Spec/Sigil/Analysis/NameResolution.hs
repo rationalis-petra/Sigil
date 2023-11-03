@@ -1,6 +1,7 @@
 module Spec.Sigil.Analysis.NameResolution (resolve_spec) where
 
 import Prelude hiding (putStrLn)
+import Control.Monad.Except (runExceptT)
 import qualified Data.Map as Map
 import Data.Text (Text)
 import Data.Bifunctor
@@ -22,19 +23,30 @@ resolve_spec = TestGroup "name-resolution" $ Right tests
 res_test :: Text -> ParsedCore -> ResolvedCore -> Test
 res_test name val result = Test name err where
   err =
-    if run_gen (resolve_closed Map.empty val) /= result then
-      Just $ print_bad val result
-    else
-      Nothing
+    case run_gen (runExceptT $ resolve_closed id Map.empty val) of 
+      Right result' -> case result' == result of
+        True -> Nothing 
+        False -> Just $ print_bad val result  
+      Left err -> Just $ pretty err
 
   print_bad :: ParsedCore -> ResolvedCore -> Doc SigilStyle
   print_bad l r = pretty l <+> "is does not resolve to " <+> pretty r
 
+res_fail_test :: Text -> ParsedCore -> Text -> Test
+res_fail_test name val err_message = Test name err where
+  err =
+    case run_gen (runExceptT $ resolve_closed id Map.empty val) of 
+      Right val -> Just $ "expecting error:" <+> pretty err_message <+> "but got value:"  <+> pretty val
+      Left err -> case err == err_message of 
+        True -> Nothing
+        False -> Just $ "expecting error:" <+> pretty err_message <+> "but got error:"  <+> pretty err 
+
 tests :: [Test]
 tests =
-  [-- res_test "free-var" (var "x") (qvar "x")
-   res_test "abs-bound-var" (["y"] ⇒ (var "y")) ([idn 0 "y"] ⇒ (idv 0 "y"))
-  --, res_test "free-bound-mixed" (["y"] ⇒ (var "x")) ([idn 0 "y"] ⇒ (qvar "x"))
+  [ res_fail_test "free-var" (var "x") "x"
+  , res_fail_test "free-bound-mixed" (["y"] ⇒ (var "x")) "x"
+
+  , res_test "abs-bound-var" (["y"] ⇒ (var "y")) ([idn 0 "y"] ⇒ (idv 0 "y"))
   , res_test "2-bound-var" (["y", "x"] ⇒ (var "y" ⋅ var "x")) ([idn 0 "y", idn 1 "x"] ⇒ (idv 0 "y" ⋅ idv 1 "x"))
 
   , res_test "lam-bound-ty-var" ([("y", 𝓊 0)] =⇒ (var "y")) ([(idn 0 "y", 𝓊 0)] =⇒ (idv 0 "y"))
