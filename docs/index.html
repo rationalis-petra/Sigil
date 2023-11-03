@@ -3,10 +3,10 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2023-02-28 Tue 14:19 -->
+<!-- 2023-11-03 Fri 10:21 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>sigil: Elegant, Expressive, Interactive</title>
+<title>Sigil</title>
 <meta name="author" content="Connor Redfern" />
 <meta name="generator" content="Org Mode" />
 <style>
@@ -191,111 +191,75 @@
     { font-size: 10px; font-weight: bold; white-space: nowrap; }
   .org-info-js_search-highlight
     { background-color: #ffff00; color: #000000; font-weight: bold; }
-  .org-svg { width: 90%; }
+  .org-svg { }
 </style>
 <link rel="stylesheet" href="sigil-style.css" type="text/css"/>
 </head>
 <body>
 <div id="content" class="content">
-<h1 class="title">sigil: Elegant, Expressive, Interactive</h1>
+<h1 class="title">Sigil</h1>
 <div style="text-align:center">
-<p>
-<a href="try/index.html">try</a> • <a href="documentation/index.html">documentation</a> • <a href="tutorials/index.html">tutorials</a> • <a href="tooling/index.html">tooling</a> • <a href="implementation/index.html">implementation</a>
-</p>
 </div>
 
-<div id="outline-container-org1b5b8e6" class="outline-2">
-<h2 id="org1b5b8e6">NOTICE</h2>
-<div class="outline-text-2" id="text-org1b5b8e6">
-<p>
-This documentation does not describe the current state of the lanugage; rather
-it describes a future, intended realization of the language. I simply find that
-writing tutorials, documentation etc crystalizes vague ideas and notions,
-forcing one to hash-out the details. 
-</p>
 
+
+<div id="outline-container-orgcba1381" class="outline-2">
+<h2 id="orgcba1381">What Is Sigil?</h2>
+<div class="outline-text-2" id="text-orgcba1381">
 <p>
-Further, this documentation is very incomplete - you may encounter typos,
-unfinished sentences and blank or nonexistant pages.
+Sigil is an experimental language investigating the intersection of dependent
+types and interactive programming. Sigil aims to unite the interactive tooling
+of lisps with the certainty of static types.
 </p>
 </div>
 </div>
-<div id="outline-container-orgbbd6ace" class="outline-2">
-<h2 id="orgbbd6ace"></h2>
-<div class="outline-text-2" id="text-orgbbd6ace">
+
+<div id="outline-container-orga212a76" class="outline-2">
+<h2 id="orga212a76"></h2>
+<div class="outline-text-2" id="text-orga212a76">
 <p>
-A simple greeting program in sigil. See <a href="documentation/examples.html">here</a> for more examples.
+This code snippet shows code that currently type-checks &amp; runs under Sigil. If
+you're interested in the ambitions of the project, you can see some
+forward-looking examples <a href="docs/examples.html">here</a>.
 </p>
 
 <div class="org-src-container">
-<pre class="src src-sigil"><span style="color: #807f96;">(</span><span style="color: #738FD7;">module</span> main
-  <span style="color: #9d81ba;">(</span><span style="color: #738FD7;">import</span>
-    prelude
-    sys.console.<span style="color: #4d9391;">(</span>get-line put-line<span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+<pre class="src src-sigil"><span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">The natural numbers (0 1, 2, ...)</span>
+<span style="color: #81a2be;">&#8469;</span> <span style="color: #de935f;">&#8796;</span> <span style="color: #b5bd68;">&#956;</span> <span style="color: #81a2be;">N</span> <span style="color: #de935f;">&#11164;</span> <span style="color: #b5bd68;">&#120140;</span>.
+     zero <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">N</span>      <span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">the number zero</span>
+     succ <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">N</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">N</span>  <span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">given a number n, succ n represents n + 1</span>
 
-<span style="color: #807f96;">(</span>greet : <span style="color: #d24b83;">String</span> &#8594; <span style="color: #d24b83;">String</span><span style="color: #807f96;">)</span>
-<span style="color: #807f96;">(</span>greet name &#8796; <span style="color: #7CF083;">"Hello, ${name}"</span><span style="color: #807f96;">)</span>
 
-<span style="color: #807f96;">(</span>main : <span style="color: #d24b83;">IO Unit</span><span style="color: #807f96;">)</span>
-<span style="color: #807f96;">(</span>main &#8796; <span style="color: #738FD7;">do</span>
-  <span style="color: #9d81ba;">(</span>put-line <span style="color: #7CF083;">"What is your name?"</span><span style="color: #9d81ba;">)</span>
-  <span style="color: #9d81ba;">(</span>name &#8592; get-line<span style="color: #9d81ba;">)</span>
-  <span style="color: #9d81ba;">(</span>put-line <span style="color: #4d9391;">(</span>greet name<span style="color: #4d9391;">)</span><span style="color: #9d81ba;">)</span><span style="color: #807f96;">)</span>
+<span style="color: #969896; font-style: italic;">&#8947; </span><span style="color: #969896; font-style: italic;">Constructors are prepended with a ':', so we</span>
+<span style="color: #969896; font-style: italic;">  get the following definitions of numbers</span>
+<span style="color: #969896; font-style: italic;">  0 &#8594; :zero</span>
+<span style="color: #969896; font-style: italic;">  1 &#8594; :succ :zero</span>
+<span style="color: #969896; font-style: italic;">  2 &#8594; :succ (:succ :zero)</span>
+<span style="color: #969896; font-style: italic;">  3 &#8594; :succ (:succ (:succ :zero))</span>
+<span style="color: #969896; font-style: italic;">  etc.</span><span style="color: #969896; font-style: italic;"> &#8955;</span> 
+
+<span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">These definitions help out the type-checker (will be rendered redundant in the future)</span>
+zero <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">&#8469;</span>
+zero <span style="color: #de935f;">&#8796;</span> <span style="color: #81a2be;">:zero</span>  
+succ <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">&#8469;</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">&#8469;</span>
+succ <span style="color: #de935f;">&#8796;</span> <span style="color: #81a2be;">:succ</span>  
+
+
+<span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">The &#966; is combines pattern-matching and recursion into a single expression</span>
+<span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">&#8226; The variable (rec) bound by &#966; names a recursive function</span>
+<span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">&#8226; The argument (m) is the initial value provided to the recursive function   </span>
+_+_ <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">&#8469;</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">&#8469;</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">&#8469;</span>
+_+_ n m <span style="color: #de935f;">&#8796;</span> <span style="color: #b5bd68;">&#966;</span> rec <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">&#8469;</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">&#8469;</span>, m.
+            <span style="color: #81a2be;">:zero</span> <span style="color: #de935f;">&#8594;</span> n
+            <span style="color: #81a2be;">:succ</span> i <span style="color: #de935f;">&#8594;</span> succ <span style="color: #c5c8c6;">(</span>rec i<span style="color: #c5c8c6;">)</span>
+
+
+<span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">Example usage</span>
+two <span style="color: #de935f;">&#8796;</span> succ <span style="color: #c5c8c6;">(</span>succ zero<span style="color: #c5c8c6;">)</span>
+
+four <span style="color: #de935f;">&#8796;</span> two + two
 </pre>
 </div>
-</div>
-</div>
-
-<div id="outline-container-org540c1af" class="outline-2">
-<h2 id="org540c1af">What Is sigil?</h2>
-<div class="outline-text-2" id="text-org540c1af">
-<p>
-sigil is a modern, powerful language drawing inspiration from <a href="https://common-lisp.net/">Common Lisp</a>,
-<a href="https://www.haskell.org/">Haskell</a>, <a href="https://github.com/mmirman/caledon">Caledon</a> and <a href="https://wiki.portal.chalmers.se/agda/pmwiki.php">Agda</a>. The goal of sigil is to provide a language which is:  
-</p>
-<ul class="org-ul">
-<li><b>Beautiful</b>: The Semantics of sigil should be based on an elegant
-mathematical model, providing a precise interpretation and enabling meaningful
-abstractions.</li>
-<li><b>Productive</b>: sigil should be designed to enable an experienced developer to
-both make changes to existing code and write new code quickly and effectively.</li>
-</ul>
-
-<p>
-For more info, check out our <a href="values.html">values</a> section to see whether sigil's values
-align with yours. Some of its more notable features include:
-</p>
-<ul class="org-ul">
-<li>Dependent Types</li>
-<li>Implicit arguments</li>
-<li>Typeclasses</li>
-<li>Seuth, a Higher Order Logic Language</li>
-</ul>
-</div>
-</div>
-
-
-<div id="outline-container-orgc515bdb" class="outline-2">
-<h2 id="orgc515bdb">Want More Info?</h2>
-<div class="outline-text-2" id="text-orgc515bdb">
-<p>
-If the above description has at all piqued your interest, then you may be
-interested in learning a bit more about sigil before digging in. Luckily, there
-is a suite of a <a href="tutorials/quickstart.html">quickstart guide</a> for installing and setting up an editing
-environment. I am also working on an online interpreter for the language.
-</p>
-</div>
-</div>
-
-
-<div id="outline-container-org62785f6" class="outline-2">
-<h2 id="org62785f6">Getting Started</h2>
-<div class="outline-text-2" id="text-org62785f6">
-<p>
-There are several ways to get started with sigil: the easiest is to use the
-[online editor], but you can also [download] a standalone executable to use on
-your machine. Finally, you can [build it from source] if you like. 
-</p>
 </div>
 </div>
 </div>

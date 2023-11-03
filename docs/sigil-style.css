@@ -1,0 +1,45 @@
+
+:root {
+    --background : #1d1f21;
+    --alt-background: #222427;
+    --selection #373b41; 
+    --foreground: #c5c8c6;
+    --comment: #969896;
+    --red : #cc6666;
+    --orange : #de935f;
+    --yellow : #f0c674;
+    --green : #b5bd68;
+    --aqua : #8abeb7;
+    --blue : #81a2be;
+    --purple : #b294bb;
+}
+
+body { 
+    background-color: var(--background);
+    color: var(--foreground);
+    /* font-family: Iosevka Web,Consolas,Courier,monospace; */
+    /* font-family: Unknown Galaxy;  */
+    margin: 1em auto;
+    max-width: 46em;
+}
+
+h1, h2 {
+  border-bottom: 0.01em solid #9995;
+}
+
+pre {
+    /* background-color: #141b2c; */
+    background-color: var(--alt-background);
+    font-family: JuliaMono;
+    /* font-family: Unknown Galaxy;  */
+    font-size: 12px;
+}
+
+a {
+    color: var(--aqua);
+}
+
+
+button {
+    margin: 0 0.5em; 
+}

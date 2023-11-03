@@ -3,10 +3,10 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2023-02-15 Wed 11:16 -->
+<!-- 2023-11-03 Fri 09:53 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>sigil Implementation Notes</title>
+<title>Sigil Docs: Example Programs</title>
 <meta name="author" content="Connor Redfern" />
 <meta name="generator" content="Org Mode" />
 <style>
@@ -197,7 +197,95 @@
 </head>
 <body>
 <div id="content" class="content">
-<h1 class="title">sigil Implementation Notes</h1>
+<h1 class="title">Sigil Docs: Example Programs</h1>
+<div style="text-align:right">
+<p>
+<a href="../index.html">Sigil</a> / <a href="index.html">Documentation</a> / Example Programs 
+</p>
+</div>
+
+<div id="outline-container-orgbb14778" class="outline-2">
+<h2 id="orgbb14778">A Command-line Greeting Program</h2>
+<div class="outline-text-2" id="text-orgbb14778">
+<div class="org-src-container">
+<pre class="src src-sigil"><span style="color: #b5bd68;">module</span> main
+  <span style="color: #b5bd68;">import</span>
+    prelude
+    sys.console.<span style="color: #c5c8c6;">(</span>get-line put-line<span style="color: #c5c8c6;">)</span>
+
+greet <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">String</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">String</span>
+greet name <span style="color: #de935f;">&#8796;</span> <span style="color: #8abeb7;">"Hello, ${name}"</span>
+
+main <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">IO</span> <span style="color: #81a2be;">Unit</span>
+main <span style="color: #de935f;">&#8796;</span> <span style="color: #b5bd68;">do</span>
+  put-line <span style="color: #8abeb7;">"What is your name?"</span>
+  name &#8592; get-line
+  put-line <span style="color: #c5c8c6;">(</span>greet name<span style="color: #c5c8c6;">)</span>
+</pre>
+</div>
+</div>
+</div>
+
+
+<div id="outline-container-org7699eb3" class="outline-2">
+<h2 id="org7699eb3">Webpage</h2>
+<div class="outline-text-2" id="text-org7699eb3">
+<p>
+This code would compile to javascript and describes a webpage with 
+</p>
+<ul class="org-ul">
+<li>A header (h1) displaying 'Hello from Sigil'</li>
+<li>a line break</li>
+<li>an input element where the user can input text</li>
+<li>a span which displays the text the user input, but reversed</li>
+</ul>
+
+<div class="org-src-container">
+<pre class="src src-sigil"><span style="color: #b5bd68;">module</span> main
+  <span style="color: #b5bd68;">import</span>
+    glint
+    glint-dom
+
+main : <span style="color: #81a2be;">IO</span> <span style="color: #81a2be;">Unit</span>
+main <span style="color: #de935f;">&#8796;</span> main-widget &#10746; <span style="color: #b5bd68;">do</span>
+  h1 <span style="color: #c5c8c6;">(</span>text <span style="color: #8abeb7;">"Hello from Sigil"</span><span style="color: #c5c8c6;">)</span>
+  br
+  text &#8592; input-element
+  dyn-text &#10746; arr reversed &lt;&lt;&lt; value_of text
+</pre>
+</div>
+</div>
+</div>
+
+<div id="outline-container-orgff2117c" class="outline-2">
+<h2 id="orgff2117c">Command-line Calculator</h2>
+<div class="outline-text-2" id="text-orgff2117c">
+<p>
+A simple calculator: it reads a line of input, e.g. "2 + 3 * 10" and performs
+the corresponding calculation (here, yielding 32).
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sigil"><span style="color: #b5bd68;">module</span> main
+  <span style="color: #b5bd68;">import</span> early
+
+arith <span style="color: #de935f;">&#11164;</span> <span style="color: #c5c8c6;">&#10216;</span><span style="color: #81a2be;">N</span> : <span style="color: #b5bd68;">&#120140;</span><span style="color: #c5c8c6;">&#10217;</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">Grammar</span> <span style="color: #81a2be;">N</span> <span style="color: #c5c8c6;">(</span><span style="color: #81a2be;">Prod</span> <span style="color: #81a2be;">N</span> <span style="color: #81a2be;">String</span> <span style="color: #81a2be;">String</span> <span style="color: #81a2be;">&#8477;</span><span style="color: #c5c8c6;">)</span>
+arith <span style="color: #de935f;">&#8796;</span> <span style="color: #b5bd68;">do</span>
+  x1 &#8592; rule $ _+_ &lt;$&gt; x1 &lt;&lt; token <span style="color: #8abeb7;">"+"</span> &lt;*&gt; x2 &lt;|&gt; x2
+  x2 &#8592; rule $ _&#215;_ &lt;$&gt; x2 &lt;&lt; token <span style="color: #8abeb7;">"*"</span> &lt;*&gt; x3 &lt;|&gt; x3
+  x3 &#8592; rule $ <span style="color: #c5c8c6;">(</span>read &lt;*&gt; satisfy isNum<span style="color: #c5c8c6;">)</span> &lt;|&gt; token <span style="color: #8abeb7;">"("</span> *&gt; x1 &lt;* token <span style="color: #8abeb7;">")"</span>
+  pure x1
+
+main <span style="color: #de935f;">&#8796;</span> <span style="color: #b5bd68;">do</span>
+  input &#8592; get-line
+  expr &#8592; parse <span style="color: #c5c8c6;">(</span>parser arith<span style="color: #c5c8c6;">)</span> <span style="color: #c5c8c6;">(</span>words input<span style="color: #c5c8c6;">)</span>
+  <span style="color: #b5bd68;">&#966;</span> expr.
+    <span style="color: #81a2be;">:ok</span> val <span style="color: #de935f;">&#8594;</span> print val
+    <span style="color: #81a2be;">:err</span> message <span style="color: #de935f;">&#8594;</span> print <span style="color: #8abeb7;">"Error: ${message}"</span><span style="color: #cc6666;">))</span>
+</pre>
+</div>
+</div>
+</div>
 </div>
 </body>
 </html>

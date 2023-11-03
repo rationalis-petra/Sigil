@@ -1,0 +1,71 @@
+
+#+html_head: <link rel="stylesheet" href="../sigil-style.css" type="text/css"/>
+#+title: Sigil Docs: Example Programs
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:right">
+[[file:../index.org][Sigil]] / [[file:index.org][Documentation]] / Example Programs 
+#+html: </div>
+
+* A Command-line Greeting Program
+
+#+begin_src sigil
+module main
+  import
+    prelude
+    sys.console.(get-line put-line)
+
+greet ⮜ String → String
+greet name ≜ "Hello, ${name}"
+
+main ⮜ IO Unit
+main ≜ do
+  put-line "What is your name?"
+  name ← get-line
+  put-line (greet name)
+#+end_src
+
+
+* Webpage
+This code would compile to javascript and describes a webpage with 
++ A header (h1) displaying 'Hello from Sigil'
++ a line break
++ an input element where the user can input text
++ a span which displays the text the user input, but reversed 
+
+#+begin_src sigil
+module main
+  import
+    glint
+    glint-dom
+
+main : IO Unit
+main ≜ main-widget ⧺ do
+  h1 (text "Hello from Sigil")
+  br
+  text ← input-element
+  dyn-text ⧺ arr reversed <<< value_of text
+#+end_src
+
+* Command-line Calculator
+A simple calculator: it reads a line of input, e.g. "2 + 3 * 10" and performs
+the corresponding calculation (here, yielding 32).
+
+#+begin_src sigil
+module main
+  import early
+
+arith ⮜ ⟨N : 𝕌⟩ → Grammar N (Prod N String String ℝ)
+arith ≜ do
+  x1 ← rule $ _+_ <$> x1 << token "+" <*> x2 <|> x2
+  x2 ← rule $ _×_ <$> x2 << token "*" <*> x3 <|> x3
+  x3 ← rule $ (read <*> satisfy isNum) <|> token "(" *> x1 <* token ")"
+  pure x1
+
+main ≜ do
+  input ← get-line
+  expr ← parse (parser arith) (words input)
+  φ expr.
+    :ok val → print val
+    :err message → print "Error: ${message}"))
+#+end_src

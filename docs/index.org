@@ -1,0 +1,56 @@
+#+html_head: <link rel="stylesheet" href="sigil-style.css" type="text/css"/>
+#+title: Sigil
+#+options: toc:nil num:nil html-postamble:nil
+
+#+html: <div style="text-align:center">
+#+html: </div>
+
+
+
+* What Is Sigil?
+Sigil is an experimental language investigating the intersection of dependent
+types and interactive programming. Sigil aims to unite the interactive tooling
+of lisps with the certainty of static types.
+
+* 
+This code snippet shows code that currently type-checks & runs under Sigil. If
+you're interested in the ambitions of the project, you can see some
+forward-looking examples [[file:docs/examples.org][here]].
+
+#+begin_src sigil
+⍝ The natural numbers (0 1, 2, ...)
+ℕ ≜ μ N ⮜ 𝕌.
+     zero ⮜ N      ⍝ the number zero
+     succ ⮜ N → N  ⍝ given a number n, succ n represents n + 1
+
+
+⋳ Constructors are prepended with a ':', so we
+  get the following definitions of numbers
+  0 → :zero
+  1 → :succ :zero
+  2 → :succ (:succ :zero)
+  3 → :succ (:succ (:succ :zero))
+  etc. ⋻ 
+
+⍝ These definitions help out the type-checker (will be rendered redundant in the future)
+zero ⮜ ℕ
+zero ≜ :zero  
+succ ⮜ ℕ → ℕ
+succ ≜ :succ  
+
+
+⍝ The φ is combines pattern-matching and recursion into a single expression
+⍝ • The variable (rec) bound by φ names a recursive function
+⍝ • The argument (m) is the initial value provided to the recursive function   
+_+_ ⮜ ℕ → ℕ → ℕ
+_+_ n m ≜ φ rec ⮜ ℕ → ℕ, m.
+            :zero → n
+            :succ i → succ (rec i)
+
+
+⍝ Example usage
+two ≜ succ (succ zero)
+
+four ≜ two + two
+#+end_src
+
