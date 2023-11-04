@@ -57,6 +57,7 @@ type instance Dapχ Parsed = Range
 type instance Indχ Parsed = Range
 type instance Ctrχ Parsed = Range
 type instance Recχ Parsed = Range
+type instance CtrBindχ Parsed = Maybe
 
 type ParsedCore = Core OptBind Text Parsed
 
@@ -103,9 +104,9 @@ pattern Ind :: Range -> (OptBind Text ParsedCore) -> [(Text, OptBind Text Parsed
 pattern Ind r bind ctors <- Indχ r bind ctors
   where Ind r bind ctors = Indχ r bind ctors
 
-pattern Ctr :: Range -> Text -> ParsedCore
-pattern Ctr r label <- Ctrχ r label
-  where Ctr r label = Ctrχ r label
+pattern Ctr :: Range -> Maybe ParsedCore -> Text -> ParsedCore
+pattern Ctr r ty label <- Ctrχ r ty label
+  where Ctr r ty label = Ctrχ r ty label
   
 pattern Rec :: Range -> (OptBind Text ParsedCore) -> ParsedCore -> [(Case OptBind Text Parsed)] -> ParsedCore
 pattern Rec r rec val cases <- Recχ r rec val cases
@@ -122,7 +123,7 @@ instance HasRange ParsedCore where
     Eql r _ _ _ _ -> r
     Dap r _ _ -> r
     Ind r _ _ -> r
-    Ctr r _ -> r
+    Ctr r _ _ -> r
     Rec r _ _ _ -> r
 
   

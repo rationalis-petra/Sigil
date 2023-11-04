@@ -148,7 +148,15 @@ instance Checkable Name InternalCore InternalCore where
             pure $ (label, AnnBind (l, ty'))
           pure $ (Ind (AnnBind (n, a')) ctors', asort)
 
-        Ctr _ -> throwError' "Constructors cannot have their types inferred"
+        Ctr ity label ->
+          let ty = runIdentity ity
+          in case prod_out ty of
+            ind@(Ind (AnnBind (n, sort)) ctors) -> case find ((== label) . fst) ctors of
+              Just (_, AnnBind (_, val)) -> do
+                check_eq (range term) interp env sort ty (subst (n ↦ ind) val)
+                pure $ (Ctr (Identity ty) label, ty)
+              Nothing -> throwError' $ "Couln't find constructor" <+> pretty label
+            _ -> throwError' "Constructor must be annotated so as to produce an inductive datatype"
           
         _ -> throwError' $ "infer not implemented for internal term:" <+> pretty term
   
@@ -179,12 +187,13 @@ instance Checkable Name InternalCore InternalCore where
           b' <- check' (insert n (Nothing, a) env) b ty
           pure $ Prd (AnnBind (n, a')) b'
         
-        (Ctr label, ty) -> 
+        (Ctr ity label, ty) -> do
           case prod_out ty of
             ind@(Ind (AnnBind (n, sort)) ctors) -> case find ((== label) . fst) ctors of
               Just (_, AnnBind (_, val)) -> do
                 check_eq (range term) interp env sort ty (subst (n ↦ ind) val)
-                pure $ Ctr label
+                check_eq (range term) interp env sort ty (runIdentity ity)
+                pure $ Ctr (Identity ty) label
               Nothing -> throwError' $ "Couln't find constructor" <+> pretty label
             _ -> throwError' "Constructor must be annotated so as to produce an inductive datatype"
 
@@ -294,7 +303,19 @@ instance Checkable Name ResolvedCore InternalCore where
             pure $ (label, AnnBind (l, ty'))
           pure $ (Ind (AnnBind (n, a')) ctors', asort)
 
-        Ctrχ _ _ -> throwError' "Constructors cannot have their types inferred"
+        Ctrχ _ mty label ->
+          case mty of  
+            Just ty -> do
+              (ty', _) <- infer' env ty
+              case prod_out ty' of
+                ind@(Ind (AnnBind (n, sort)) ctors) -> case find ((== label) . fst) ctors of
+                  Just (_, AnnBind (_, val)) -> do
+                    check_eq (range term) interp env sort ty' (subst (n ↦ ind) val)
+                    pure $ (Ctr (Identity ty') label, ty')
+                  Nothing -> throwError' $ "Couln't find constructor" <+> pretty label
+                _ -> throwError' "Constructor must be annotated so as to produce an inductive datatype"
+            Nothing ->
+              throwError' $ "Constructor" <+> pretty label <+> "was not provided a type"
 
         Recχ _ (OptBind (Just rnm, Just rty)) val cases -> do
           (rty', rsort) <- infer' env rty
@@ -370,12 +391,18 @@ instance Checkable Name ResolvedCore InternalCore where
           b' <- check' (insert n (Nothing, a_normal) env) b ty
           pure $ Prd (AnnBind (n, a')) b'
                                 
-        (Ctrχ _ label, ty) -> 
+        (Ctrχ _ mty label, ty) -> do
+          _ <- case mty of
+            Just ty' -> do
+              (nty, sort) <- infer' env ty'
+              check_eq (range term) interp env sort ty nty
+            Nothing -> pure ()
+
           case prod_out ty of
             ind@(Ind (AnnBind (n, sort)) ctors) -> case find ((== label) . fst) ctors of
               Just (_, AnnBind (_, val)) -> do
                 check_eq (range term) interp env sort ty (subst (n ↦ ind) val)
-                pure $ Ctr label
+                pure $ Ctr (Identity ty) label
               Nothing -> throwError' $ "Couln't find constructor" <+> pretty label
             _ -> throwError' "Constructor must be annotated so as to produce an inductive datatype"
         -- TODO: add cases for Eql and Dap

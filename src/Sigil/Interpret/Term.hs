@@ -5,6 +5,7 @@ module Sigil.Interpret.Term
 import Prelude hiding (head, lookup)
 import Control.Monad((<=<))
 import Control.Monad.Except (MonadError, throwError)
+import Data.Functor.Identity
 import Data.Kind
 import Data.Maybe
 import Data.Text (Text)
@@ -152,11 +153,13 @@ read_nf (Normal ty val) = case (ty, val) of
     Ind 
       <$> ((AnnBind . (iname,)) <$> read_nf (Normal (SUni k) ity))
       <*> mapM read_nf_ctor ctors
-  (SInd nm ty ctors, SCtr label vals) ->
+  (SInd nm ty ctors, SCtr label vals) -> do
+    ind_ty <- read_nf (Normal ty (SInd nm ty ctors))
+    
     case find ((== label) . (\(l, _, _) -> l)) ctors of
       Just (_, _, cty) -> do
         cty' <- cty $ SInd nm ty ctors
-        recur (Ctr label) cty' (reverse vals)
+        recur (Ctr (Identity ind_ty) label) cty' (reverse vals)
         where
           recur v _ [] = pure v
           recur v (SPrd _ a b) (val:vals) = do
@@ -263,7 +266,7 @@ eval term env = case term of
                 ctors
     pure $ SInd inm ity' ctors'
 
-  Ctr label -> pure $ SCtr label []
+  Ctr _ label -> pure $ SCtr label []
   Rec (AnnBind (rname, rty)) val cases -> do
     rty' <- eval rty env
     (pname, a, b) <- case rty' of 
@@ -405,7 +408,8 @@ eql env tel tipe v1 v2 = case tipe of
                     (tel <> [(name, (a, uval, vval), idval)])
                     b (App v1 (Var u)) (App v2 (Var v)))))))
   SUni n -> SEql tel (SUni n) <$> eval v1 env <*> eval v2 env
-  _ -> throw ("Don't know how to eql:" <+> pretty tipe)
+  SInd _ _ _  -> throw ("Don't know how to reduce ι at type:" <+> pretty tipe)
+  _ -> throw ("ι expects a type as first value, got:" <+> pretty tipe)
 
 
 recur :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err)

@@ -77,7 +77,7 @@ instance ResolveTo ParsedCore ResolvedCore where
           let n' = (\text -> Name $ Right (id, text)) <$> n
           ty' <- mapM (resolve lift_err vars) ty
           pure $ (label, OptBind (n', ty'))
-    Ctr rn label -> pure $ Ctrχ rn label
+    Ctr rn ty label -> Ctrχ rn <$> mapM (resolve lift_err vars) ty <*> pure label
     Rec rn (OptBind (n, a)) val cases -> do
       id <- fresh_id 
       let n' = (\text -> Name $ Right (id, text)) <$> n

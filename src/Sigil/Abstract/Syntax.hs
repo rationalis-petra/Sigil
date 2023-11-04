@@ -22,6 +22,7 @@ module Sigil.Abstract.Syntax
   , Indχ
   , Ctrχ
   , Recχ
+  , CtrBindχ
   , Singleχ
 
   -- Lenses
@@ -105,7 +106,7 @@ data Core b n χ
 
   -- Generic Recursive Types: Type definition, intro/elim
   | Indχ (Indχ χ) (b n (Core b n χ)) [(Text, b n (Core b n χ))]
-  | Ctrχ (Ctrχ χ) Text
+  | Ctrχ (Ctrχ χ) ((CtrBindχ χ) (Core b n χ)) Text
   | Recχ (Recχ χ) (b n (Core b n χ)) (Core b n χ) [Case b n χ]
 
 type family Coreχ (b :: Type -> Type -> Type) n χ
@@ -118,6 +119,7 @@ type family Eqlχ χ
 type family Dapχ χ
 type family Indχ χ
 type family Ctrχ χ
+type family CtrBindχ χ :: Type -> Type
 type family Recχ χ
 
 type Forall (φ :: Type -> Constraint) b n χ
@@ -312,7 +314,7 @@ pretty_core_builder pretty_name pretty_coreχ c =
     Indχ _ bind terms ->
       vsep [ "μ" <+> pretty_fn_bind bind <> "."
            , indent 2 (align (vsep $ map (\(text, bind) -> pretty text <> "/" <> pretty_fn_bind bind) terms))]
-    Ctrχ _ label -> ":" <> pretty label
+    Ctrχ _  _ label -> ":" <> pretty label
     Recχ _ recur val cases ->
       vsep ["φ" <+> pretty_fn_bind recur <> "," <+> pretty_core val <> "."
            , indent 2 (align (vsep $ map pretty_case cases)) ]

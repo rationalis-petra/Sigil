@@ -103,6 +103,7 @@ instance (Ord n, Subst n s a) => Subst n s (AnnBind n a) where
 
 instance ( Ord n
          , Binding b
+         , Traversable (CtrBindχ χ)
          , Subst n (Core b n χ) (b n (Core b n χ))
          , Subst n (Core b n χ) (b n (Core b n χ, Core b n χ, Core b n χ)))
           => Subst n (Core b n χ) (Core b n χ) where 
@@ -142,7 +143,7 @@ instance ( Ord n
       where 
         subst_term (text, bind) = (text, substitute shadow' sub bind)
         shadow' = maybe shadow (\n -> Set.insert n shadow) (name bind)
-    Ctrχ χ label -> Ctrχ χ label
+    Ctrχ χ ty label -> Ctrχ χ (substitute shadow sub <$> ty) label
 
     Recχ χ recur val cases ->
       Recχ χ
@@ -184,7 +185,7 @@ instance ( Ord n
       in vars <> Set.difference (free_vars val) diff_vars
     Indχ _ bind terms -> let fvt = fold (map (free_vars . snd) terms) in 
       maybe fvt (\n -> Set.delete n fvt) (name bind) <> free_vars bind
-    Ctrχ _ _ -> Set.empty
+    Ctrχ _ ty _ -> foldl' (\s v -> s <> free_vars v) Set.empty ty
     Recχ _ recur val cases ->
       let fvc = fold . map free_case_vars $ cases
           free_case_vars (pat, term) = Set.difference (free_vars term) (pat_vars pat)
@@ -204,7 +205,7 @@ instance ( Ord n
             maybe diff_vars (flip Set.insert diff_vars) (name bind))
 
 
-instance Regen (Core OptBind Name χ) where 
+instance Traversable (CtrBindχ χ) => Regen (Core OptBind Name χ) where 
   regen = go empty where
     freshen_bind (OptBind (n, ty)) sub = do
       n' <- mapM freshen n
@@ -248,7 +249,7 @@ instance Regen (Core OptBind Name χ) where
         (sub', bind') <- freshen_bind bind sub
         ctors' <- mapM (\(t, b) -> ((t, ) . snd) <$> freshen_bind b sub') ctors
         pure $ Indχ χ bind' ctors'
-      Ctrχ χ label -> pure $ Ctrχ χ label
+      Ctrχ χ ty label -> Ctrχ χ <$> mapM (go sub) ty <*> pure label 
       Recχ χ recur val cases -> do
         (sub', bind') <- freshen_bind recur sub
         Recχ χ bind' <$> go sub' val <*> mapM (freshen_case sub') cases
@@ -270,7 +271,7 @@ instance Regen (Core OptBind Name χ) where
               n' <- freshen n
               pure (insert n n' sub, PatVar n')
 
-instance Regen (Core AnnBind Name χ) where 
+instance Traversable (CtrBindχ χ) => Regen (Core AnnBind Name χ) where 
   regen = go empty where
     freshen_bind (AnnBind (n, ty)) sub = do
       n' <- freshen n
@@ -314,7 +315,7 @@ instance Regen (Core AnnBind Name χ) where
         (sub', bind') <- freshen_bind bind sub
         ctors' <- mapM (\(t, b) -> ((t, ) . snd) <$> freshen_bind b sub') ctors
         pure $ Indχ χ bind' ctors'
-      Ctrχ χ label -> pure $ Ctrχ χ label
+      Ctrχ χ ty label -> Ctrχ χ <$> mapM (go sub) ty <*> pure label
       Recχ χ recur val cases -> do
         (sub', bind') <- freshen_bind recur sub
         Recχ χ bind' <$> go sub' val <*> mapM (freshen_case sub') cases

@@ -18,6 +18,7 @@ module Sigil.Concrete.Internal
   , pattern IPrd
   , pattern TyCon ) where
 
+import Data.Functor.Identity
 import Data.Text (Text)
 import Prettyprinter
 
@@ -38,6 +39,7 @@ type instance Eqlχ Internal = ()
 type instance Dapχ Internal = ()
 type instance Indχ Internal = ()
 type instance Ctrχ Internal = ()
+type instance CtrBindχ Internal = Identity
 type instance Recχ Internal = ()
 type instance IAbsχ Internal = ()
 type instance IPrdχ Internal = ()
@@ -85,9 +87,9 @@ pattern Ind :: AnnBind Name InternalCore -> [(Text, AnnBind Name InternalCore)] 
 pattern Ind bind ctors <- Indχ () bind ctors
   where Ind bind ctors = Indχ () bind ctors
 
-pattern Ctr :: Text -> InternalCore
-pattern Ctr label <- Ctrχ () label 
-  where Ctr label = Ctrχ () label
+pattern Ctr :: Identity InternalCore -> Text -> InternalCore
+pattern Ctr ty label <- Ctrχ () ty label 
+  where Ctr ty label = Ctrχ () ty label
 
 pattern Rec :: AnnBind Name InternalCore -> InternalCore -> [(Pattern Name, InternalCore)] -> InternalCore
 pattern Rec bind val cases <- Recχ () bind val cases
@@ -143,7 +145,7 @@ instance Pretty InternalCore where
       , indent 2 (align (vsep (map (\(l,b) -> pretty l <> "/" <> pretty_annbind True b) ctors)))
       ]
 
-    Ctr label -> ":" <> pretty label 
+    Ctr _ label -> ":" <> pretty label 
 
     Rec recur val cases -> vsep
       [ "φ" <+> pretty_annbind True recur <> "," <+> pretty val <> "."
@@ -207,7 +209,7 @@ instance Pretty InternalCore where
       
       iscore (Uni _) = True
       iscore (Var _) = True
-      iscore (Ctr _) = True
+      iscore (Ctr _ _) = True
       iscore _ = False
 
       unwind (App l r) = unwind l <> [r]

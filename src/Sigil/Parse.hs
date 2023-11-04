@@ -386,7 +386,10 @@ core precs = do
       (single '𝕌' *> (flip Uni <$> subscript_int))
        <||> const (flip Uni 0) <$> symbol "𝕌"
     pctor :: ParserT m ParsedCore
-    pctor = with_range $ flip Ctr <$> (single ':' *> anyvar)
+    pctor = with_range $ do
+      label <- (single ':' *> anyvar)
+      tipe <- (Just <$> try (single '﹨' *> sc *> core precs)) <|> pure Nothing
+      pure $ \r -> Ctr r tipe label
 
 
 {------------------------------ RUNNING A PARSER -------------------------------}
