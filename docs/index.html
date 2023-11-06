@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2023-11-03 Fri 10:21 -->
+<!-- 2023-11-06 Mon 20:20 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Sigil</title>
@@ -203,9 +203,9 @@
 
 
 
-<div id="outline-container-orgcba1381" class="outline-2">
-<h2 id="orgcba1381">What Is Sigil?</h2>
-<div class="outline-text-2" id="text-orgcba1381">
+<div id="outline-container-orgce59621" class="outline-2">
+<h2 id="orgce59621">What Is Sigil?</h2>
+<div class="outline-text-2" id="text-orgce59621">
 <p>
 Sigil is an experimental language investigating the intersection of dependent
 types and interactive programming. Sigil aims to unite the interactive tooling
@@ -214,9 +214,9 @@ of lisps with the certainty of static types.
 </div>
 </div>
 
-<div id="outline-container-orga212a76" class="outline-2">
-<h2 id="orga212a76"></h2>
-<div class="outline-text-2" id="text-orga212a76">
+<div id="outline-container-orgcd3781c" class="outline-2">
+<h2 id="orgcd3781c"></h2>
+<div class="outline-text-2" id="text-orgcd3781c">
 <p>
 This code snippet shows code that currently type-checks &amp; runs under Sigil. If
 you're interested in the ambitions of the project, you can see some
@@ -238,9 +238,12 @@ forward-looking examples <a href="docs/examples.html">here</a>.
 <span style="color: #969896; font-style: italic;">  3 &#8594; :succ (:succ (:succ :zero))</span>
 <span style="color: #969896; font-style: italic;">  etc.</span><span style="color: #969896; font-style: italic;"> &#8955;</span> 
 
-<span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">These definitions help out the type-checker (will be rendered redundant in the future)</span>
-zero <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">&#8469;</span>
-zero <span style="color: #de935f;">&#8796;</span> <span style="color: #81a2be;">:zero</span>  
+<span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">The :zero value could have any inductive type with a zero constructor. </span>
+<span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">In Sigil, we resolve this ambiguity with the &#65128; symbol</span>
+zero <span style="color: #de935f;">&#8796;</span> <span style="color: #81a2be;">:zero</span> &#65128; <span style="color: #81a2be;">&#8469;</span>
+
+<span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">Alternatively, if we annotate a constructor, then Sigil is also able to</span>
+<span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">resolve ambiguities.</span>
 succ <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">&#8469;</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">&#8469;</span>
 succ <span style="color: #de935f;">&#8796;</span> <span style="color: #81a2be;">:succ</span>  
 
@@ -259,6 +262,27 @@ two <span style="color: #de935f;">&#8796;</span> succ <span style="color: #c5c8c
 
 four <span style="color: #de935f;">&#8796;</span> two + two
 </pre>
+</div>
+</div>
+
+<div id="outline-container-org67986fd" class="outline-3">
+<h3 id="org67986fd">Running the Above Example</h3>
+<div class="outline-text-3" id="text-org67986fd">
+<p>
+Assume the above code is in a file called test.sl. Then, we might run/test it
+with the following interactive session:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh">$&gt; sigil interactive
+&gt; ;load test.sl 
+&gt; ;import test.(..)
+&gt; two + four
+val: :succ (:succ (:succ (:succ (:succ (:succ :zero)))))
+<span style="color: #b294bb;">type</span>: [test, &#8469;]
+&gt; ;q
+</pre>
+</div>
 </div>
 </div>
 </div>

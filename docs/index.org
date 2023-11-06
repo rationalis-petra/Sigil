@@ -32,9 +32,12 @@ forward-looking examples [[file:docs/examples.org][here]].
   3 → :succ (:succ (:succ :zero))
   etc. ⋻ 
 
-⍝ These definitions help out the type-checker (will be rendered redundant in the future)
-zero ⮜ ℕ
-zero ≜ :zero  
+⍝ The :zero value could have any inductive type with a zero constructor. 
+⍝ In Sigil, we resolve this ambiguity with the ﹨ symbol
+zero ≜ :zero ﹨ ℕ
+
+⍝ Alternatively, if we annotate a constructor, then Sigil is also able to
+⍝ resolve ambiguities.
 succ ⮜ ℕ → ℕ
 succ ≜ :succ  
 
@@ -54,3 +57,16 @@ two ≜ succ (succ zero)
 four ≜ two + two
 #+end_src
 
+** Running the Above Example
+Assume the above code is in a file called test.sl. Then, we might run/test it
+with the following interactive session:
+
+#+begin_src sh
+$> sigil interactive
+> ;load test.sl 
+> ;import test.(..)
+> two + four
+val: :succ (:succ (:succ (:succ (:succ (:succ :zero)))))
+type: [test, ℕ]
+> ;q
+#+end_src
