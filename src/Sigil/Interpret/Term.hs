@@ -64,7 +64,7 @@ data Sem m
   | SEql [(Name, (Sem m, Sem m, Sem m), Sem m)] (Sem m) (Sem m) (Sem m)
   | SDap (Sem m)
   | SInd Name (Sem m) [(Text, Name, Sem m -> m (Sem m))]
-  | SCtr Text [Sem m]
+  | SCtr Text (Sem m) [Sem m]
   | Neutral (Sem m) (Neutral m)
 
 data Neutral m
@@ -153,7 +153,7 @@ read_nf (Normal ty val) = case (ty, val) of
     Ind 
       <$> ((AnnBind . (iname,)) <$> read_nf (Normal (SUni k) ity))
       <*> mapM read_nf_ctor ctors
-  (SInd nm ty ctors, SCtr label vals) -> do
+  (SInd nm ty ctors, SCtr label _ vals) -> do
     ind_ty <- read_nf (Normal ty (SInd nm ty ctors))
     
     case find ((== label) . (\(l, _, _) -> l)) ctors of
@@ -266,7 +266,7 @@ eval term env = case term of
                 ctors
     pure $ SInd inm ity' ctors'
 
-  Ctr _ label -> pure $ SCtr label []
+  Ctr (Identity ty) label -> SCtr label <$> (eval ty env) <*> pure []
   Rec (AnnBind (rname, rty)) val cases -> do
     rty' <- eval rty env
     (pname, a, b) <- case rty' of 
@@ -282,7 +282,7 @@ eval term env = case term of
 
         match :: Map Name (Sem m) -> Pattern Name -> Sem m -> Maybe (Map Name (Sem m))
         match env (PatVar n) v = Just $ insert n v env
-        match env (PatCtr n subpats) (SCtr n' vals)
+        match env (PatCtr n subpats) (SCtr n' _ vals)
           | n == n' = foldl (\menv (p, v) -> do -- TODO: check that foldl is corect!
                                 env <- menv
                                 match env p v) (Just env) (zip subpats vals)
@@ -342,7 +342,7 @@ eval_sem env term = case term of
     seql env' tel_sem ty_sem v1 v2
   SDap val -> SDap <$> eval_sem env val
   SInd nm ty ctors -> SInd nm <$> eval_sem env ty <*> pure (map (\(l, n, fnc) -> (l, n, eval_sem env <=< fnc)) ctors)
-  SCtr label vals -> SCtr label <$> mapM (eval_sem env) vals
+  SCtr label ty vals -> SCtr label <$> eval_sem env ty <*> mapM (eval_sem env) vals
   Neutral _ val -> eval_neusem env val 
 
 
@@ -362,8 +362,8 @@ eval_neusem env neu = case neu of
 
 app :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => (Sem m) -> (Sem m) -> m (Sem m)
 app (SAbs _ fnc) val = fnc val
-app (SCtr label vals) v =
-  pure $ SCtr label (v : vals)
+app (SCtr label ty vals) v =
+  pure $ SCtr label ty (v : vals)
 app (Neutral (SPrd _ a b) neu) v =
   Neutral <$> (b `app` v) <*> pure (NeuApp neu (Normal a v))
 app l r = throw ("bad args to app:" <+> pretty l <+> "and" <+> pretty r) 
@@ -384,6 +384,7 @@ dap env term = case term of
                    res <- fnc idval
                    dap (insert id idval . insert v vval . insert u uval $ env) res))))
   SUni n -> pure $ SDap $ SUni n
+  SCtr _ _ _ -> throw ("Currently implementing dap for constructors")
   _ -> throw ("Don't know how to dap:" <+> pretty term)
 
 eql :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Map Name (Sem m) -> [(Name, (Sem m, Sem m, Sem m), Sem m)] -> Sem m
@@ -408,7 +409,14 @@ eql env tel tipe v1 v2 = case tipe of
                     (tel <> [(name, (a, uval, vval), idval)])
                     b (App v1 (Var u)) (App v2 (Var v)))))))
   SUni n -> SEql tel (SUni n) <$> eval v1 env <*> eval v2 env
-  SInd _ _ _  -> throw ("Don't know how to reduce ι at type:" <+> pretty tipe)
+  -- SInd nm sort ctors -> do
+    -- let update_ctor = \case
+    --       (SPrd nm a b) = SPrd nm (to_eq a) 
+    --       t -> t
+
+    -- pure $ SInd nm sort ctors'
+  SInd _ _ _ ->
+    throw ("Don't know how to reduce ι at type:" <+> pretty tipe)
   _ -> throw ("ι expects a type as first value, got:" <+> pretty tipe)
 
 
@@ -416,7 +424,7 @@ recur :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err)
   => Map Name (Sem m) -> Name -> Sem m -> Sem m -> [(Sem m -> Maybe (m (Sem m)), m (Pattern Name, Sem m))] -> m (Sem m)
 recur _ rname rty@(SPrd _ _ b) val cases =
     case val of 
-      SCtr _ _ -> case find (isJust) (map (($ val) . fst) cases) of 
+      SCtr _ _ _ -> case find (isJust) (map (($ val) . fst) cases) of 
         Just (Just m) -> m
         _ -> throw "failed to match"
       Neutral _ neuval -> 
@@ -448,7 +456,8 @@ seql env tel tipe v1 v2 = case tipe of
                     (tel <> [(name, (a, uval, vval), idval)])
                     b v1' v2')))))
   SUni n -> SEql tel (SUni n) <$> eval_sem env v1 <*> eval_sem env v2
-  _ -> throw ("Don't know how to eql:" <+> pretty tipe)
+  SInd _ _ _  -> throw ("Don't know how to reduce ι at type:" <+> pretty tipe)
+  _ -> throw ("ι must reduce on type, got:" <+> pretty tipe)
 
 env_eval :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Env (Maybe InternalCore, InternalCore) -> m (Map Name (Sem m))
 env_eval = eval_helper ?lift_err eval_var 
@@ -473,7 +482,7 @@ uni_level sem = case sem of
   SEql _ ty _ _ -> uni_level ty
   SDap val -> uni_level val
   SInd _ ty _ -> uni_level ty
-  SCtr _ vals -> foldl max 0 (map uni_level vals)  
+  SCtr _ _ vals -> foldl max 0 (map uni_level vals) -- TODO: analyse type?
   Neutral ty _ -> max 0 (uni_level ty - 1)
 
 throw :: (MonadError err m, ?lift_err :: Doc ann -> err) => Doc ann -> m a
@@ -519,7 +528,7 @@ instance Pretty (Sem m) where
     SInd nm val ctors ->
       "μ" <+> pretty nm <+> "⮜" <+> pretty val
       <+> nest 2 (vsep (map (\(l,n,_) -> pretty l <> "/" <> pretty n <+> "⮜" <+> "...") ctors))
-    SCtr label vals -> pretty (":" <> label) <+> sep (map pretty vals)
+    SCtr label _ vals -> pretty (":" <> label) <+> sep (map pretty vals)
     Neutral _ n -> pretty n
 
 instance Pretty (Neutral m) where

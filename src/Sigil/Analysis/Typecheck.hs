@@ -146,7 +146,7 @@ instance Checkable Name InternalCore InternalCore where
           ctors' <- forM ctors $ \(label, AnnBind (l, ty)) -> do
             ty' <- check' env' ty asort -- TODO: is this predicativity??
             pure $ (label, AnnBind (l, ty'))
-          pure $ (Ind (AnnBind (n, a')) ctors', asort)
+          pure $ (Ind (AnnBind (n, a')) ctors', a')
 
         Ctr ity label ->
           let ty = runIdentity ity
@@ -301,7 +301,7 @@ instance Checkable Name ResolvedCore InternalCore where
             ty <- maybe (throwError' "ctor must bind type") pure mty
             ty' <- check' env' ty asort -- TODO: is this predicativity??
             pure $ (label, AnnBind (l, ty'))
-          pure $ (Ind (AnnBind (n, a')) ctors', asort)
+          pure $ (Ind (AnnBind (n, a')) ctors', a')
 
         Ctrχ _ mty label ->
           case mty of  
