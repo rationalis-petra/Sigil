@@ -26,7 +26,7 @@ the following actions are available:
 ## Syntax
 
 For an example of the syntax, see the
-[https://rationalis-petra.github.io/Sigil](github page) 
+[github page](https://rationalis-petra.github.io/Sigil)
 for this project, which has proper syntax highlighting. 
 
 ## Status
