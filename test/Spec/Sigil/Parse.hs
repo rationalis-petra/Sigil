@@ -363,10 +363,8 @@ pi = flip (foldr (Prdχ mempty)) . fmap (OptBind . bimap Just Just)
 (⋅) = Appχ mempty
 
 μ :: Text -> ParsedCore -> [(Text, ParsedCore)] -> ParsedCore
-μ var ty cases  =
-  Indχ mempty
-    (OptBind (Just var, Just ty))
-    (fmap (\(t, ty) -> (t, OptBind (Just t, Just ty))) cases)
+μ var ty = Indχ mempty var (Just ty)
+    
 
 sentry :: Text -> ParsedCore -> ParsedEntry
 sentry name val = Singleχ mempty (OptBind (Just name, Nothing)) val

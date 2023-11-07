@@ -19,6 +19,7 @@ void :: Void
 void = error "attempt to evaluate void"
 
 type instance Coreχ OptBind Name UD = Void
+type instance Functorχ UD = Maybe
 type instance Uniχ UD = Void
 type instance Varχ UD = Void
 type instance Prdχ UD = Void

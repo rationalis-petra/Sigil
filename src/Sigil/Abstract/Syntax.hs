@@ -22,7 +22,7 @@ module Sigil.Abstract.Syntax
   , Indχ
   , Ctrχ
   , Recχ
-  , CtrBindχ
+  , Functorχ
   , Singleχ
 
   -- Lenses
@@ -105,11 +105,12 @@ data Core b n χ
   | Dapχ (Dapχ χ) (Tel b n (Core b n χ)) (Core b n χ)
 
   -- Generic Recursive Types: Type definition, intro/elim
-  | Indχ (Indχ χ) (b n (Core b n χ)) [(Text, b n (Core b n χ))]
-  | Ctrχ (Ctrχ χ) Text ((CtrBindχ χ) (Core b n χ))
+  | Indχ (Indχ χ) n ((Functorχ χ) (Core b n χ)) [(Text, Core b n χ)]
+  | Ctrχ (Ctrχ χ) Text ((Functorχ χ) (Core b n χ))
   | Recχ (Recχ χ) (b n (Core b n χ)) (Core b n χ) [Case b n χ]
 
 type family Coreχ (b :: Type -> Type -> Type) n χ
+type family Functorχ χ :: Type -> Type
 type family Varχ χ
 type family Uniχ χ
 type family Prdχ χ
@@ -119,7 +120,6 @@ type family Eqlχ χ
 type family Dapχ χ
 type family Indχ χ
 type family Ctrχ χ
-type family CtrBindχ χ :: Type -> Type
 type family Recχ χ
 
 type Forall (φ :: Type -> Constraint) b n χ
@@ -311,9 +311,9 @@ pretty_core_builder pretty_name pretty_coreχ c =
        <+> pretty_core val)
 
   
-    Indχ _ bind terms ->
-      vsep [ "μ" <+> pretty_fn_bind bind <> "."
-           , indent 2 (align (vsep $ map (\(text, bind) -> pretty text <> "/" <> pretty_fn_bind bind) terms))]
+    Indχ _ name _ terms ->
+      vsep [ "μ" <+> pretty_name name <+> "??fty" <> "."
+           , indent 2 (align (vsep $ map (\(text, ty) -> pretty text <+> pretty_core ty) terms))]
     Ctrχ _  label _ -> ":" <> pretty label
     Recχ _ recur val cases ->
       vsep ["φ" <+> pretty_fn_bind recur <> "," <+> pretty_core val <> "."

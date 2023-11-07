@@ -65,18 +65,15 @@ instance ResolveTo ParsedCore ResolvedCore where
     Dap rn tel val -> do
       (vars', tel') <- resolve_tel vars tel
       Dapχ rn tel' <$> resolve lift_err vars' val
-    Ind rn (OptBind (t, a)) ctors -> do
+    Ind rn text msort ctors -> do
       id <- fresh_id 
-      let n = (\text -> Name $ Right (id, text)) <$> t
-          vars' = maybe vars (\t -> insert t (Left id) vars) t
-      a' <- mapM (resolve lift_err vars) a
-      Indχ rn (OptBind (n, a')) <$> mapM (resolve_ctor vars') ctors
+      let n = Name $ Right (id, text)
+          vars' = insert text (Left id) vars
+      msort' <- mapM (resolve lift_err vars) msort
+      Indχ rn n msort' <$> mapM (resolve_ctor vars') ctors
       where 
-        resolve_ctor vars (label, OptBind (n, ty)) = do
-          id <- fresh_id
-          let n' = (\text -> Name $ Right (id, text)) <$> n
-          ty' <- mapM (resolve lift_err vars) ty
-          pure $ (label, OptBind (n', ty'))
+        resolve_ctor vars (label, ty) =
+          (label,) <$> resolve lift_err vars ty
     Ctr rn label ty -> Ctrχ rn label <$> mapM (resolve lift_err vars) ty
     Rec rn (OptBind (n, a)) val cases -> do
       id <- fresh_id 

@@ -54,7 +54,7 @@ instance (Ord n, Binding b, AlphaEq n (Core b n χ), AlphaEq n (b n (Core b n χ
         rename' = ( maybe (fst rename) (\n -> Map.insert n (name b') (fst rename)) (name b)
                   , maybe (snd rename) (\n -> Map.insert n (name b) (snd rename)) (name b'))
 
-instance (Ord n, Binding b, AlphaEq n (b n (Core b n χ)), AlphaEq n (Coreχ b n χ)) => AlphaEq n (Core b n χ) where
+instance (Ord n, Binding b, Traversable (Functorχ χ), Applicative (Functorχ χ), AlphaEq n (b n (Core b n χ)), AlphaEq n (Coreχ b n χ)) => AlphaEq n (Core b n χ) where
   αequal rename v v' = case (v, v') of 
     (Coreχ r, Coreχ r') ->
       αequal rename r r'
@@ -82,11 +82,11 @@ instance (Ord n, Binding b, AlphaEq n (b n (Core b n χ)), AlphaEq n (Coreχ b n
     (Dapχ _ tel val, Dapχ _ tel' val') ->
       let (tel_eq, rename') = αequal_tel rename tel tel'
       in tel_eq && αequal rename' val val'
-    (Indχ _ b ctors, Indχ _ b' ctors') ->
-      αequal rename b b' && foldl' (&&) True (zipWith (\(_, v) (_, v') -> αequal rename' v v') ctors ctors')
+    (Indχ _ name fsort ctors, Indχ _ name' fsort' ctors') ->
+      foldl' (&&) True ((αequal rename) <$> fsort <*> fsort') && foldl' (&&) True (zipWith (\(_, v) (_, v') -> αequal rename' v v') ctors ctors')
       where 
-        rename' = ( maybe (fst rename) (\n -> Map.insert n (name b') (fst rename)) (name b)
-                  , maybe (snd rename) (\n -> Map.insert n (name b) (snd rename)) (name b'))
+        rename' = ( Map.insert name (Just name') (fst rename)
+                  , Map.insert name' (Just name) (snd rename))
     (_, _) -> False
     where
       αequal_tel rename [] [] = (True, rename)
@@ -119,7 +119,9 @@ instance (Ord n, Binding b, AlphaEq n (Core b n χ)) => AlphaEq n (b n (Core b n
     (Nothing, Nothing) -> True
     _ -> False
 
-instance (Ord n, Binding b, AlphaEq n (b n (Core b n χ)), AlphaEq n (Coreχ b n χ)) => AlphaEq n (Module b n χ) where
+instance (Ord n, Binding b, Traversable (Functorχ χ), Applicative (Functorχ χ),
+          AlphaEq n (b n (Core b n χ)), AlphaEq n (Coreχ b n χ))
+    => AlphaEq n (Module b n χ) where
   αequal rename m m' = 
     (m^.module_header == m'^.module_header) &&
     (m^.module_exports == m'^.module_exports) &&

@@ -103,7 +103,7 @@ instance (Ord n, Subst n s a) => Subst n s (AnnBind n a) where
 
 instance ( Ord n
          , Binding b
-         , Traversable (CtrBindχ χ)
+         , Traversable (Functorχ χ)
          , Subst n (Core b n χ) (b n (Core b n χ))
          , Subst n (Core b n χ) (b n (Core b n χ, Core b n χ, Core b n χ)))
           => Subst n (Core b n χ) (Core b n χ) where 
@@ -138,11 +138,11 @@ instance ( Ord n
        where
          (tel', shadow') = subst_tel shadow sub tel
 
-    Indχ χ bind terms ->
-      Indχ χ (substitute shadow sub bind) (map subst_term terms)
+    Indχ χ name fsort terms ->
+      Indχ χ name (substitute shadow sub <$> fsort) (map subst_term terms)
       where 
-        subst_term (text, bind) = (text, substitute shadow' sub bind)
-        shadow' = maybe shadow (\n -> Set.insert n shadow) (name bind)
+        subst_term (text, val) = (text, substitute shadow' sub val)
+        shadow' = Set.insert name shadow
     Ctrχ χ label ty -> Ctrχ χ label (substitute shadow sub <$> ty)
 
     Recχ χ recur val cases ->
@@ -183,8 +183,9 @@ instance ( Ord n
     Dapχ _ tel val -> 
       let (vars, diff_vars) = free_tel tel
       in vars <> Set.difference (free_vars val) diff_vars
-    Indχ _ bind terms -> let fvt = fold (map (free_vars . snd) terms) in 
-      maybe fvt (\n -> Set.delete n fvt) (name bind) <> free_vars bind
+    Indχ _ name fsort terms ->
+      let fvt = fold (map (free_vars . snd) terms)
+      in Set.delete name fvt <> (fold . fmap free_vars) fsort
     Ctrχ _ _ ty -> foldl' (\s v -> s <> free_vars v) Set.empty ty
     Recχ _ recur val cases ->
       let fvc = fold . map free_case_vars $ cases
@@ -205,7 +206,7 @@ instance ( Ord n
             maybe diff_vars (flip Set.insert diff_vars) (name bind))
 
 
-instance Traversable (CtrBindχ χ) => Regen (Core OptBind Name χ) where 
+instance Traversable (Functorχ χ) => Regen (Core OptBind Name χ) where 
   regen = go empty where
     freshen_bind (OptBind (n, ty)) sub = do
       n' <- mapM freshen n
@@ -245,10 +246,12 @@ instance Traversable (CtrBindχ χ) => Regen (Core OptBind Name χ) where
       Dapχ χ tel val -> do
         (sub', tel') <- freshen_tel tel sub
         Dapχ χ tel' <$> go sub' val
-      Indχ χ bind ctors -> do
-        (sub', bind') <- freshen_bind bind sub
-        ctors' <- mapM (\(t, b) -> ((t, ) . snd) <$> freshen_bind b sub') ctors
-        pure $ Indχ χ bind' ctors'
+      Indχ χ name fsort ctors -> do
+        name' <- freshen name
+        fsort' <- mapM (go sub) fsort
+        let sub' = insert name name' sub
+        ctors' <- mapM (\(label, ty) -> ((label, ) <$> go sub' ty)) ctors
+        pure $ Indχ χ name' fsort' ctors'
       Ctrχ χ label ty -> Ctrχ χ label <$> mapM (go sub) ty
       Recχ χ recur val cases -> do
         (sub', bind') <- freshen_bind recur sub
@@ -271,7 +274,7 @@ instance Traversable (CtrBindχ χ) => Regen (Core OptBind Name χ) where
               n' <- freshen n
               pure (insert n n' sub, PatVar n')
 
-instance Traversable (CtrBindχ χ) => Regen (Core AnnBind Name χ) where 
+instance Traversable (Functorχ χ) => Regen (Core AnnBind Name χ) where 
   regen = go empty where
     freshen_bind (AnnBind (n, ty)) sub = do
       n' <- freshen n
@@ -311,10 +314,12 @@ instance Traversable (CtrBindχ χ) => Regen (Core AnnBind Name χ) where
       Dapχ χ tel val -> do
         (sub', tel') <- freshen_tel tel sub
         Dapχ χ tel' <$> go sub' val
-      Indχ χ bind ctors -> do
-        (sub', bind') <- freshen_bind bind sub
-        ctors' <- mapM (\(t, b) -> ((t, ) . snd) <$> freshen_bind b sub') ctors
-        pure $ Indχ χ bind' ctors'
+      Indχ χ name fsort ctors -> do
+        name' <- freshen name
+        fsort' <- mapM (go sub) fsort
+        let sub' = insert name name' sub
+        ctors' <- mapM (\(t, ty) -> (t, ) <$> go sub' ty) ctors
+        pure $ Indχ χ name' fsort' ctors'
       Ctrχ χ label ty -> Ctrχ χ label <$> mapM (go sub) ty
       Recχ χ recur val cases -> do
         (sub', bind') <- freshen_bind recur sub

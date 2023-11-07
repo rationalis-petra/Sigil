@@ -25,7 +25,7 @@ type instance Dapχ Resolved = Range
 type instance Indχ Resolved = Range
 type instance Ctrχ Resolved = Range
 type instance Recχ Resolved = Range
-type instance CtrBindχ Resolved = Maybe
+type instance Functorχ Resolved = Maybe
 
 type ResolvedCore = Core OptBind Name Resolved
 
@@ -49,6 +49,6 @@ instance HasRange ResolvedCore where
     Appχ r _ _ -> r
     Eqlχ r _ _ _ _ -> r
     Dapχ r _ _ -> r
-    Indχ r _ _ -> r
+    Indχ r _ _ _ -> r
     Ctrχ r _ _ -> r
     Recχ r _ _ _ -> r

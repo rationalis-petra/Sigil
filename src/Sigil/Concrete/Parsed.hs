@@ -46,6 +46,7 @@ instance Pretty PUnit where
   pretty PUnit = ""
 
 data Parsed
+type instance Functorχ Parsed = Maybe
 type instance Coreχ OptBind Text Parsed = PUnit
 type instance Varχ Parsed = Range
 type instance Uniχ Parsed = Range
@@ -57,7 +58,6 @@ type instance Dapχ Parsed = Range
 type instance Indχ Parsed = Range
 type instance Ctrχ Parsed = Range
 type instance Recχ Parsed = Range
-type instance CtrBindχ Parsed = Maybe
 
 type ParsedCore = Core OptBind Text Parsed
 
@@ -100,9 +100,9 @@ pattern Dap :: Range -> (Tel OptBind Text ParsedCore) -> ParsedCore -> ParsedCor
 pattern Dap r tel val <- Dapχ r tel val
   where Dap r tel val = Dapχ r tel val
 
-pattern Ind :: Range -> (OptBind Text ParsedCore) -> [(Text, OptBind Text ParsedCore)] -> ParsedCore
-pattern Ind r bind ctors <- Indχ r bind ctors
-  where Ind r bind ctors = Indχ r bind ctors
+pattern Ind :: Range -> Text -> Maybe ParsedCore -> [(Text, ParsedCore)] -> ParsedCore
+pattern Ind r name msort ctors <- Indχ r name msort ctors
+  where Ind r name msort ctors = Indχ r name msort ctors
 
 pattern Ctr :: Range -> Text -> Maybe ParsedCore -> ParsedCore
 pattern Ctr r label ty <- Ctrχ r label ty 
@@ -122,7 +122,7 @@ instance HasRange ParsedCore where
     App r _ _ -> r
     Eql r _ _ _ _ -> r
     Dap r _ _ -> r
-    Ind r _ _ -> r
+    Ind r _ _ _ -> r
     Ctr r _ _ -> r
     Rec r _ _ _ -> r
 

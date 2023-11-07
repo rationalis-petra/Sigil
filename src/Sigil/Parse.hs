@@ -328,17 +328,17 @@ core precs = do
           symbol "."
           pctors var ty
 
-        pctors :: Text -> ParsedCore -> ParserT m (L.IndentOpt (ParserT m) ParsedCore (Text, OptBind Text ParsedCore))
+        pctors :: Text -> ParsedCore -> ParserT m (L.IndentOpt (ParserT m) ParsedCore (Text, ParsedCore))
         pctors var ty = do
           pure (L.IndentMany Nothing
-                (pure . (Indχ mempty (OptBind (Just var, Just ty))))
+                (pure . (Indχ mempty var (Just ty)))
                 (pctor (update_precs [var] precs)))
 
-        pctor :: Precedences -> ParserT m (Text, OptBind Text ParsedCore)
+        pctor :: Precedences -> ParserT m (Text, ParsedCore)
         pctor precs = do
           var <- anyvar
           symbol "⮜"
-          (var, ) . OptBind . (Just var,) . Just <$> core precs
+          (var, ) <$> core precs
           
 
     prec :: ParserT m ParsedCore

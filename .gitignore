@@ -1,6 +1,5 @@
 .stack-work/
-todo.org
-brainstorm.org
+scratch/*
 test.sl
 .hlint.yaml
 stack.yaml.lock

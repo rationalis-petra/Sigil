@@ -29,6 +29,7 @@ import Sigil.Concrete.Decorations.Range
 
 data Internal
 
+type instance Functorχ Internal = Identity
 type instance Coreχ AnnBind Name Internal = ImplCore AnnBind Name Internal
 type instance Varχ Internal = ()
 type instance Uniχ Internal = ()
@@ -39,7 +40,6 @@ type instance Eqlχ Internal = ()
 type instance Dapχ Internal = ()
 type instance Indχ Internal = ()
 type instance Ctrχ Internal = ()
-type instance CtrBindχ Internal = Identity
 type instance Recχ Internal = ()
 type instance IAbsχ Internal = ()
 type instance IPrdχ Internal = ()
@@ -83,13 +83,13 @@ pattern Dap :: [(AnnBind Name (InternalCore, InternalCore, InternalCore), Intern
 pattern Dap tel val <- Dapχ () tel val
   where Dap tel val = Dapχ () tel val
 
-pattern Ind :: AnnBind Name InternalCore -> [(Text, AnnBind Name InternalCore)] -> InternalCore
-pattern Ind bind ctors <- Indχ () bind ctors
-  where Ind bind ctors = Indχ () bind ctors
+pattern Ind :: Name -> InternalCore -> [(Text, InternalCore)] -> InternalCore
+pattern Ind name sort ctors <- Indχ () name (Identity sort) ctors
+  where Ind name sort ctors = Indχ () name (Identity sort) ctors
 
-pattern Ctr :: Text -> Identity InternalCore -> InternalCore
-pattern Ctr label ty <- Ctrχ () label ty 
-  where Ctr label ty = Ctrχ () label ty
+pattern Ctr :: Text -> InternalCore -> InternalCore
+pattern Ctr label ty <- Ctrχ () label (Identity ty)
+  where Ctr label ty = Ctrχ () label (Identity ty)
 
 pattern Rec :: AnnBind Name InternalCore -> InternalCore -> [(Pattern Name, InternalCore)] -> InternalCore
 pattern Rec bind val cases <- Recχ () bind val cases
@@ -140,12 +140,12 @@ instance Pretty InternalCore where
     Eql tel ty a b -> ("ι" <+> pretty_tel tel <+> "." <+> bracket ty <+> bracket a <+> bracket b)
     Dap tel val -> ("ρ" <+> pretty_tel tel <+> "." <+> pretty val)
 
-    Ind bind ctors -> vsep
-      [ "μ" <+> pretty_annbind True bind <> "."
-      , indent 2 (align (vsep (map (\(l,b) -> pretty l <> "/" <> pretty_annbind True b) ctors)))
+    Ind name sort ctors -> vsep
+      [ "μ" <+> pretty name <+> "⮜" <+> pretty sort <> "."
+      , indent 2 (align (vsep (map (\(l,ty) -> pretty l <+> "⮜" <+> pretty ty) ctors)))
       ]
 
-    Ctr _ label -> ":" <> pretty label 
+    Ctr label _  -> ":" <> pretty label 
 
     Rec recur val cases -> vsep
       [ "φ" <+> pretty_annbind True recur <> "," <+> pretty val <> "."
@@ -181,11 +181,11 @@ instance Pretty InternalCore where
             pretty_args [(False, bind)] =
               pretty_annbind True bind
             pretty_args [(True, bind)] =
-              ("{" <> pretty_annbind True bind <> "}")
+              ("⟨" <> pretty_annbind True bind <> "⟩")
             pretty_args ((False, bind) : xs) =
               pretty_annbind True bind <+> pretty_args xs
             pretty_args ((True, bind) : xs) =
-              ("{" <> pretty_annbind True bind <> "}") <+> pretty_args xs
+              ("⟨" <> pretty_annbind True bind <> "⟩") <+> pretty_args xs
             pretty_args [] = mempty
         in
           ("λ" <+> pretty_args args <+> "→") <+> nest 2 (bracket body)

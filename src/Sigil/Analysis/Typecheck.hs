@@ -139,22 +139,21 @@ instance Checkable Name InternalCore InternalCore where
           v2' <- check' env_r v2 ty_norm_r
           pure (Eql tel' ty_m v1' v2', kind_m)
 
-        Ind (AnnBind (n, a)) ctors -> do
+        Ind n a ctors -> do
           (a', asort) <- infer' env a
           anorm <- normalize' env asort a 
           let env' = insert n (Just anorm, asort) env
-          ctors' <- forM ctors $ \(label, AnnBind (l, ty)) -> do
+          ctors' <- forM ctors $ \(label, ty) -> do
             ty' <- check' env' ty asort -- TODO: is this predicativity??
-            pure $ (label, AnnBind (l, ty'))
-          pure $ (Ind (AnnBind (n, a')) ctors', a')
+            pure $ (label, ty')
+          pure $ (Ind n a' ctors', a')
 
-        Ctr label ity ->
-          let ty = runIdentity ity
-          in case ty of
-            ind@(Ind (AnnBind (n, sort)) ctors) -> case find ((== label) . fst) ctors of
-              Just (_, AnnBind (_, val)) -> do
+        Ctr label ty ->
+          case ty of
+            ind@(Ind n sort ctors) -> case find ((== label) . fst) ctors of
+              Just (_, val) -> do
                 check_eq (range term) interp env sort ty (subst (n ↦ ind) val)
-                pure $ (Ctr label (Identity ty), ty)
+                pure $ (Ctr label ty, ty)
               Nothing -> throwError' $ "Couln't find constructor" <+> pretty label
             _ -> throwError' $ "Constructor" <+> pretty label <+> "must be labeled with inductive datatype, got:" <+> pretty ty
           
@@ -189,11 +188,11 @@ instance Checkable Name InternalCore InternalCore where
         
         (Ctr label ity, ty) -> do
           case prod_out ty of
-            ind@(Ind (AnnBind (n, sort)) ctors) -> case find ((== label) . fst) ctors of
-              Just (_, AnnBind (_, val)) -> do
+            ind@(Ind n sort ctors) -> case find ((== label) . fst) ctors of
+              Just (_, val) -> do
                 check_eq (range term) interp env sort ty (subst (n ↦ ind) val)
-                check_eq (range term) interp env sort ty (runIdentity ity)
-                pure $ Ctr label (Identity ty)
+                check_eq (range term) interp env sort ty ity
+                pure $ Ctr label ty
               Nothing -> throwError' $ "Couln't find constructor" <+> pretty label
             _ -> throwError' $ "Constructor" <+> pretty label <+> "must be annotated so as to produce an inductive datatype"
 
@@ -292,16 +291,15 @@ instance Checkable Name ResolvedCore InternalCore where
           v2' <- check' env_r v2 ty_norm_r
           pure (Eql tel' ty_m v1' v2', kind_m)
 
-        Indχ _ (OptBind (Just n, Just a)) ctors -> do
+        Indχ _ name (Just a) ctors -> do
           (a', asort) <- infer' env a
           anorm <- normalize' env asort a'
-          let env' = insert n (Just anorm, asort) env
-          ctors' <- forM ctors $ \(label, OptBind (ml, mty)) -> do
-            l <- maybe (throwError' "ctor must bind var") pure ml
-            ty <- maybe (throwError' "ctor must bind type") pure mty
+          let env' = insert name (Just anorm, asort) env
+          ctors' <- forM ctors $ \(label, ty) -> do
             ty' <- check' env' ty asort -- TODO: is this predicativity??
-            pure $ (label, AnnBind (l, ty'))
-          pure $ (Ind (AnnBind (n, a')) ctors', a')
+            pure $ (label, ty')
+          pure $ (Ind name a' ctors', a')
+        Indχ _ _ Nothing _ -> throwError' "inductive definition should provide sort"
 
         Ctrχ _ label mty ->
           case mty of  
@@ -309,9 +307,9 @@ instance Checkable Name ResolvedCore InternalCore where
               (ty', sort) <- infer' env ty
               nty <- normalize' env sort ty'
               case nty of
-                ind@(Ind (AnnBind (n, _)) ctors) -> case find ((== label) . fst) ctors of
-                  Just (_, AnnBind (_, val)) -> do
-                    pure $ (Ctr label (Identity ty'), (subst (n ↦ ind) val))
+                ind@(Ind n _ ctors) -> case find ((== label) . fst) ctors of
+                  Just (_, val) -> do
+                    pure $ (Ctr label ty', (subst (n ↦ ind) val))
                   Nothing -> throwError' $ "Couln't find constructor" <+> pretty label
                 _ -> throwError' "Constructor must be annotated so as to produce an inductive datatype"
             Nothing ->
@@ -339,9 +337,9 @@ instance Checkable Name ResolvedCore InternalCore where
                   -- TODO: ensure same length for zipping!
                   foldl (\m (inty, subpat) -> m >>= \env -> update_env env inty subpat) (pure env) (zip args subpatterns) 
 
-              get_args label ty@(Ind (AnnBind (rn, _)) ctors) = do
+              get_args label ty@(Ind rn _ ctors) = do
                 case find ((== label) . fst) ctors of 
-                  Just (_, AnnBind (_, cty)) -> 
+                  Just (_, cty) -> 
                     let cty' = subst (rn ↦ ty) cty
                         pargs (Prd (AnnBind (_, a)) b) = [a] <> pargs b
                         pargs _ = []
@@ -393,6 +391,19 @@ instance Checkable Name ResolvedCore InternalCore where
           n <- maybe (fresh_var "_") pure mn
           b' <- check' (insert n (Nothing, a_normal) env) b ty
           pure $ Prd (AnnBind (n, a')) b'
+
+  
+        (Indχ _ n (Just a) ctors, ty) -> do
+          (a', asort) <- infer' env a
+          check_eq (range term) interp env asort a' ty
+          anorm <- normalize' env asort a'
+          let env' = insert n (Just anorm, asort) env
+          ctors' <- forM ctors $ \(label, ty) -> do
+            ty' <- check' env' ty asort -- TODO: is this predicativity??
+            pure $ (label, ty')
+          pure $ Ind n a' ctors'
+        (Indχ _ _ Nothing _, _) -> do
+          throwError' $ "Inductive datatype definition must bind recursive type (solution WIP)"
                                 
         (Ctrχ _ label mty, ty) -> do
           _ <- case mty of
@@ -400,18 +411,18 @@ instance Checkable Name ResolvedCore InternalCore where
               (ity, sort) <- infer' env ty'
               nty <- normalize' env sort ity
               case nty of 
-                ind@(Ind (AnnBind (n, sort)) ctors) -> case find ((== label) . fst) ctors of
-                  Just (_, AnnBind (_, val)) -> do
+                ind@(Ind n sort ctors) -> case find ((== label) . fst) ctors of
+                  Just (_, val) -> do
                     check_eq (range term) interp env sort ty (subst (n ↦ ind) val)
                   Nothing -> throwError' $ "Couln't find constructor" <+> pretty label
                 _ -> throwError' $ "Constructor" <+> pretty label <+> "must be projected from inductive type"
             _ -> pure ()
 
           case prod_out ty of
-            ind@(Ind (AnnBind (n, sort)) ctors) -> case find ((== label) . fst) ctors of
-              Just (_, AnnBind (_, val)) -> do
+            ind@(Ind n sort ctors) -> case find ((== label) . fst) ctors of
+              Just (_, val) -> do
                 check_eq (range term) interp env sort ty (subst (n ↦ ind) val)
-                pure $ Ctr label (Identity ty)
+                pure $ Ctr label ty
               Nothing -> throwError' $ "Couln't find constructor" <+> pretty label
             _ -> throwError' $ "Constructor" <+> pretty label <+> "must be annotated so as to produce an inductive datatype"
         -- TODO: add cases for Eql and Dap

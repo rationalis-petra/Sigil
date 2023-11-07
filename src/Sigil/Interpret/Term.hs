@@ -5,7 +5,6 @@ module Sigil.Interpret.Term
 import Prelude hiding (head, lookup)
 import Control.Monad((<=<))
 import Control.Monad.Except (MonadError, throwError)
-import Data.Functor.Identity
 import Data.Kind
 import Data.Maybe
 import Data.Text (Text)
@@ -63,7 +62,7 @@ data Sem m
   | SAbs Name (Sem m -> m (Sem m))
   | SEql [(Name, (Sem m, Sem m, Sem m), Sem m)] (Sem m) (Sem m) (Sem m)
   | SDap (Sem m)
-  | SInd Name (Sem m) [(Text, Name, Sem m -> m (Sem m))]
+  | SInd Name (Sem m) [(Text, Sem m -> m (Sem m))]
   | SCtr Text (Sem m) [Sem m]
   | Neutral (Sem m) (Neutral m)
 
@@ -147,19 +146,19 @@ read_nf (Normal ty val) = case (ty, val) of
       <*> read_nf (Normal ty a)
       <*> read_nf (Normal ty a')
   (SUni k, SInd iname ity ctors) -> do
-    let read_nf_ctor (label, name, fnc) = 
-          (label, ) . AnnBind . (name, )
+    let read_nf_ctor (label, fnc) = 
+          (label, )
             <$> (read_nf . (Normal (SUni k)) =<< fnc (Neutral ity (NeuVar iname)))
-    Ind 
-      <$> ((AnnBind . (iname,)) <$> read_nf (Normal (SUni k) ity))
+    Ind iname
+      <$> read_nf (Normal (SUni k) ity)
       <*> mapM read_nf_ctor ctors
   (SInd nm ty ctors, SCtr label _ vals) -> do
     ind_ty <- read_nf (Normal ty (SInd nm ty ctors))
     
-    case find ((== label) . (\(l, _, _) -> l)) ctors of
-      Just (_, _, cty) -> do
+    case find ((== label) . fst) ctors of
+      Just (_, cty) -> do
         cty' <- cty $ SInd nm ty ctors
-        recur (Ctr label (Identity ind_ty)) cty' (reverse vals)
+        recur (Ctr label ind_ty) cty' (reverse vals)
         where
           recur v _ [] = pure v
           recur v (SPrd _ a b) (val:vals) = do
@@ -254,19 +253,15 @@ eval term env = case term of
     val' <- eval val env'
     dap env val' 
 
-  Ind bnd ctors -> do 
-    inm <- fromMaybe (throw "Ind must bind a name") (fmap pure $ name bnd)
-    ity <- fromMaybe (throw "Ind must bind a type") (fmap pure $ tipe bnd)
+  Ind inm ity ctors -> do 
     ity' <- eval ity env
     -- let env' = 
-    ctors' <- mapM (\(lbl, bnd) -> do
-                       nm <- fromMaybe (throw "Ind ctor must bind a name") (fmap pure $ name bnd)
-                       a <- fromMaybe (throw "Ind ctor must bind a type") (fmap pure $ tipe bnd)
-                       pure $ (lbl, nm, (\val -> eval a (insert inm val env))))
+    let ctors' = fmap (\(lbl, a) ->
+                       (lbl, (\val -> eval a (insert inm val env))))
                 ctors
     pure $ SInd inm ity' ctors'
 
-  Ctr label (Identity ty) -> SCtr label <$> (eval ty env) <*> pure []
+  Ctr label ty -> SCtr label <$> (eval ty env) <*> pure []
   Rec (AnnBind (rname, rty)) val cases -> do
     rty' <- eval rty env
     (pname, a, b) <- case rty' of 
@@ -296,8 +291,8 @@ eval term env = case term of
           let ty_args = \case -- TODO: borked! include name!
                 (SPrd _ a b) -> [a] <> ty_args b
                 _ -> []
-          args <- case find ((== label) . (\(l,_,_) -> l)) ctors of
-            Just (_, _, ty) -> ty_args <$> ty (Neutral rty' (NeuVar rname))
+          args <- case find ((== label) . fst) ctors of
+            Just (_, ty) -> ty_args <$> ty (Neutral rty' (NeuVar rname))
             Nothing -> throw "bad pattern match"
           foldl (\m (pat, arg) -> m >>= \env -> match_neu env pat arg) (pure env) (zip subpats args)
         match_neu _ _ ty = throw ("bad type in match_neu:" <+> pretty ty)
@@ -341,7 +336,7 @@ eval_sem env term = case term of
     ty_sem <- eval_sem env ty   
     seql env' tel_sem ty_sem v1 v2
   SDap val -> SDap <$> eval_sem env val
-  SInd nm ty ctors -> SInd nm <$> eval_sem env ty <*> pure (map (\(l, n, fnc) -> (l, n, eval_sem env <=< fnc)) ctors)
+  SInd nm ty ctors -> SInd nm <$> eval_sem env ty <*> pure (map (\(l, fnc) -> (l, eval_sem env <=< fnc)) ctors)
   SCtr label ty vals -> SCtr label <$> eval_sem env ty <*> mapM (eval_sem env) vals
   Neutral _ val -> eval_neusem env val 
 
@@ -527,7 +522,7 @@ instance Pretty (Sem m) where
 
     SInd nm val ctors ->
       "μ" <+> pretty nm <+> "⮜" <+> pretty val
-      <+> nest 2 (vsep (map (\(l,n,_) -> pretty l <> "/" <> pretty n <+> "⮜" <+> "...") ctors))
+      <+> nest 2 (vsep (map (\(l,_) -> pretty l <+> "⮜" <+> "...") ctors))
     SCtr label _ vals -> pretty (":" <> label) <+> sep (map pretty vals)
     Neutral _ n -> pretty n
 
