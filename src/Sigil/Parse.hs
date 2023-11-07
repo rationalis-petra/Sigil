@@ -389,7 +389,7 @@ core precs = do
     pctor = with_range $ do
       label <- (single ':' *> anyvar)
       tipe <- (Just <$> try (single '﹨' *> sc *> core precs)) <|> pure Nothing
-      pure $ \r -> Ctr r tipe label
+      pure $ \r -> Ctr r label tipe
 
 
 {------------------------------ RUNNING A PARSER -------------------------------}

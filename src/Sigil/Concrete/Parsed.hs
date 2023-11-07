@@ -104,9 +104,9 @@ pattern Ind :: Range -> (OptBind Text ParsedCore) -> [(Text, OptBind Text Parsed
 pattern Ind r bind ctors <- Indχ r bind ctors
   where Ind r bind ctors = Indχ r bind ctors
 
-pattern Ctr :: Range -> Maybe ParsedCore -> Text -> ParsedCore
-pattern Ctr r ty label <- Ctrχ r ty label
-  where Ctr r ty label = Ctrχ r ty label
+pattern Ctr :: Range -> Text -> Maybe ParsedCore -> ParsedCore
+pattern Ctr r label ty <- Ctrχ r label ty 
+  where Ctr r label ty = Ctrχ r label ty 
   
 pattern Rec :: Range -> (OptBind Text ParsedCore) -> ParsedCore -> [(Case OptBind Text Parsed)] -> ParsedCore
 pattern Rec r rec val cases <- Recχ r rec val cases

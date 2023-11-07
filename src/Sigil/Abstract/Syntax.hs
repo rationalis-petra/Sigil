@@ -106,7 +106,7 @@ data Core b n χ
 
   -- Generic Recursive Types: Type definition, intro/elim
   | Indχ (Indχ χ) (b n (Core b n χ)) [(Text, b n (Core b n χ))]
-  | Ctrχ (Ctrχ χ) ((CtrBindχ χ) (Core b n χ)) Text
+  | Ctrχ (Ctrχ χ) Text ((CtrBindχ χ) (Core b n χ))
   | Recχ (Recχ χ) (b n (Core b n χ)) (Core b n χ) [Case b n χ]
 
 type family Coreχ (b :: Type -> Type -> Type) n χ
@@ -314,7 +314,7 @@ pretty_core_builder pretty_name pretty_coreχ c =
     Indχ _ bind terms ->
       vsep [ "μ" <+> pretty_fn_bind bind <> "."
            , indent 2 (align (vsep $ map (\(text, bind) -> pretty text <> "/" <> pretty_fn_bind bind) terms))]
-    Ctrχ _  _ label -> ":" <> pretty label
+    Ctrχ _  label _ -> ":" <> pretty label
     Recχ _ recur val cases ->
       vsep ["φ" <+> pretty_fn_bind recur <> "," <+> pretty_core val <> "."
            , indent 2 (align (vsep $ map pretty_case cases)) ]

@@ -159,7 +159,7 @@ read_nf (Normal ty val) = case (ty, val) of
     case find ((== label) . (\(l, _, _) -> l)) ctors of
       Just (_, _, cty) -> do
         cty' <- cty $ SInd nm ty ctors
-        recur (Ctr (Identity ind_ty) label) cty' (reverse vals)
+        recur (Ctr label (Identity ind_ty)) cty' (reverse vals)
         where
           recur v _ [] = pure v
           recur v (SPrd _ a b) (val:vals) = do
@@ -266,7 +266,7 @@ eval term env = case term of
                 ctors
     pure $ SInd inm ity' ctors'
 
-  Ctr (Identity ty) label -> SCtr label <$> (eval ty env) <*> pure []
+  Ctr label (Identity ty) -> SCtr label <$> (eval ty env) <*> pure []
   Rec (AnnBind (rname, rty)) val cases -> do
     rty' <- eval rty env
     (pname, a, b) <- case rty' of 

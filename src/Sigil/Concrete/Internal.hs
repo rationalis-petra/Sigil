@@ -87,9 +87,9 @@ pattern Ind :: AnnBind Name InternalCore -> [(Text, AnnBind Name InternalCore)] 
 pattern Ind bind ctors <- Indχ () bind ctors
   where Ind bind ctors = Indχ () bind ctors
 
-pattern Ctr :: Identity InternalCore -> Text -> InternalCore
-pattern Ctr ty label <- Ctrχ () ty label 
-  where Ctr ty label = Ctrχ () ty label
+pattern Ctr :: Text -> Identity InternalCore -> InternalCore
+pattern Ctr label ty <- Ctrχ () label ty 
+  where Ctr label ty = Ctrχ () label ty
 
 pattern Rec :: AnnBind Name InternalCore -> InternalCore -> [(Pattern Name, InternalCore)] -> InternalCore
 pattern Rec bind val cases <- Recχ () bind val cases
