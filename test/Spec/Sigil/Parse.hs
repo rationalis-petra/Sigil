@@ -22,14 +22,11 @@ import Sigil.Parse.Mixfix
 import Sigil.Abstract.Syntax
 import Sigil.Abstract.AlphaEq
 import Sigil.Concrete.Parsed
-
-
   
 
 expr_ops :: Map Text PrecedenceNode
 expr_ops = Map.fromList
   [ ("ctrl",  PrecedenceNode node_ctrl  (Set.fromList ["ppd"]))
-
   , ("eq",    PrecedenceNode node_eq    (Set.fromList ["sum"]))
   , ("sum",   PrecedenceNode node_sum   (Set.fromList ["prod"]))
   , ("prod",  PrecedenceNode node_prod  (Set.fromList ["ppd"]))
@@ -93,6 +90,7 @@ parse_mixfix precs = TestGroup "mixfix" $ Right
     -- Simple tests
     [ mixfix_test "lit-true" [np "true"] (var "true")
     , mixfix_test "lit-false" [np "false"] (var "false")
+    , mixfix_test "lit-false" [np "false"] (var "false")
     --, mixfix_test "simple-closed" "( true )" (var "(_)" ⋅ var "true")
     , mixfix_test "simple-postfix" [np "true", np "!"] (var "_!" ⋅ var "true" )
     , mixfix_test "simple-prefix" [np "f", np "true"] (var "f_" ⋅ var "true")
@@ -153,7 +151,7 @@ parse_lit =
   where
     lit_test :: Text -> Text -> Syntax -> Test
     lit_test name text out =  
-      case runReader (runParserT syn_core (unpack name) text) pos1 of  
+      case runReader (runParserT (syn_core pos1) (unpack name) text) pos1 of  
         Right val ->
           if syn_eq val out then
             Test name Nothing
@@ -171,6 +169,9 @@ parse_expr =
 
     , expr_test "closed-lamb"
       "λ x → x"
+      (abs ["x"] (mix [np "x"]))
+    , expr_test "closed-lamb-newline"
+      "λ x → x\n"
       (abs ["x"] (mix [np "x"]))
     , expr_test "infix-lamb"
       "λ _x_ → true x true"
@@ -253,7 +254,13 @@ parse_expr =
     "μ N ⮜ 𝕌." (μ "N" (mix [sy (𝓊 0)]) [])
 
     , expr_test "ind-nat"
-    "μ N ⮜ 𝕌.\n  zero ⮜ N\n  succ ⮜ N → N \n"
+    "μ N ⮜ 𝕌.\n  zero ⮜ N\n  succ ⮜ N → N"
+     (μ "N" (mix [sy (𝓊 0)])
+      [ ("zero", mix [np "N"])
+      , ("succ", [mix [np "N"]] → mix [np "N"])])
+
+    , expr_test "ind-nat-extra-line"
+    "μ N ⮜ 𝕌.\n  zero ⮜ N\n  succ ⮜ N → N\n  "
      (μ "N" (mix [sy (𝓊 0)])
       [ ("zero", mix [np "N"])
       , ("succ", [mix [np "N"]] → mix [np "N"])])
@@ -265,11 +272,17 @@ parse_expr =
     (φ (Just "rec") (Just ([mix [np "N"]] → mix [np "N"])) (mix [np "m"])
      [ (pl "zero", mix [np "n"])
      , (pc "succ" [pv "n"], mix [np "succ", sy (mix [np "rec", np "i"])])])
+
+    , expr_test "rec-nat-extra-line"
+    "φ rec ⮜ N → N, m.\n  :zero → n\n  :succ n → succ (rec i)\n"
+    (φ (Just "rec") (Just ([mix [np "N"]] → mix [np "N"])) (mix [np "m"])
+     [ (pl "zero", mix [np "n"])
+     , (pc "succ" [pv "n"], mix [np "succ", sy (mix [np "rec", np "i"])])])
     ]
   where
     expr_test :: Text -> Text -> Syntax -> Test
     expr_test name text out =  
-      case runReader (runParserT syn_core (unpack name) text) pos1 of  
+      case runReader (runParserT (syn_core pos1) (unpack name) text) pos1 of  
         Right val ->
           if syn_eq val out then
             Test name Nothing

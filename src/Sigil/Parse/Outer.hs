@@ -20,7 +20,6 @@ module Sigil.Parse.Outer
 
 import Prelude hiding (head, last, tail, mod)
 import Control.Monad (join)
-import Control.Monad.Reader (local)
 import Data.Text (Text)
 import Data.Either (lefts, rights)
 import Data.List.NonEmpty (NonEmpty((:|)))
@@ -117,18 +116,19 @@ syn_entry = mutual
   where 
     mutual :: ParserT m SynEntry
     mutual = do
+      level <- L.indentLevel 
       -- TODO: parse declaration
       ann <- (do
         name <- anyvar
         symbol "⮜"
-        tipe <- syn_core
+        tipe <- syn_core level
         pure $ Just (name, tipe))
         <||> pure Nothing
       
       (args, val) <- L.nonIndented scn $ do
         args <- many1 anyvar
         symbol "≜"
-        val <- syn_core
+        val <- syn_core level
         pure (args, val)
 
       let tofn [] v = v
@@ -161,8 +161,8 @@ syn_entry = mutual
 {-------------------------------------------------------------------------------}
 
 
-syn_core :: forall m. Monad m => ParserT m Syntax
-syn_core = do
+syn_core :: forall m. Monad m => Pos -> ParserT m Syntax
+syn_core level = do
   next <- lookAhead (satisfy (const True))
   case next of
     'λ' -> plam
@@ -182,7 +182,7 @@ syn_core = do
 
           tyarg :: ParserT m (Maybe Text, Maybe Syntax)
           tyarg = between lparen rparen $
-                    (\n t -> (Just n, Just t)) <$> anyvar <*> (symbol "⮜" *> syn_core)
+                    (\n t -> (Just n, Just t)) <$> anyvar <*> (symbol "⮜" *> syn_core level)
 
           arg :: ParserT m (Maybe Text, Maybe Syntax)
           arg =  notFollowedBy (symbol "→") *> ((,Nothing) . Just <$> anyvar)
@@ -192,7 +192,7 @@ syn_core = do
             symbol "λ"
             tel <- args
             symbol "→"
-            body <- syn_core
+            body <- syn_core level
             pure $ \r -> unscope r (reverse tel) body
 
       in with_range mklam
@@ -204,7 +204,7 @@ syn_core = do
         mkprod :: ParserT m (Range -> Syntax)
         mkprod = do
           (mn, mty) <- parg <* (symbol "→")
-          bdy <- syn_core
+          bdy <- syn_core level
           pure $ \r -> RPrd r mn mty bdy
 
         parg :: ParserT m (Maybe Text, Maybe Syntax)
@@ -212,7 +212,7 @@ syn_core = do
 
         annarg :: ParserT m (Maybe Text, Maybe Syntax)
         annarg = between lparen rparen $
-          (\l r -> (Just l, Just r)) <$> anyvar <*> (symbol "⮜" *> syn_core)
+          (\l r -> (Just l, Just r)) <$> anyvar <*> (symbol "⮜" *> syn_core level)
 
         ty_only :: ParserT m (Maybe Text, Maybe Syntax)
         ty_only = (\t -> (Nothing, Just t)) <$> choice' [plam, pexpr]
@@ -226,7 +226,7 @@ syn_core = do
           symbol "ι"
           tel <- ptel
           symbol "."
-          RMix _ [ty, a, a'] <- syn_core
+          RMix _ [ty, a, a'] <- syn_core level
           let syn = \case 
                 NamePart txt -> RMix mempty [NamePart txt]
                 Syn core -> core
@@ -240,7 +240,7 @@ syn_core = do
           symbol "ρ"
           tel <- ptel
           symbol "."
-          pf <- syn_core
+          pf <- syn_core level
           pure $ (\r -> RDap r tel pf)
 
     ptel :: ParserT m RawTel
@@ -248,14 +248,14 @@ syn_core = do
       (do
         entry <- between lparen rparen $ do
           arg <- fmap Just anyvar
-          ty <- syn_core
+          ty <- syn_core level
           (v1, v2) <- between lparen rparen $ do
-            v1 <- syn_core
+            v1 <- syn_core level
             symbol "="
-            v2 <- syn_core
+            v2 <- syn_core level
             pure (v1, v2)
           symbol "≜"
-          id <- syn_core
+          id <- syn_core level
           pure (arg, (Just (ty, v1, v2)), id)
         tel' <- ptel
         pure $ entry : tel')
@@ -265,58 +265,53 @@ syn_core = do
     pind = mkind --with_range (mkind)
       where 
         mkind :: ParserT m Syntax
-        mkind = L.indentBlock scn $ do
+        mkind = do
           symbol "μ"
           var <- anyvar 
           symbol "⮜"
-          ty <- syn_core
+          ty <- syn_core level
           symbol "."
-          pctors var ty
-
-        pctors :: Text -> Syntax -> ParserT m (L.IndentOpt (ParserT m) Syntax (Text, Syntax))
-        pctors var ty = do
-          pure (L.IndentMany Nothing (pure . (RInd mempty var (Just ty))) pctor)
+          ctors <- many $ try pctor
+          pure $ RInd mempty var (Just ty) ctors
 
         pctor :: ParserT m (Text, Syntax)
         pctor = do
+          level' <- L.indentGuard scn GT level
           var <- anyvar
           symbol "⮜"
-          (var, ) <$> syn_core
+          (var, ) <$> syn_core level'
           
 
     prec :: ParserT m Syntax
     prec = mkrec
       where 
-        mkrec = L.indentBlock scn $ do
+        mkrec = do
           symbol "φ"
           var <- anyvar
           symbol "⮜"
-          ty <- syn_core
+          ty <- syn_core level
           symbol ","
-          val <- syn_core
+          val <- syn_core level
           symbol "."
-          pcases var ty val
-
-        pcases var ty val =
-          pure $ (L.IndentMany Nothing (pure . RRec mempty (Just var) (Just ty) val) pcase)
+          cases <- many $ try pcase
+          pure $ RRec mempty (Just var) (Just ty) val cases
 
         pcase = do
+          level' <- L.indentGuard scn GT level
           pat <- ppattern 
           symbol "→"
-          (pat,) <$> syn_core
+          (pat,) <$> syn_core level'
 
         ppattern :: ParserT m (Pattern Text)
-        ppattern = do 
-          level <- L.indentLevel
-          local (const $ level) $
-            (PatCtr <$> (single ':' *> anyvar) <*> many ppattern)
-            <|> (PatVar <$> (try $ anyvar >>= (\v -> if (v == "→") then fail "ppattern" else pure v)))
+        ppattern =
+          (PatCtr <$> (single ':' *> anyvar) <*> many ppattern)
+          <|> (PatVar <$> (try $ anyvar >>= (\v -> if (v == "→") then fail "ppattern" else pure v)))
         
 
     pexpr :: ParserT m Syntax
     pexpr = do
         RMix mempty <$>
-          (many1 $ Syn <$> (between lparen rparen syn_core <|> patom)
+          (many1 $ Syn <$> (between lparen rparen (syn_core level) <|> patom)
                    <|> NamePart <$> anyvar)
       where 
         patom = puniv <|> pctor
@@ -328,5 +323,5 @@ syn_core = do
     pctor :: ParserT m Syntax
     pctor = with_range $ do
       label <- (single ':' *> anyvar)
-      tipe <- (Just <$> try (single '﹨' *> sc *> syn_core)) <|> pure Nothing
+      tipe <- (Just <$> try (single '﹨' *> sc *> syn_core level)) <|> pure Nothing
       pure $ \r -> RCtr r label tipe

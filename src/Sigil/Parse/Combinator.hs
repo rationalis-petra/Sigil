@@ -17,7 +17,6 @@ module Sigil.Parse.Combinator
 
 
 import Prelude hiding (head, last, tail)
-import Control.Monad.Reader (Reader, ReaderT)
 import Data.Text (Text)
 
 import Text.Megaparsec hiding (runParser)
@@ -25,8 +24,8 @@ import Text.Megaparsec hiding (runParser)
 {--------------------------------- PARSER TYPE ---------------------------------}
 
 
-type ParserT m = ParsecT Text Text (ReaderT Pos m)
-type Parser = ParsecT Text Text (Reader Pos)
+type ParserT = ParsecT Text Text 
+type Parser = Parsec Text Text
 
 
 {--------------------------------- COMBINATORS ---------------------------------}

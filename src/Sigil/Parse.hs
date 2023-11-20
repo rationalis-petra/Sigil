@@ -22,7 +22,6 @@ module Sigil.Parse
 
 import Prelude hiding (head, last, tail, mod)
 import Control.Monad.Except (MonadError, throwError)
-import Control.Monad.Reader (runReaderT)
 import qualified Data.Text as Text
 import Data.Text (Text)
 import Data.Maybe (maybeToList)
@@ -58,7 +57,7 @@ entry precs filename input = do
 
 core :: MonadError SigilDoc m => Precedences -> Text -> Text -> m ParsedCore
 core precs filename input = do
-  raw_core <- parse syn_core filename input
+  raw_core <- parse (syn_core pos1) filename input
   mix_core precs raw_core
 
 update_precs_def :: Precedences -> ParsedEntry -> Precedences
@@ -177,7 +176,7 @@ parseMix p input = do
 
 parse :: MonadError SigilDoc m => ParserT m a -> Text -> Text -> m a
 parse p file input = do
-  result <- runReaderT (Megaparsec.runParserT p (Text.unpack file) input) pos1
+  result <- Megaparsec.runParserT p (Text.unpack file) input
   case result of 
     Left err -> throwError $ pretty $ errorBundlePretty err
     Right val -> pure val
