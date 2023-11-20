@@ -81,8 +81,10 @@ symchar :: Char -> Bool
 symchar '('  = False
 symchar ')'  = False
 symchar '.'  = False
+symchar ','  = False
 symchar '≜'  = False
 symchar '⮜'  = False
+symchar '→'  = False
 symchar ' '  = False
 symchar '\n' = False
 symchar '\r' = False

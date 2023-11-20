@@ -7,6 +7,7 @@ module Sigil.Parse.Mixfix
   , Associativity(..)
   , Fixity(..)
   , PrecedenceGraph
+  , MixT
 
   -- Lenses
   , fixity
@@ -43,10 +44,12 @@ module Sigil.Parse.Mixfix
 {-------------------------------------------------------------------------------}      
 
 
+import Prelude hiding (head, tail, last)
+
 import Control.Lens
 import Data.Foldable (foldl')
 import qualified Data.Vector as Vector
-import Data.Vector (Vector)
+import Data.Vector (Vector, head, tail, last)
 import qualified Data.Text as Text
 import Data.Text (Text)
 import qualified Data.Set as Set
@@ -60,8 +63,8 @@ import Topograph
 
 import Sigil.Concrete.Decorations.Range
 import Sigil.Concrete.Parsed
+import Sigil.Parse.Syntax
 import Sigil.Parse.Combinator
-import Sigil.Parse.Lexer
 
 
 {------------------------------ MIXFIX DATA TYPES ------------------------------}
@@ -116,6 +119,8 @@ type GraphNode = (IsDefault, Set Operator)
 
 type PrecedenceGraph i = G GraphNode i
 
+type MixT m = ParsecT Text [MixToken ParsedCore] m
+
 {----------------------------- MIXFIX PARSER PHASE -----------------------------}
 {- The parsing of mixifx operators is particularly finicky, and this           -} 
 {- implementation is based on the paper Parsing Mixfix Operators [1].          -}
@@ -142,20 +147,20 @@ type PrecedenceGraph i = G GraphNode i
 {-------------------------------------------------------------------------------}      
 
 
-mixfix :: Monad m => ParserT m ParsedCore -> ParserT m ParsedCore -> Precedences -> ParserT m ParsedCore
-mixfix atom core = run_precs (mixfix' atom core)
+mixfix :: Monad m => Precedences -> MixT m ParsedCore
+mixfix = run_precs mixfix'
 
-mixfix' :: forall i m. Monad m => ParserT m ParsedCore -> ParserT m ParsedCore -> PrecedenceGraph i -> ParserT m ParsedCore
-mixfix' patom pcore (G {..}) = expr
+mixfix' :: forall i m. Monad m => PrecedenceGraph i -> MixT m ParsedCore
+mixfix' (G {..}) = expr
   where
-    expr :: ParserT m ParsedCore
+    expr :: MixT m ParsedCore
     expr = foldl (\l r-> App (range l <> range r) l r) <$> precs gVertices <*> many (precs gVertices)
     
-    precs :: [i] -> ParserT m ParsedCore
+    precs :: [i] -> MixT m ParsedCore
     precs (p:ps) = prec p <||> precs ps
     precs [] = customFailure "ran out of operators in precedence graph" 
   
-    prec :: i -> ParserT m ParsedCore
+    prec :: i -> MixT m ParsedCore
     prec node = choice'
       [ unscope <$> close Closed
       , appn <$> psucs <*> close (Infix NonAssociative) <*> psucs
@@ -165,7 +170,7 @@ mixfix' patom pcore (G {..}) = expr
       ]
 
       where
-        close :: Fixity -> ParserT m (Telescope ParsedCore)
+        close :: Fixity -> MixT m (Telescope ParsedCore)
         close f = inj f <||> (inner . ops current_ops) f
           where
             current_ops :: [Operator]
@@ -173,21 +178,21 @@ mixfix' patom pcore (G {..}) = expr
 
             inj Closed =
               if view _1 (gFromVertex node) == IsClosed then
-                flip Tel [] <$> (patom <||> between lparen rparen pcore)
+                flip Tel [] <$> token (\case {Syn s -> Just s; _ -> Nothing}) Set.empty 
               else
                 fail "not default"
             inj _ = fail "not default"
 
-        psucs :: ParserT m ParsedCore
+        psucs :: MixT m ParsedCore
         psucs = precs $ gEdges node
 
-        preRight :: ParserT m (ParsedCore -> ParsedCore)
+        preRight :: MixT m (ParsedCore -> ParsedCore)
         preRight = 
               (\(Tel core lst) val -> unscope $ Tel core (lst <> [val])) <$> close Prefix
           <||> (\l (Tel core lst) r -> unscope $ Tel core (l : lst <> [r]))
                <$> psucs <*> close (Infix RightAssociative)
 
-        postLeft :: ParserT m (ParsedCore -> ParsedCore)
+        postLeft :: MixT m (ParsedCore -> ParsedCore)
         postLeft =
               (\(Tel core lst) val -> unscope $ Tel core (val : lst)) <$> close Postfix
           <||> (\(Tel core lst) l r -> unscope $ Tel core (r : lst <> [l]))
@@ -197,13 +202,13 @@ mixfix' patom pcore (G {..}) = expr
         appr fs e = foldr (\f e -> f e) e fs
         appl e fs = foldl (\e f -> f e) e fs
 
-    inner :: [Operator] -> ParserT m (Telescope ParsedCore)
+    inner :: [Operator] -> MixT m (Telescope ParsedCore)
     inner [] = customFailure "inner ran out of operators"
     inner (op : ops) = choice'  
-      [ do start <- getSourcePos
-           args <- betweenM (fmap symbol $ op^.name_parts) expr
-           end <- getSourcePos
-           pure $ Tel (Var (Range $ Just (start, end)) (opName op)) args
+      [ do args <-
+             betweenM
+             (fmap (\n -> satisfy (\case {NamePart n' -> n == n'; _ -> False})) $ op^.name_parts) expr
+           pure $ Tel (Var mempty (opName op)) args
       , inner ops ]
 
     -- Helper Functions: graph tools
@@ -213,6 +218,14 @@ mixfix' patom pcore (G {..}) = expr
     ops op f = filter ((== f) . view fixity) op
   
 
+betweenM :: Monad m => Vector (MixT m b) -> MixT m a -> MixT m [a]  
+betweenM vec p = case length vec of 
+  0 -> pure []
+  1 -> head vec *> pure []
+  2 -> between (head vec) (last vec) ((: []) <$> p)
+  _ -> head vec *> ((:) <$> p <*> betweenM (tail vec) p)
+
+  
 unscope :: Telescope ParsedCore -> ParsedCore
 unscope (Tel core l) = go core l where
   go :: ParsedCore -> [ParsedCore] -> ParsedCore

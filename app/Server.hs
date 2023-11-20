@@ -11,7 +11,6 @@ import Control.Concurrent (forkFinally)
   
 import Data.Bifunctor
 import qualified Data.ByteString as Bs
-import Text.Megaparsec hiding (runParser)
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Text.IO
 import Data.Text (Text, pack)
@@ -121,7 +120,7 @@ processMessage (Interpreter {..}) state socket = \case
       env <- get_env path imports
       precs <- get_precs path imports
       resolve_vars <- get_resolve path imports
-      parsed <- parseToErr (core precs <* eof) "server-in" line 
+      parsed <- core precs "server-in" line  -- TODO: eof?
       resolved <- resolve_closed (("unbound name" <+>) . pretty) resolve_vars parsed
         `catchError` (throwError . (<+>) "Resolution:")
       (term, ty) <- infer (CheckInterp interp_eval interp_eq spretty) env resolved

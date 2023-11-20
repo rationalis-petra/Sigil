@@ -88,6 +88,7 @@ type Case b n χ = (Pattern n, Core b n χ)
 data Pattern n
   = PatCtr Text [Pattern n]
   | PatVar n
+  deriving Eq
 
 data Core b n χ
   = Coreχ (Coreχ b n χ)

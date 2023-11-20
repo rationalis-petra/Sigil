@@ -70,5 +70,5 @@ runall group config = do
       runtest (Test name (Just err)) = do
         when (verbosity config >= Verbose) $
           putDocLn $ annotate (fg_colour red) $ indent (nesting * 2) $ pretty name
-        pure [annotate (fg_colour red) (pretty name) <+> annotate (fg_colour yellow) err]
+        pure [vsep [annotate (fg_colour red) (pretty name), annotate (fg_colour yellow) err]]
   

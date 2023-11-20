@@ -89,7 +89,7 @@ interactive (Interpreter {..}) opts = do
       env <- get_env ("repl" :| []) (istate^.imports)
       precs <- get_precs ("repl" :| []) (istate^.imports)
       resolution <- get_resolve ("repl" :| []) (istate^.imports)
-      parsed <- parseToErr (core precs <* eof) "console-in" line 
+      parsed <- core precs "console-in" line  -- TODO: eof??
       resolved <- resolve_closed (("unbound name" <+>) . pretty) resolution parsed
         `catchError` (throwError . (<+>) "Resolution:")
       (term, ty) <- infer (CheckInterp interp_eval interp_eq spretty) env resolved
@@ -127,7 +127,7 @@ interactive (Interpreter {..}) opts = do
 
     check_mod :: Text -> Text -> m InternalModule
     check_mod filename file = do
-      parsed <- parse (mod get_precs <* eof) filename file 
+      parsed <- mod get_precs filename file  -- TODO: eof??
         `catchError` (throwError . (<+>) "Parse:")
 
       resolve_vars <- get_resolve (parsed^.module_header) (parsed^.module_imports)

@@ -296,7 +296,9 @@ instance Checkable Name ResolvedCore InternalCore where
           anorm <- normalize' env asort a'
           let env' = insert name (Just anorm, asort) env
           ctors' <- forM ctors $ \(label, ty) -> do
-            ty' <- check' env' ty asort -- TODO: is this predicativity??
+            -- TODO: level check
+            -- ty' <- check' env' ty asort -- TODO: is this predicativity??
+            (ty', _) <- infer' env' ty
             pure $ (label, ty')
           pure $ (Ind name a' ctors', a')
         Indχ _ _ Nothing _ -> throwError' "inductive definition should provide sort"
@@ -399,7 +401,9 @@ instance Checkable Name ResolvedCore InternalCore where
           anorm <- normalize' env asort a'
           let env' = insert n (Just anorm, asort) env
           ctors' <- forM ctors $ \(label, ty) -> do
-            ty' <- check' env' ty asort -- TODO: is this predicativity??
+            -- TODO: level check??
+            --ty' <- check' env' ty asort -- TODO: is this predicativity??
+            (ty', _) <- infer' env' ty
             pure $ (label, ty')
           pure $ Ind n a' ctors'
         (Indχ _ _ Nothing _, _) -> do

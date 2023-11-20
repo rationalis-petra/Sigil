@@ -1,7 +1,6 @@
 module Sigil.Parse.Combinator
   ( Parser
   , ParserT
-  , betweenM
   , many1
   , thread
   , thread1
@@ -19,7 +18,6 @@ module Sigil.Parse.Combinator
 
 import Prelude hiding (head, last, tail)
 import Control.Monad.Reader (Reader, ReaderT)
-import Data.Vector (Vector, head, last, tail)
 import Data.Text (Text)
 
 import Text.Megaparsec hiding (runParser)
@@ -32,14 +30,6 @@ type Parser = ParsecT Text Text (Reader Pos)
 
 
 {--------------------------------- COMBINATORS ---------------------------------}
-
-  
-betweenM :: Monad m => Vector (ParserT m b) -> ParserT m a -> ParserT m [a]  
-betweenM vec p = case length vec of 
-  0 -> pure []
-  1 -> head vec *> pure []
-  2 -> between (head vec) (last vec) ((: []) <$> p)
-  _ -> head vec *> ((:) <$> p <*> betweenM (tail vec) p)
 
 -- Parse many of an element (min 1) 
 many1 :: (MonadParsec e s m) => m a -> m [a]

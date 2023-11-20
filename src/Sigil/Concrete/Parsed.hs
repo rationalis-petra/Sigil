@@ -141,3 +141,6 @@ instance Pretty ParsedEntry where
 instance Pretty ParsedModule where
   pretty =
     pretty_mod_builder pretty
+
+instance Show ParsedCore where
+  show = show . pretty
