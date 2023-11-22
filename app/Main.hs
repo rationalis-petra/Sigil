@@ -15,14 +15,15 @@ import Sigil.Abstract.Environment (Environment, Env)
 import Sigil.Interpret.Interpreter 
 import Sigil.Interpret.Canonical 
 import Sigil.Concrete.Internal
-import Interactive
+import InteractiveTui
+import InteractiveCli
 import Server
 
 data Backend = Native | JVM | Javascript | WASM
   deriving (Show, Read, Eq)
 
-interactive_opts :: Parser (InteractiveOpts, Backend)
-interactive_opts = do
+interactive_cli_opts :: Parser (InteractiveCliOpts, Backend)
+interactive_cli_opts = do
   file <- strOption
     ( long "file"
     <> short 'f'
@@ -33,7 +34,21 @@ interactive_opts = do
     <> short 'b'
     <> showDefault
     <> value Native )
-  pure (InteractiveOpts file, backend)
+  pure (InteractiveCliOpts file, backend)
+
+interactive_tui_opts :: Parser (InteractiveTuiOpts, Backend)
+interactive_tui_opts = do
+  file <- strOption
+    ( long "file"
+    <> short 'f'
+    <> value ""
+    <> help "Specify what file to run (if any)" )
+  backend <- option auto
+    ( long "backend"
+    <> short 'b'
+    <> showDefault
+    <> value Native )
+  pure (InteractiveTuiOpts file, backend)
 
 data CompileOpts = CompileOpts
   { cfile :: String
@@ -70,7 +85,8 @@ server_opts = do
 
 data Command
   = CompileCommand CompileOpts
-  | InteractiveCommand (InteractiveOpts, Backend)
+  | InteractiveCliCommand (InteractiveCliOpts, Backend)
+  | InteractiveTuiCommand (InteractiveTuiOpts, Backend)
   | ServerCommand (ServerOpts, Backend)
   deriving (Show, Read, Eq)
 
@@ -80,7 +96,9 @@ sigil_opts = subparser $
   <>
   command "server" (info (ServerCommand <$> server_opts) (progDesc "Launch the Sigil language server"))
   <>
-  command "interactive" (info (InteractiveCommand <$> interactive_opts) (progDesc "Launch Sigil in interactive mode"))
+  command "interactive-line" (info (InteractiveCliCommand <$> interactive_cli_opts) (progDesc "Launch Sigil in interactive mode (command line interface)"))
+  <>
+  command "interactive" (info (InteractiveTuiCommand <$> interactive_tui_opts) (progDesc "Launch Sigil in interactive mode (terminal ui interface)"))
 
 main :: IO ()
 main = do
@@ -89,7 +107,8 @@ main = do
     <> progDesc "Compile, Run or Develop a Sigil Program"
     <> header "An implementation of the Sigil Language" )
   case command of 
-    InteractiveCommand (c, backend) -> run_with_backend backend interactive c
+    InteractiveCliCommand (c, backend) -> run_with_backend backend interactive_cli c
+    InteractiveTuiCommand (c, backend) -> run_with_backend backend interactive_tui c
     ServerCommand (s, backend) -> run_with_backend backend server s
     _ -> putStrLn $ pack $ show command
 

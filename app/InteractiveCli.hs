@@ -1,6 +1,6 @@
-module Interactive
-  ( InteractiveOpts(..)
-  , interactive ) where
+module InteractiveCli
+  ( InteractiveCliOpts(..)
+  , interactive_cli ) where
 
 
 import Prelude hiding (mod, getLine, putStr, putStrLn, readFile, null)
@@ -30,7 +30,7 @@ import Sigil.Interpret.Interpreter
 import Sigil.Concrete.Internal
 
 
-newtype InteractiveOpts = InteractiveOpts
+newtype InteractiveCliOpts = InteractiveCliOpts
   { ifile :: Text
   }
   deriving (Show, Read, Eq)
@@ -50,9 +50,9 @@ data Command
   | Quit
   | Malformed SigilDoc
 
-interactive :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e)
-  => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> InteractiveOpts -> IO ()
-interactive (Interpreter {..}) opts = do
+interactive_cli :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e)
+  => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> InteractiveCliOpts -> IO ()
+interactive_cli (Interpreter {..}) opts = do
     s <- if not (null (ifile opts)) then eval_file (ifile opts) start_state else pure start_state
     loop s (InteractiveState [])
   where

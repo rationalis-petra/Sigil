@@ -3,8 +3,7 @@
 
 # Resolver to choose a 'specific' stackage snapshot or a compiler version.
 
-resolver: lts-21.11
-  #url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/20/4.yaml
+resolver: lts-21.21
 
 compiler: ghc-9.6.1
 
@@ -16,4 +15,16 @@ packages:
 extra-deps: 
   - git: https://github.com/k0001/pipes-aeson.git
     commit: 207696d9c8a15bff8b2dc7f6899575d2b00a8647
-  # - pipes-aeson-0.4.1.8
+  - git: https://github.com/jtdaugherty/brick/
+    commit: 6ca86613b52d367f7f20015023183953745b386e
+  - vty-crossplatform-0.4.0.0
+  - vty-6.1
+  - terminfo-0.4.1.6
+
+  ## windows specific
+  # - vty-windows-0.2.0.0
+  # - unix-2.8.2.0
+  ## unix specific
+  - vty-unix-0.2.0.0
+  - directory-1.3.8.1
+  - process-1.6.18.0

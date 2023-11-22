@@ -22,9 +22,10 @@ description:         Please see the README on GitHub at <https://github.com/rati
 dependencies:
 - base >= 4.7 && < 5
 - text
+- text-zipper
 - vector
 - stm
-- lens
+- lens # TODO: try and replace with microlens
 - mtl
 - transformers
 - pipes
@@ -39,6 +40,11 @@ dependencies:
 - prettyprinter
 - prettyprinter-ansi-terminal
 - optparse-applicative
+- brick
+- vty
+- microlens
+- microlens-mtl
+- microlens-th
 
 ghc-options:
 - -Wall
