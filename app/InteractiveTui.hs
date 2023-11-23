@@ -14,7 +14,7 @@ import Data.Functor.Classes (liftEq)
 import Data.Foldable (find)
 import Data.Text (Text, pack, unpack, strip)
 import Data.Text.IO (readFile)
-import Data.Text.Zipper (insertChar, insertMany)
+import Data.Text.Zipper (insertChar, insertMany, clearZipper)
 import Data.List (isPrefixOf)
 import Data.List.NonEmpty (NonEmpty((:|)))
 
@@ -24,8 +24,9 @@ import Text.Megaparsec.Char as C
 import qualified Graphics.Vty as V
 import qualified Brick.AttrMap as A
 import qualified Brick.Types as T
-import Brick.Widgets.Core (joinBorders, str, hBox, vBox)
+import Brick.Widgets.Core (joinBorders, str, hBox, vBox, hLimit, vLimit)
 import Brick.Widgets.Border (border, hBorder, vBorder)
+import Brick.Widgets.Center (centerLayer)
 import Brick.Widgets.Edit
 import Brick.Main
 import Prettyprinter
@@ -44,17 +45,27 @@ data InteractiveTuiOpts = InteractiveTuiOpts
   deriving (Show, Read, Eq)
 
 data InteractiveState s = InteractiveState
-  { _imports :: [ImportDef]
-  , _focus :: ID
+  { _focus :: ID
+  -- text editor
   , _editorState :: Editor String ID
   , _charInputState :: Maybe [Char]
+
+  -- output
   , _outputState :: String
+
+  -- palette 
+  , _paletteState :: Editor String ID
+  , _paletteAction :: Text -> T.EventM ID (InteractiveState s) ()
+
+  -- session
   , _loadedModules :: [Path]
+  , _imports :: [ImportDef]
+
+  -- interpreter
   , _interpreterState :: s
   }
-  deriving Show
 
-data ID = Input | Module | Output
+data ID = Input | Module | Output | Palette
   deriving (Ord, Show, Eq)
 
 $(makeLenses ''InteractiveState)
@@ -77,19 +88,31 @@ interactive_tui interpreter _ = do
         , _outputState = ""
         , _loadedModules = []
         , _interpreterState = (start_state interpreter)
+        , _paletteState = editor Palette Nothing ""  
+        , _paletteAction = pure . const ()
         }
   void $ defaultMain app initial_state
 
 
 draw :: InteractiveState s -> [T.Widget ID]
-draw st = [joinBorders . border $ hBox
-          [ vBox [(renderEditor (str . unlines) True (st^.editorState))
+draw st =
+  let main_panel =
+        joinBorders . border $ hBox
+          [ vBox [(renderEditor (str . unlines) (st^.focus == Input) (st^.editorState))
                  , hBorder 
                  , str "Output:"
                  , str (st^.outputState)]
           , vBorder, vBox ([str "loaded modules"] <> map (str . ("  " <>) .  show . pretty) (st^.loadedModules)
                            <> [hBorder]
-                            <> [str "module repl", str "  import"] <> map (str . ("    " <>) . show . pretty) (st^.imports))]]
+                           <> [str "module repl", str "  import"] <> map (str . ("    " <>) . show . pretty) (st^.imports))]
+      palette = centerLayer
+        $ border
+        $ hLimit 60
+        $ vLimit 2
+        $ renderEditor (str . unlines) (st^.focus == Palette) (st^.paletteState)
+  in case (st^.focus) of 
+    Palette -> [palette, main_panel] -- (palette : main_panel)
+    _ -> [main_panel]
 
 choose_cursor :: InteractiveState s -> [T.CursorLocation ID] -> Maybe (T.CursorLocation ID)
 choose_cursor st locs = find (liftEq (==) (Just $ st^.focus) . T.cursorLocationName) locs
@@ -99,6 +122,29 @@ app_handle_event :: forall m e s t ev. (MonadError SigilDoc m, MonadGen m, Envir
 app_handle_event interpreter = \case
   (T.VtyEvent (V.EvKey V.KEsc [])) -> halt
 
+  -- Do definition
+  -- (T.VtyEvent (V.EvKey (V.KChar 'd') [V.MCtrl])) -> do
+
+  ev -> do
+    f <- use focus
+    case f of 
+      Input -> handle_editor_event interpreter ev
+      Palette -> handle_palette_event ev
+      _ -> pure ()
+
+handle_palette_event :: T.BrickEvent ID e -> T.EventM ID (InteractiveState s) ()
+handle_palette_event ev = case ev of 
+  (T.VtyEvent (V.EvKey V.KEnter [])) -> do 
+    palette <- use paletteState
+    action <- use paletteAction
+    paletteState %= applyEdit clearZipper
+    action (strip . pack . unlines $ getEditContents palette)
+  _ -> zoom paletteState $ handleEditorEvent ev
+
+
+handle_editor_event :: forall m e s t ev. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
+  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t  -> T.BrickEvent ID ev -> T.EventM ID (InteractiveState s) ()
+handle_editor_event interpreter ev = case ev of
   -- Evaluate Playground
   (T.VtyEvent (V.EvKey (V.KChar 'e') [V.MCtrl])) -> do
     istate <- use interpreterState
@@ -115,44 +161,36 @@ app_handle_event interpreter = \case
 
   -- Load File
   (T.VtyEvent (V.EvKey (V.KChar 'f') [V.MCtrl])) -> do
-    istate <- use interpreterState
-    editor <- use editorState
-    let filename = strip . pack . unlines $ getEditContents editor 
-    text <- liftIO $ readFile (unpack filename)
-    (result, istate') <- liftIO $ (run interpreter) istate $ do
-      mod <- eval_mod interpreter filename text
-      (intern_module interpreter) (mod^.module_header) mod
-      pure mod
-    case result of
-      Left err -> do
-        interpreterState .= istate'
-        outputState .= show err
-      _ -> do 
-        (modules, istate'') <- liftIO $ (run interpreter) istate' $ (get_modules interpreter)
-        interpreterState .= istate''
-        case modules of
-          Left err -> outputState %= (<> ("\n" <> show err)) -- TODO: change!!
-          Right val -> loadedModules .= val
+    focus .= Palette
+    paletteAction .= (\filename -> do
+      focus .= Input
+      istate <- use interpreterState
+      text <- liftIO $ readFile (unpack filename)
+      (result, istate') <- liftIO $ (run interpreter) istate $ do
+        mod <- eval_mod interpreter filename text
+        (intern_module interpreter) (mod^.module_header) mod
+        pure mod
+      case result of
+        Left err -> do
+          interpreterState .= istate'
+          outputState .= show err
+        _ -> do 
+          (modules, istate'') <- liftIO $ (run interpreter) istate' $ (get_modules interpreter)
+          interpreterState .= istate''
+          case modules of
+            Left err -> outputState %= (<> ("\n" <> show err)) -- TODO: change!!
+            Right val -> loadedModules .= val)
+    
 
   -- Do Import
   (T.VtyEvent (V.EvKey (V.KChar 'b') [V.MCtrl])) -> do
-    editor <- use editorState
-    let import_statement = strip . pack . unlines $ getEditContents editor
-    case Megaparsec.runParser pImport "import" import_statement of
-      Left _ -> outputState .= "import parser failure"
-      Right val -> imports %= (val :)
-    
-  -- Do definition
-  -- (T.VtyEvent (V.EvKey (V.KChar 'd') [V.MCtrl])) -> do
+    focus .= Palette
+    paletteAction .= (\import_statement -> do
+      focus .= Input
+      case Megaparsec.runParser pImport "import" import_statement of
+        Left _ -> outputState .= "import parser failure"
+        Right val -> imports %= (val :))
 
-  ev -> do
-    f <- use focus
-    case f of 
-      Input -> handle_input_event ev
-      _ -> pure ()
-
-handle_input_event :: T.BrickEvent ID e -> T.EventM ID (InteractiveState s) ()
-handle_input_event ev = case ev of
   (T.VtyEvent (V.EvKey (V.KChar c) [])) -> do 
     char_st <- use charInputState
     case char_st of
