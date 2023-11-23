@@ -1,6 +1,6 @@
 module Sigil.Abstract.Names
   ( UniqueName
-  , Path
+  , Path(..)
   , QualName
   , Name(..)
   , name_text
@@ -26,6 +26,8 @@ import Control.Monad.Except (ExceptT)
 import Control.Monad.State (State, StateT, runState, get, modify)
 import Control.Monad.Reader (ReaderT)
   
+import Data.Foldable (fold)
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Text (Text, pack)
 
@@ -36,12 +38,20 @@ import Prettyprinter
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
+newtype Path = Path { unPath :: NonEmpty Text }
+  deriving (Eq, Ord, Semigroup)
+
+instance Pretty Path where
+  pretty = fold . fmap pretty . NonEmpty.intersperse "." . unPath
+
+instance Show Path where
+  show = fold . fmap show . NonEmpty.intersperse "." . unPath
+  
 -- A name with a unique identifier 
 type UniqueName = (Integer, Text)
 
 -- A qualified name is one which depends on the value of a toplevel definition
-type Path = NonEmpty
-type QualName = Path Text
+type QualName = NonEmpty Text
 
 -- data DBName = QDBName QualName | DeBruijn Int (Maybe Text)
 newtype Name = Name (Either QualName UniqueName)

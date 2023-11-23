@@ -26,7 +26,6 @@ import qualified Data.Text as Text
 import Data.Text (Text)
 import Data.Maybe (maybeToList)
 import Data.Foldable (fold)
-import Data.List.NonEmpty (NonEmpty)
 
 import qualified Text.Megaparsec as Megaparsec
 import Text.Megaparsec hiding (runParser, parse)
@@ -34,17 +33,18 @@ import Prettyprinter.Render.Sigil (SigilDoc)
 import Prettyprinter hiding (lparen, rparen)
 
 import Sigil.Abstract.Syntax
-import Sigil.Abstract.Names (OptBind(..), name)
+import Sigil.Abstract.Names (Path, OptBind(..), name)
 import Sigil.Concrete.Decorations.Range
 import Sigil.Concrete.Parsed
 
+import Sigil.Parse.Lexer (scn)
 import Sigil.Parse.Syntax
 import Sigil.Parse.Combinator
 import Sigil.Parse.Outer
 import Sigil.Parse.Mixfix
 
 
-mod :: MonadError SigilDoc m => (NonEmpty Text -> [ImportDef] -> m Precedences)
+mod :: MonadError SigilDoc m => (Path -> [ImportDef] -> m Precedences)
   -> Text -> Text -> m ParsedModule
 mod get_precs filename input = do
   raw_mod <- parse syn_mod filename input
@@ -57,7 +57,7 @@ entry precs filename input = do
 
 core :: MonadError SigilDoc m => Precedences -> Text -> Text -> m ParsedCore
 core precs filename input = do
-  raw_core <- parse (syn_core pos1) filename input
+  raw_core <- parse (scn *> syn_core pos1 <* scn <* eof) filename input
   mix_core precs raw_core
 
 update_precs_def :: Precedences -> ParsedEntry -> Precedences
@@ -71,7 +71,7 @@ update_precs_def precs def =
 {-                                                                             -}
 {-------------------------------------------------------------------------------}      
 
-mix_mod :: MonadError SigilDoc m => (NonEmpty Text -> [ImportDef] -> m Precedences) -> SynModule -> m ParsedModule
+mix_mod :: MonadError SigilDoc m => (Path -> [ImportDef] -> m Precedences) -> SynModule -> m ParsedModule
 mix_mod get_precs (RModule title imports exports entries) = do
   precs <- get_precs title imports
   body <- let go precs = \case

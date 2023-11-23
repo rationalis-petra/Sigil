@@ -3,7 +3,6 @@ module Sigil.Interpret.Interpreter
   , InbuiltType(..)
   , FunctionPragma(..)
   , ArithFun(..)
-  , World(..)
   , InterpreterErr(..)
   , Image(..)
   ) where
@@ -61,13 +60,14 @@ data Interpreter m err env s t = Interpreter
 
   -- environment manipulation
   -- load a module into the interpreter's state
-  , intern_module :: Path Text -> InternalModule -> m ()
+  , intern_module :: Path -> InternalModule -> m ()
 
   -- get the initial environment/precedences for a given module (path) with a
   -- set of imports
-  , get_env :: Path Text -> [ImportDef] -> m env
-  , get_precs :: Path Text -> [ImportDef] -> m Precedences
-  , get_resolve :: Path Text -> [ImportDef] -> m (Map Text QualName)
+  , get_env :: Path -> [ImportDef] -> m env
+  , get_precs :: Path -> [ImportDef] -> m Precedences
+  , get_resolve :: Path -> [ImportDef] -> m (Map Text QualName)
+  , get_modules :: m [Path]
 
   -- The Monad m
   , run :: forall a. s -> m a -> IO (Either err a, s)

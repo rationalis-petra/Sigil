@@ -3,6 +3,7 @@ module Sigil.Abstract.Environment
   ( World(..)
   , get_modulo_path
   , insert_at_path
+  , get_paths
 
   -- Environment
   , Environment(..)
@@ -19,13 +20,13 @@ module Sigil.Abstract.Environment
 {-------------------------------------------------------------------------------}
 
 import Prelude hiding (head, lookup)
-import Control.Lens
+import Control.Lens hiding ((<|))
 import Control.Monad.Except (MonadError, throwError)
   
-import Data.Foldable (find)
+import Data.Foldable (fold, find)
 import Data.List (sortOn)
 import qualified Data.List.NonEmpty as NonEmpty
-import Data.List.NonEmpty (NonEmpty(..))
+import Data.List.NonEmpty (NonEmpty(..), (<|))
 import Data.Text (Text)
 import qualified Data.Set as Set
 import Data.Set (Set)
@@ -49,38 +50,45 @@ newtype World a = World (Map Text (Maybe a, Maybe (World a)))
 
 instance Functor World where
   fmap f (World wmap) = World $ fmap (bimap (fmap f) (fmap (fmap f))) wmap
-insert_at_path :: Path Text -> a -> World a -> World a
+insert_at_path :: Path -> a -> World a -> World a
 insert_at_path path a (World subtree) =
   case path of 
-    (p :| []) -> case Map.lookup p subtree of 
+    Path (p :| []) -> case Map.lookup p subtree of 
       Just (_, v) -> World $ Map.insert p (Just a, v) subtree
       Nothing -> World $ Map.insert p (Just a, Nothing) subtree
 
-    (p :| (t:ts)) -> case Map.lookup p subtree of 
+    Path (p :| (t:ts)) -> case Map.lookup p subtree of 
       Just (v, Just subworld) -> World $ Map.insert p (v, Just subworld') subtree
         where
-          subworld' = insert_at_path (t :| ts) a subworld
+          subworld' = insert_at_path (Path $ t :| ts) a subworld
       Just (v, Nothing) -> World $ Map.insert p (v, Just subworld) subtree
         where 
-          subworld = insert_at_path (t :| ts) a (World Map.empty)
+          subworld = insert_at_path (Path $ t :| ts) a (World Map.empty)
       Nothing -> World $ Map.insert p (Nothing, Just subworld) subtree
         where 
-          subworld = insert_at_path (t :| ts) a (World Map.empty)
+          subworld = insert_at_path (Path $ t :| ts) a (World Map.empty)
 
-get_modulo_path :: Path Text -> World a -> (Maybe (a, [Text]))
+get_modulo_path :: Path -> World a -> (Maybe (a, [Text]))
 get_modulo_path path (World subtree) =
   case path of 
-    (p :| []) -> case Map.lookup p subtree of 
+    Path (p :| []) -> case Map.lookup p subtree of 
       Just ((Just v), _) -> Just (v, [])
       _ -> Nothing
-    (p :| (t:ts)) -> case Map.lookup p subtree of 
-      Just (_, (Just w)) -> get_modulo_path (t :| ts) w
+    Path (p :| (t:ts)) -> case Map.lookup p subtree of 
+      Just (_, (Just w)) -> get_modulo_path (Path $ t :| ts) w
       Just (Just v, _) -> Just (v, (t : ts))
       _ -> Nothing
 
+get_paths :: World a -> [Path]
+get_paths (World subtree) = 
+  let go :: Text -> (Maybe a, Maybe (World a)) -> [Path]
+      go name (_, snd) = case snd of
+        Just world -> map (Path . (name <|) . unPath) (get_paths world)
+        Nothing -> [(Path $ name :| [])]
+  in fold (Map.mapWithKey go subtree)
 
 data EModule a = EModule
-  { _epath :: Path Text
+  { _epath :: Path
   , _eimports :: [ImportDef]
   , _eexports :: [ExportDef]
   , _evals :: [(Name, Text, a)]
@@ -89,7 +97,7 @@ data EModule a = EModule
 data Env a = Env
   { _env_binds :: Map Name (a, Int)
   , _lvl :: Int -- Level is used to sort keys for evaluation when necessary
-  , _globals :: Map (Path Text) a
+  , _globals :: Map Path a
   , _env_imports :: [ImportDef]
   , _world :: World (EModule a)
   }
@@ -123,7 +131,7 @@ instance Environment Name Env where
   lookup_err lift_err n env = case Map.lookup n (env^.env_binds) of 
     Just (x, _) -> pure x
     Nothing -> case n of
-      Name (Left p) -> case Map.lookup p (env^.globals) of
+      Name (Left p) -> case Map.lookup (Path p) (env^.globals) of
         Nothing -> throwError $ lift_err $ ("global variable not in scope:" <+> pretty n)
         Just v -> pure v
       _ -> throwError $ lift_err $ ("local variable not in scope:" <+> pretty n)
@@ -131,7 +139,7 @@ instance Environment Name Env where
   lookup n env = case Map.lookup n (env^.env_binds) of 
     Just (x,_) -> pure x
     Nothing -> case n of
-      Name (Left p) -> Map.lookup p (env^.globals)
+      Name (Left p) -> Map.lookup (Path p) (env^.globals)
       _ -> Nothing
 
   insert n v env =
@@ -146,27 +154,29 @@ instance Environment Name Env where
 eval_helper :: forall err ann m a b. MonadError err m => (Doc ann -> err) -> (Map Name b -> Name -> a -> m b) -> Env a -> m (Map Name b)
 eval_helper lift_err eval env = do
   -- Step 1: construct dependency graph
-  let construct_graph :: World (EModule a) -> Map (Path Text) (Set (Path Text))
+  let construct_graph :: World (EModule a) -> Map Path (Set Path)
       construct_graph (World trees) = Map.foldrWithKey (go []) Map.empty trees
         where
-          go :: [Text] -> Text -> (Maybe (EModule a), Maybe (World (EModule a))) -> Map (Path Text) (Set (Path Text)) -> Map (Path Text) (Set (Path Text))
+          go :: [Text] -> Text -> (Maybe (EModule a), Maybe (World (EModule a))) -> Map Path (Set Path) -> Map Path (Set Path)
           go psf name (m, t) map = map''
             where
               map' = case m of
-                Just modul -> Map.insert (NonEmpty.reverse (name :| psf)) (dependencies modul) map
+                Just modul -> Map.insert
+                  (Path $ NonEmpty.reverse (name :| psf))
+                  (dependencies modul) map
                 Nothing -> map
               map'' = case t of
                 Just (World subtree) -> Map.foldrWithKey (go (name : psf)) map' subtree
                 Nothing -> map'
 
-          dependencies :: EModule a -> Set (Path Text)
-          dependencies = Set.fromList . map fst . (view eimports) 
+          dependencies :: EModule a -> Set Path
+          dependencies = Set.fromList . map (fst . unImport) . (view eimports)
 
   -- Step 2: evaluate modules
-  let eval_graph :: World (EModule a) -> G (Path Text) i -> m (World (EModule b))
+  let eval_graph :: World (EModule a) -> G Path i -> m (World (EModule b))
       eval_graph old (G {..}) = go old (World $ Map.empty) (map gFromVertex gVertices)
 
-      go :: World (EModule a) -> World (EModule b) -> [Path Text] -> m (World (EModule b))
+      go :: World (EModule a) -> World (EModule b) -> [Path] -> m (World (EModule b))
       go _ world [] = pure world
       go old_world world (path:paths) = do 
         mod <- case get_modulo_path path old_world of 
@@ -189,16 +199,16 @@ eval_helper lift_err eval env = do
   -- Step 3: use imports to get current environment
       get_globals :: [ImportDef] -> World (EModule b) -> m (Map Name b)
       get_globals [] _ = pure Map.empty
-      get_globals ((path, im):is) world = case im of 
+      get_globals (Im (path, im) : is) world = case im of 
         -- TODO: respect export modifiers of module!
         ImSingleton -> case get_modulo_path path world of 
           Just (modul, [nme]) -> case find (\(_, t, _) -> t == nme) (modul^.evals) of 
-            Just (_, t, val) -> Map.insert (Name (Left (NonEmpty.append path (t :| [])))) val <$> (get_globals is world)
+            Just (_, t, val) -> Map.insert (Name (Left (NonEmpty.append (unPath path) (t :| [])))) val <$> (get_globals is world)
             _ -> throwError $ lift_err ("singleton import of" <+> pretty path <+> "failed")
           _ -> throwError $ lift_err ("singleton import of" <+> pretty path <+> "failed")
         ImWildcard -> case get_modulo_path path world of 
           Just (modul, []) ->
-            foldl (\m (_, t, val) -> Map.insert (Name (Left (NonEmpty.append path (t :| [])))) val <$> m)
+            foldl (\m (_, t, val) -> Map.insert (Name (Left (NonEmpty.append (unPath path) (t :| [])))) val <$> m)
                   (get_globals is world) (modul^.evals)
           _ -> throwError $ lift_err ("wildcard import of" <+> pretty path <+> "failed")
         _ -> throwError $ lift_err "cannot import non-singleton/wildcard yet!"
@@ -215,7 +225,7 @@ eval_helper lift_err eval env = do
 
   -- Step 5: put it all together!
   let
-    res :: Either [Path Text] (m (Map Name b))
+    res :: Either [Path] (m (Map Name b))
     res = runG (construct_graph (env^.world)) $ \graph -> do
         world' <- eval_graph (env^.world) graph
         env <- get_globals (env^.env_imports) world'

@@ -5,15 +5,14 @@ module Server
 
 import Prelude hiding (putStrLn)
 import Control.Monad (forever)
-import Control.Monad.Except (MonadError, catchError, throwError)
+import Control.Monad.Except (MonadError)
 import qualified Control.Exception as Ex
 import Control.Concurrent (forkFinally)
   
 import Data.Bifunctor
 import qualified Data.ByteString as Bs
-import Data.List.NonEmpty (NonEmpty(..))
 import Data.Text.IO
-import Data.Text (Text, pack)
+import Data.Text (pack)
 
 import Data.Aeson (encode)
 import Data.Aeson.Types hiding (Parser)
@@ -28,15 +27,12 @@ import Prettyprinter.Render.Sigil
 import Prettyprinter.Render.Text
 
 import Sigil.Abstract.Names hiding (bind)
-import Sigil.Abstract.Syntax (ImportDef)
 import Sigil.Abstract.Environment
 import Sigil.Concrete.Internal
-import Sigil.Parse
-import Sigil.Analysis.NameResolution
-import Sigil.Analysis.Typecheck
 import Sigil.Interpret.Interpreter
 
 import Server.Agent
+import InterpretUtils
 
 
 data ServerOpts = ServerOpts
@@ -101,9 +97,9 @@ threadWorker interpreter socket = putStrLn "worker started!" >> loop (packetProd
 
 processMessage :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e)
   => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> s -> Socket -> InMessage -> IO s
-processMessage (Interpreter {..}) state socket = \case
-  EvalExpr uid _ code -> do -- TODO: update to use path!
-    (result, state') <- run state $ eval_msg Nothing code 
+processMessage interp@(Interpreter {..}) state socket = \case
+  EvalExpr uid _ code -> do
+    (result, state') <- run state $ eval_expr interp [] code
     let object = case result of
           Right (val, _) -> toJSON $ OutResult uid (renderStrict (layoutPretty defaultLayoutOptions (pretty val)))
           Left err -> toJSON $ OutError uid (renderStrict (layoutPretty defaultLayoutOptions err))
@@ -111,37 +107,6 @@ processMessage (Interpreter {..}) state socket = \case
     putDocLn (either id (pretty . fst) result)
     sendAll socket "\n"
     pure state'
-   
-  where 
-    eval_msg :: Maybe (NonEmpty Text, [ImportDef]) -> Text -> m (InternalCore, InternalCore)
-    eval_msg module_spec line = do
-      let path = maybe ("repl" :| []) fst module_spec
-          imports = maybe [] snd module_spec
-      env <- get_env path imports
-      precs <- get_precs path imports
-      resolve_vars <- get_resolve path imports
-      parsed <- core precs "server-in" line  -- TODO: eof?
-      resolved <- resolve_closed (("unbound name" <+>) . pretty) resolve_vars parsed
-        `catchError` (throwError . (<+>) "Resolution:")
-      (term, ty) <- infer (CheckInterp interp_eval interp_eq spretty) env resolved
-        `catchError` (throwError . (<+>) "Inference:")
-      norm <- interp_eval id env ty term
-        `catchError` (throwError . (<+>) "Normalization:")
-      pure (norm, ty)
-
-    interp_eval :: (SigilDoc -> SigilDoc) -> e (Maybe InternalCore, InternalCore) -> InternalCore -> InternalCore -> m InternalCore
-    interp_eval f env ty val = do
-      ty' <- reify ty
-      val' <- reify val
-      result <- eval f env ty' val'
-      reflect result
-
-    interp_eq :: (SigilDoc -> SigilDoc) -> e (Maybe InternalCore, InternalCore) -> InternalCore -> InternalCore -> InternalCore -> m Bool
-    interp_eq f env ty l r = do
-      ty' <- reify ty
-      l' <- reify l
-      r' <- reify r
-      norm_eq f env ty' l' r'
 
 packetProducer :: MonadIO m => Socket -> Producer Bs.ByteString m ()
 packetProducer socket = do

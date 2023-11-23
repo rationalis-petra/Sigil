@@ -27,7 +27,7 @@ import Data.Text (Text)
 
 import Control.Lens (makeLenses, (^.), (%=), use)
 import Prettyprinter
---import Topograph
+--import Topograph : todo: use for dependency analysis in evaluation
 
 import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
@@ -82,12 +82,12 @@ canonical_interpreter liftErr = Interpreter
 
   , get_env = \_ imports -> do
       world <- use world
-      let to_globmap :: World InternalModule -> Map (Path Text) (Maybe InternalCore, InternalCore)
+      let to_globmap :: World InternalModule -> Map Path (Maybe InternalCore, InternalCore)
           to_globmap (World root) = Map.foldrWithKey (go []) Map.empty root
             where 
               go :: [Text] -> Text -> (Maybe InternalModule, Maybe (World InternalModule))
-                 -> Map (Path Text) (Maybe InternalCore, InternalCore)
-                 -> Map (Path Text) (Maybe InternalCore, InternalCore)
+                 -> Map Path (Maybe InternalCore, InternalCore)
+                 -> Map Path (Maybe InternalCore, InternalCore)
               go psf name (mim, mw) gmap = gmap''
                 where 
                   gmap' = case mim of 
@@ -97,9 +97,9 @@ canonical_interpreter liftErr = Interpreter
                     Just (World child) -> Map.foldrWithKey (go (name : psf)) gmap' child
                     Nothing -> gmap'
               
-              add_entry :: [Text] -> Map (Path Text) (Maybe InternalCore, InternalCore) -> InternalEntry -> Map (Path Text) (Maybe InternalCore, InternalCore)
+              add_entry :: [Text] -> Map Path (Maybe InternalCore, InternalCore) -> InternalEntry -> Map Path (Maybe InternalCore, InternalCore)
               add_entry psf gmap entry = case entry of
-                Singleχ _ (AnnBind (n, ty)) val -> Map.insert (NonEmpty.reverse (name_text n :| psf)) (Just val, ty) gmap 
+                Singleχ _ (AnnBind (n, ty)) val -> Map.insert (Path $ NonEmpty.reverse (name_text n :| psf)) (Just val, ty) gmap 
               
 
           to_eworld :: World InternalModule -> World (EModule (Maybe InternalCore, InternalCore))
@@ -114,7 +114,7 @@ canonical_interpreter liftErr = Interpreter
       -- We also treat all paths as absolute (not relative to current module).
       -- Therefore, the path of the current module is irrelevant
       world <- use world
-      imported_names <- forM imports $ \(path, m) -> do
+      imported_names <- forM imports $ \(Im (path, m)) -> do
         (mdle,p) <- case get_modulo_path path world of 
           Nothing -> throwError $ liftErr $ InternalErr ("can't find import path: " <> pretty (show path))
           Just (v,p) -> pure (v,p)
@@ -131,9 +131,9 @@ canonical_interpreter liftErr = Interpreter
 
   , get_resolve = \_ imports -> do
       world <- use world
-      let get_imports :: Map Text (Path Text) -> [ImportDef] -> CanonM err (Map Text (Path Text))
+      let get_imports :: Map Text QualName -> [ImportDef] -> CanonM err (Map Text QualName)
           get_imports gmap [] = pure gmap
-          get_imports gmap ((path,im) : imports) = do
+          get_imports gmap (Im (path,im) : imports) = do
             (mdle,p) <- case get_modulo_path path world of
               Nothing -> throwError $ liftErr $ InternalErr ("can't find import path: " <> pretty (show path))
               Just (v,p) -> pure (v,p)
@@ -143,11 +143,17 @@ canonical_interpreter liftErr = Interpreter
                 foldl
                   (\mnd entry ->
                      case entry of
-                       Singleχ _ (AnnBind (n, _)) _ -> Map.insert (name_text n) (NonEmpty.append path (name_text n :| [])) <$> mnd)
+                       Singleχ _ (AnnBind (n, _)) _ ->
+                         Map.insert (name_text n)
+                                    (NonEmpty.append (unPath path) (name_text n :| [])) <$> mnd)
                   (get_imports gmap imports)
                   (mdle^.module_entries)
               _ -> throwError $ liftErr $ InternalErr "only deal in wildcard modifiers!"
-      get_imports Map.empty imports 
+      get_imports Map.empty imports
+
+  , get_modules = do
+      world <- use world
+      pure $ get_paths world
 
   , run = \s mon -> 
       pure $ case run_gen $ runExceptT $ runStateT mon s of 

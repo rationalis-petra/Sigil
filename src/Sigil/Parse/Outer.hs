@@ -28,9 +28,10 @@ import qualified Text.Megaparsec.Char as C
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Megaparsec hiding (runParser, parse)
 
+import Sigil.Abstract.Names (Path(..))
 import Sigil.Abstract.Syntax
-  ( ImportModifier(..), ImportDef,
-    ExportModifier(..), ExportDef, Pattern(..))
+  ( ImportModifier(..), ImportDef(..),
+    ExportModifier(..), ExportDef(..), Pattern(..))
 import Sigil.Concrete.Decorations.Range
 import Sigil.Parse.Syntax
 import Sigil.Parse.Combinator
@@ -58,17 +59,17 @@ syn_mod = do
   pure $ RModule title imports exports body
 
   where
-    module_header :: ParserT m (NonEmpty Text, [Either ImportDef ExportDef])
+    module_header :: ParserT m (Path, [Either ImportDef ExportDef])
     module_header = do
       L.nonIndented scn (L.indentBlock scn modul)
       where 
-        modul :: ParserT m (L.IndentOpt (ParserT m) (NonEmpty Text, [Either ImportDef ExportDef]) [Either ImportDef ExportDef])
+        modul :: ParserT m (L.IndentOpt (ParserT m) (Path, [Either ImportDef ExportDef]) [Either ImportDef ExportDef])
         modul = do 
           symbol "module"
           title <- do
             l <- sepBy anyvar (C.char '.')
             case l of 
-              (x:xs) -> pure $ x :| xs
+              (x:xs) -> pure $ Path $ x :| xs
               [] -> fail "title must be nonempty"
           pure (L.IndentMany Nothing (pure . (title, ) . join) modulePart)
       
@@ -82,7 +83,7 @@ syn_mod = do
           pure (L.IndentSome Nothing pure (fmap Left importStatement))
       
         importStatement :: ParserT m ImportDef
-        importStatement = (,ImSingleton) . (:| []) <$> anyvar
+        importStatement = Im . (,ImSingleton) . Path . (:| []) <$> anyvar
           
         exports :: ParserT m (L.IndentOpt (ParserT m) [Either ImportDef ExportDef] (Either ImportDef ExportDef))
         exports = do
@@ -90,7 +91,7 @@ syn_mod = do
          pure (L.IndentSome Nothing pure (fmap Right exportStatement))
       
         exportStatement :: ParserT m ExportDef
-        exportStatement = (,ExSingleton) . (:| []) <$> anyvar
+        exportStatement = Ex . (,ExSingleton) . Path . (:| []) <$> anyvar
 
 
 {--------------------------------- DEF PARSER ----------------------------------}

@@ -6,7 +6,7 @@ module InteractiveCli
 import Prelude hiding (mod, getLine, putStr, putStrLn, readFile, null)
 
 import Control.Monad (void)
-import Control.Monad.Except (MonadError, throwError, catchError)
+import Control.Monad.Except (MonadError)
 import Control.Lens (makeLenses, (^.), (%~))
 import Data.List.NonEmpty
 import Data.Text (Text, unpack, null)
@@ -23,12 +23,10 @@ import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
 import Sigil.Abstract.Environment
 import Sigil.Parse.Lexer
-import Sigil.Parse
-import Sigil.Analysis.NameResolution
-import Sigil.Analysis.Typecheck
 import Sigil.Interpret.Interpreter
 import Sigil.Concrete.Internal
 
+import InterpretUtils
 
 newtype InteractiveCliOpts = InteractiveCliOpts
   { ifile :: Text
@@ -52,7 +50,7 @@ data Command
 
 interactive_cli :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e)
   => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> InteractiveCliOpts -> IO ()
-interactive_cli (Interpreter {..}) opts = do
+interactive_cli interp@(Interpreter {..}) opts = do
     s <- if not (null (ifile opts)) then eval_file (ifile opts) start_state else pure start_state
     loop s (InteractiveState [])
   where
@@ -63,7 +61,7 @@ interactive_cli (Interpreter {..}) opts = do
       line <- getLine
       case read_command line of  
         Eval line -> do
-          (result, state') <- run state $ eval_line istate line 
+          (result, state') <- run state $ eval_expr interp (istate^.imports) line 
           case result of
             Right (val, ty) -> do
               putDocLn $ "val:" <+> nest 2 (pretty val)
@@ -82,41 +80,12 @@ interactive_cli (Interpreter {..}) opts = do
         Malformed err -> do
           putDocLn $ "Malformed command: " <+> err
           loop state istate
-       
-
-    eval_line :: InteractiveState -> Text -> m (InternalCore, InternalCore)
-    eval_line istate line = do
-      env <- get_env ("repl" :| []) (istate^.imports)
-      precs <- get_precs ("repl" :| []) (istate^.imports)
-      resolution <- get_resolve ("repl" :| []) (istate^.imports)
-      parsed <- core precs "console-in" line  -- TODO: eof??
-      resolved <- resolve_closed (("unbound name" <+>) . pretty) resolution parsed
-        `catchError` (throwError . (<+>) "Resolution:")
-      (term, ty) <- infer (CheckInterp interp_eval interp_eq spretty) env resolved
-        `catchError` (throwError . (<+>) "Inference:")
-      norm <- interp_eval id env ty term
-        `catchError` (throwError . (<+>) "Normalization:")
-      pure (norm, ty)
-
-    interp_eval :: (SigilDoc -> SigilDoc) -> e (Maybe InternalCore, InternalCore) -> InternalCore -> InternalCore -> m InternalCore
-    interp_eval f env ty val = do
-      ty' <- reify ty
-      val' <- reify val
-      result <- eval f env ty' val'
-      reflect result 
-
-    interp_eq :: (SigilDoc -> SigilDoc) -> e (Maybe InternalCore, InternalCore) -> InternalCore -> InternalCore -> InternalCore -> m Bool
-    interp_eq f env ty l r = do
-      ty' <- reify ty
-      l' <- reify l
-      r' <- reify r
-      norm_eq f env ty' l' r'
 
     eval_file :: Text -> s -> IO s
     eval_file filename state = do
       text <- readFile (unpack filename)
       (result, state') <- run state $ do
-        mod <- check_mod filename text
+        mod <- eval_mod interp filename text
         intern_module (mod^.module_header) mod
         pure mod
         
@@ -124,22 +93,6 @@ interactive_cli (Interpreter {..}) opts = do
         Left err -> putDocLn err
         _ -> pure ()
       pure state'
-
-    check_mod :: Text -> Text -> m InternalModule
-    check_mod filename file = do
-      parsed <- mod get_precs filename file  -- TODO: eof??
-        `catchError` (throwError . (<+>) "Parse:")
-
-      resolve_vars <- get_resolve (parsed^.module_header) (parsed^.module_imports)
-      resolved <- resolve_module
-                    (("unbound name" <+>) . pretty)
-                    (parsed^.module_header)
-                    (fmap Right resolve_vars) parsed
-        `catchError` (throwError . (<+>) "Resolution:")
-
-      env <- get_env (parsed^.module_header) (parsed^.module_imports)
-      check_module (CheckInterp interp_eval interp_eq spretty) env resolved
-        `catchError` (throwError . (<+>) "Inference:")
 
 read_command :: Text -> Command
 read_command cmd = case Megaparsec.runParser command_parser "console-in" cmd of
@@ -170,9 +123,9 @@ command_parser = do
       l <- sep anyvar (C.char '.' <* sc)
       path <- case l of 
         [] -> fail "import path must be nonempty"
-        (x:xs) -> pure (x:|xs)
+        (x:xs) -> pure (Path $ x:|xs)
       modifier <- pModifier <|> pure ImSingleton
-      pure $ Import (path, modifier)
+      pure . Import $ Im (path, modifier)
 
     pModifier :: CmdParser ImportModifier
     pModifier = 

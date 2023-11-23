@@ -5,20 +5,22 @@ module InteractiveTui
 import Prelude hiding (mod, getLine, putStr, putStrLn, readFile, null)
 
 import Control.Monad (void)
-import Control.Monad.Except (MonadError, throwError, catchError)
+import Control.Monad.Except (MonadError)
 import Control.Monad.IO.Class (liftIO)
---import Control.Lens (makeLenses, use, zoom, (^.))
---import Control.Lens.TH (zoom)
 import Lens.Micro
 import Lens.Micro.TH
 import Lens.Micro.Mtl
 import Data.Functor.Classes (liftEq)
 import Data.Foldable (find)
-import Data.Text (Text, pack)
+import Data.Text (Text, pack, unpack, strip)
+import Data.Text.IO (readFile)
+import Data.Text.Zipper (insertChar, insertMany)
 import Data.List (isPrefixOf)
 import Data.List.NonEmpty (NonEmpty((:|)))
-import Data.Text.Zipper (insertChar, insertMany)
 
+import qualified Text.Megaparsec as Megaparsec
+import Text.Megaparsec hiding (parse, runParser)
+import Text.Megaparsec.Char as C
 import qualified Graphics.Vty as V
 import qualified Brick.AttrMap as A
 import qualified Brick.Types as T
@@ -30,13 +32,13 @@ import Prettyprinter
 import Prettyprinter.Render.Sigil
 
 import Sigil.Abstract.Names
+import Sigil.Abstract.Syntax
 import Sigil.Abstract.Environment
-import Sigil.Abstract.Syntax (ImportDef)
-import Sigil.Parse
-import Sigil.Analysis.NameResolution
+import Sigil.Parse.Lexer
 import Sigil.Interpret.Interpreter
-import Sigil.Analysis.Typecheck
 import Sigil.Concrete.Internal (InternalCore)
+
+import InterpretUtils  
 
 newtype InteractiveTuiOpts = InteractiveTuiOpts
   { ifile :: Text
@@ -49,6 +51,7 @@ data InteractiveState s = InteractiveState
   , _editorState :: Editor String ID
   , _charInputState :: Maybe [Char]
   , _outputState :: String
+  , _loadedModules :: [Path]
   , _interpreterState :: s
   }
   deriving Show
@@ -58,9 +61,6 @@ data ID = Input | Module | Output
 
 $(makeLenses ''InteractiveState)
 
--- interactive_tui :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e)
---   => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> InteractiveTuiOpts -> IO ()
---interactive_tui (Interpreter {..}) opts = do ...
 
 interactive_tui :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
   Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> InteractiveTuiOpts -> IO ()
@@ -76,48 +76,22 @@ interactive_tui interpreter _ = do
         , _focus = Input
         , _editorState = editor Input Nothing ""
         , _charInputState = Nothing
-        , _outputState = "output state"
+        , _outputState = ""
+        , _loadedModules = []
         , _interpreterState = (start_state interpreter)
         }
   void $ defaultMain app initial_state
 
 
-eval_play :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> Text -> m (InternalCore, InternalCore)
-eval_play (Interpreter {..}) line = do
-  env <- get_env ("repl" :| []) []
-  precs <- get_precs ("repl" :| []) []
-  resolution <- get_resolve ("repl" :| []) []
-  parsed <- core precs "playground" line  -- TODO: eof??
-  resolved <- resolve_closed (("unbound name" <+>) . pretty) resolution parsed
-    `catchError` (throwError . (<+>) "Resolution:")
-  (term, ty) <- infer (CheckInterp interp_eval interp_eq spretty) env resolved
-    `catchError` (throwError . (<+>) "Inference:")
-  norm <- interp_eval id env ty term
-    `catchError` (throwError . (<+>) "Normalization:")
-  pure (norm, ty)
-
-  where
-    interp_eval :: (SigilDoc -> SigilDoc) -> e (Maybe InternalCore, InternalCore) -> InternalCore -> InternalCore -> m InternalCore
-    interp_eval f env ty val = do
-      ty' <- reify ty
-      val' <- reify val
-      result <- eval f env ty' val'
-      reflect result 
-  
-    interp_eq :: (SigilDoc -> SigilDoc) -> e (Maybe InternalCore, InternalCore) -> InternalCore -> InternalCore -> InternalCore -> m Bool
-    interp_eq f env ty l r = do
-      ty' <- reify ty
-      l' <- reify l
-      r' <- reify r
-      norm_eq f env ty' l' r'
-
 draw :: InteractiveState s -> [T.Widget ID]
 draw st = [joinBorders . border $ hBox
           [ vBox [(renderEditor (str . unlines) True (st^.editorState))
                  , hBorder 
+                 , str "Output:"
                  , str (st^.outputState)]
-          , vBorder, vBox (str "module repl" : map (str . show) (st^.imports))]]
+          , vBorder, vBox ([str "loaded modules"] <> map (str . ("  " <>) .  show . pretty) (st^.loadedModules)
+                           <> [hBorder]
+                            <> [str "module repl", str "  import"] <> map (str . ("    " <>) . show . pretty) (st^.imports))]]
 
 choose_cursor :: InteractiveState s -> [T.CursorLocation ID] -> Maybe (T.CursorLocation ID)
 choose_cursor st locs = find (liftEq (==) (Just $ st^.focus) . T.cursorLocationName) locs
@@ -126,17 +100,53 @@ app_handle_event :: forall m e s t ev. (MonadError SigilDoc m, MonadGen m, Envir
                     Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> T.BrickEvent ID ev -> T.EventM ID (InteractiveState s) ()
 app_handle_event interpreter = \case
   (T.VtyEvent (V.EvKey V.KEsc [])) -> halt
+
+  -- Evaluate Playground
   (T.VtyEvent (V.EvKey (V.KChar 'e') [V.MCtrl])) -> do
     istate <- use interpreterState
     editor <- use editorState
+    imp <- use imports
     let text = pack $ unlines $ getEditContents editor
-    (result, state') <- liftIO $ (run interpreter) istate (eval_play interpreter text)
+    (result, state') <- liftIO $ (run interpreter) istate (eval_expr interpreter imp text)
     interpreterState .= state'
     case result of
       Right (val, ty) -> do
         outputState .= (show $ vsep [ "val:" <+> nest 2 (pretty val)
                                    , "type:" <+> nest 2 (pretty ty) ])
       Left err -> outputState .= show err
+
+  -- Load File
+  (T.VtyEvent (V.EvKey (V.KChar 'f') [V.MCtrl])) -> do
+    istate <- use interpreterState
+    editor <- use editorState
+    let filename = strip . pack . unlines $ getEditContents editor 
+    text <- liftIO $ readFile (unpack filename)
+    (result, istate') <- liftIO $ (run interpreter) istate $ do
+      mod <- eval_mod interpreter filename text
+      (intern_module interpreter) (mod^.module_header) mod
+      pure mod
+    case result of
+      Left err -> do
+        interpreterState .= istate'
+        outputState .= show err
+      _ -> do 
+        (modules, istate'') <- liftIO $ (run interpreter) istate' $ (get_modules interpreter)
+        interpreterState .= istate''
+        case modules of
+          Left err -> outputState %= (<> ("\n" <> show err)) -- TODO: change!!
+          Right val -> loadedModules .= val
+
+  -- Do Import
+  (T.VtyEvent (V.EvKey (V.KChar 'b') [V.MCtrl])) -> do
+    editor <- use editorState
+    let import_statement = strip . pack . unlines $ getEditContents editor
+    case Megaparsec.runParser pImport "import" import_statement of
+      Left _ -> outputState .= "import parser failure"
+      Right val -> imports %= (val :)
+    
+  -- Do definition
+  -- (T.VtyEvent (V.EvKey (V.KChar 'd') [V.MCtrl])) -> do
+
   ev -> do
     f <- use focus
     case f of 
@@ -167,14 +177,62 @@ char_update c cs = case filter (isPrefixOf (cs <> [c]) . fst) unicode_input_map 
   
 unicode_input_map :: [([Char], Char)]
 unicode_input_map =
-  [ ("sU", '𝕌')
+  [ ("sA", '𝔸')
+  , ("sN", 'ℕ')
+  , ("sU", '𝕌')
+  , ("sZ", 'ℤ')
+
+  , ("_0", '₀')
+  , ("_1", '₁')
+  , ("_2", '₂')
+  , ("_3", '₃')
+  , ("_4", '₄')
+  , ("_5", '₅')
+  , ("_6", '₆')
+  , ("_7", '₇')
+  , ("_8", '₈')
+  , ("_9", '₉')
+
+  , ("A" , '⍝')
+  , ("e|", '⋳')
+  , ("|e", '⋻')
+
+  , ("to", '→')
+  , ("fm", '←')
+  , ("up", '↑')
+  , ("dn", '↓')
 
   , ("le", '⮜')
   , ("de", '≜')
-  , ("to", '→')
+  , ("rc", 'ᛉ')
+  , ("rr", 'ᛯ')
+  , ("ri", 'ᛣ')
+
+  , ("ga", 'α')
   , ("gl", 'λ')
   , ("gm", 'μ')
   , ("gf", 'φ')
   , ("gn", 'ν')
   , ("gc", 'ψ')
+
   ]
+
+type TParser = Parsec Text Text
+
+pImport :: TParser ImportDef
+pImport = do
+  let
+    sep :: TParser a -> TParser b -> TParser [a]
+    sep p separator = ((: []) <$> p <|> pure []) >>= \v ->
+        (v <> ) <$> many (try (separator *> p))
+
+  l <- sep anyvar (C.char '.' <* sc)
+  path <- case l of 
+    [] -> fail "import path must be nonempty"
+    (x:xs) -> pure (Path $ x:|xs)
+  modifier <- pModifier <|> pure ImSingleton
+  pure $ Im (path, modifier)
+
+pModifier :: TParser ImportModifier
+pModifier = 
+  const ImWildcard <$> (lexeme (C.char '.') *> symbol "(..)")

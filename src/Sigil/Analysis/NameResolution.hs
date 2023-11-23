@@ -112,20 +112,20 @@ instance ResolveTo ParsedCore ResolvedCore where
         pure $ (vars'', ((OptBind (n, a'), val') : tel'))
 
 
-resolve_entry :: (MonadGen m, MonadError err m) => (Text -> err) -> Path Text -> Map Text (Either Integer QualName) -> ParsedEntry -> m ResolvedEntry
+resolve_entry :: (MonadGen m, MonadError err m) => (Text -> err) -> Path -> Map Text (Either Integer QualName) -> ParsedEntry -> m ResolvedEntry
 resolve_entry lift_err path vars entry = case entry of
   Singleχ rn (OptBind (t,a)) val -> do
-    let qn = (path <>) . (:| []) <$> t
-        n = Name . Left <$> qn
+    let qn = (path <>) . Path . (:| []) <$> t
+        n = Name . Left . unPath <$> qn
         vars' = case (t, qn) of
-          (Just tx, Just nm) -> insert tx (Right nm) vars
+          (Just tx, Just nm) -> insert tx (Right $ unPath nm) vars
           _ -> vars
     a' <- mapM (resolve lift_err vars) a
     val' <- resolve lift_err vars' val
     pure $ Singleχ rn (OptBind (n, a')) val'
 
 -- TODO: interface with environment somehow? (based on imports/exports)
-resolve_module :: (MonadGen m, MonadError err m) => (Text -> err) -> Path Text -> Map Text (Either Integer QualName) -> ParsedModule -> m ResolvedModule
+resolve_module :: (MonadGen m, MonadError err m) => (Text -> err) -> Path -> Map Text (Either Integer QualName) -> ParsedModule -> m ResolvedModule
 resolve_module lift_err path vars modul = do
   entries' <- resolve_entries vars (modul^.module_entries)
   pure $ (module_entries .~ entries') modul

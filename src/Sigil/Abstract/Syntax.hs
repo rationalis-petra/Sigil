@@ -5,11 +5,10 @@ module Sigil.Abstract.Syntax
   , Entry(..)
   , ImportModifier(..)
   , ExportModifier(..)
-  , ImportDef
-  , ExportDef
+  , ImportDef(..)
+  , ExportDef(..)
   , Pattern(..)
   , Case
-  -- , Clause(..)
   , Forallχ
   , Coreχ
   , Varχ
@@ -52,7 +51,6 @@ import Prelude hiding (lookup, length)
 import Control.Lens (makeLenses, (^.))
 import Data.Kind
 import Data.List (intersperse)
-import Data.List.NonEmpty (NonEmpty)
 import Data.Set (Set)
 import Data.Foldable
 import Data.Text hiding (zipWith, foldl', tail, head, intersperse, map)
@@ -173,7 +171,7 @@ type Forallχ (φ :: Type -> Constraint) χ
 
 
 data Module b v χ  
-  = Module { _module_header :: Path Text
+  = Module { _module_header :: Path
            , _module_imports :: [ImportDef]
            , _module_exports :: [ExportDef]
            , _module_entries :: [Entry b v χ]
@@ -195,9 +193,11 @@ data ExportModifier
   | ExSingleton
   deriving (Ord, Eq, Show)
 
-type ImportDef = (NonEmpty Text, ImportModifier)
+newtype ImportDef = Im { unImport :: (Path, ImportModifier) }
+  deriving (Eq, Ord, Show)
 
-type ExportDef = (NonEmpty Text, ExportModifier)
+newtype ExportDef = Ex { unEexport :: (Path, ExportModifier) }
+  deriving (Eq, Ord, Show)
 
 -- TODO: add fields!
 data Entry b n χ
@@ -384,5 +384,20 @@ pretty_mod_builder :: (Entry b n χ -> Doc ann) -> Module b n χ -> Doc ann
 pretty_mod_builder pretty_entry m =
   -- TOOD: account for imports/exports
   vsep $
-    ("module" <+> (foldl' (<>) "" . zipWith (<>) ("" : repeat ".") . fmap pretty . toList $ (m^.module_header)))
+    ("module" <+> (foldl' (<>) "" . zipWith (<>) ("" : repeat ".") . fmap pretty . toList . unPath $ (m^.module_header)))
     : emptyDoc : intersperse emptyDoc (fmap (align . pretty_entry) (m^.module_entries))
+
+instance Pretty ImportDef where
+  pretty (Im (path, mod)) = pretty path <> case mod of
+    ImWildcard -> ".(..)"
+    ImSingleton -> ""
+    ImAlias fm to -> "" <+> pretty fm <+> "→" <+> pretty to
+    ImExcept set -> " \\" <+> (sep . fmap pretty . toList $ set)
+    ImGroup set -> " (." <> (sep . fmap pretty . toList $ set) <> ")"
+  
+instance Pretty ExportDef where
+  pretty (Ex (path, mod)) = pretty path <> case mod of
+    ExWildcard -> ".(..)"
+    ExAsType -> "astype??" -- TODO what did I mean??
+    ExSeal -> "↓"
+    ExSingleton -> ""

@@ -3,6 +3,4 @@ module Sigil.Interpret.Image
 
 
 
--- The World Datatype contains a tree of modules.
--- 
 
