@@ -40,9 +40,7 @@ import Sigil.Concrete.Internal (InternalCore)
 
 import InterpretUtils  
 
-newtype InteractiveTuiOpts = InteractiveTuiOpts
-  { ifile :: Text
-  }
+data InteractiveTuiOpts = InteractiveTuiOpts
   deriving (Show, Read, Eq)
 
 data InteractiveState s = InteractiveState

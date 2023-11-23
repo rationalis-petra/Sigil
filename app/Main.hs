@@ -38,17 +38,12 @@ interactive_cli_opts = do
 
 interactive_tui_opts :: Parser (InteractiveTuiOpts, Backend)
 interactive_tui_opts = do
-  file <- strOption
-    ( long "file"
-    <> short 'f'
-    <> value ""
-    <> help "Specify what file to run (if any)" )
   backend <- option auto
     ( long "backend"
     <> short 'b'
     <> showDefault
     <> value Native )
-  pure (InteractiveTuiOpts file, backend)
+  pure (InteractiveTuiOpts, backend)
 
 data CompileOpts = CompileOpts
   { cfile :: String
