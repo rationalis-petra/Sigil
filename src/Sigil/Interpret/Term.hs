@@ -112,13 +112,15 @@ read_nf :: forall err ann m. (MonadError err m, MonadGen m, ?lift_err :: Doc ann
 read_nf (Normal ty val) = case (ty, val) of 
   -- Values
   (SPrd name a b, f) -> do
-    let neua :: Sem m
-        neua = Neutral a $ NeuVar name
-    
-        lvl = uni_level a
+    let
+      fnc_name = (maybe name id (get_name f))
+      neua = Neutral a $ NeuVar name
+      neuvar = Neutral a $ NeuVar fnc_name
+      lvl = uni_level a
+
     a' <- read_nf $ Normal (SUni lvl) a
-    f' <- read_nf =<< (Normal <$> (b `app` neua) <*> (f `app` neua))
-    pure $ Abs (bind name a') f'
+    f' <- read_nf =<< (Normal <$> (b `app` neua) <*> (f `app` neuvar))
+    pure $ Abs (bind fnc_name a') f'
 
   -- TODO: figure out what to do with SEql telescope?!
   -- Possibly it is guaranteed to be empty, as SDap is a telescope??
@@ -483,6 +485,12 @@ uni_level sem = case sem of
 throw :: (MonadError err m, ?lift_err :: Doc ann -> err) => Doc ann -> m a
 throw doc = throwError $ ?lift_err doc
 
+get_name :: Sem m -> Maybe Name  
+get_name = \case  
+  SPrd nm _ _ -> Just nm
+  SAbs nm _ -> Just nm
+  _ -> Nothing
+
 {-------------------------------- MISC INSTANCES -------------------------------}
 {-                                                                             -}
 {-                                                                             -}
@@ -536,8 +544,6 @@ instance Pretty (Neutral m) where
            , nest 2 "..."
            ] 
         
-
-
 instance Pretty (Normal m) where
   pretty (Normal _ val) = pretty val
 

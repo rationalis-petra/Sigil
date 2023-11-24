@@ -108,7 +108,7 @@ draw st =
       palette = centerLayer
         $ border
         $ hLimit 60
-        $ vLimit 2
+        $ vLimit 1
         $ renderEditor (str . unlines) (st^.focus == Palette) (st^.paletteState)
   in case (st^.focus) of 
     Palette -> [palette, main_panel] -- (palette : main_panel)
