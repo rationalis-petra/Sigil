@@ -4,6 +4,7 @@ module InteractiveTui
 
 import Prelude hiding (mod, getLine, putStr, putStrLn, readFile, null)
 
+import qualified Control.Exception as Exception
 import Control.Monad (void)
 import Control.Monad.Except (MonadError)
 import Control.Monad.IO.Class (liftIO)
@@ -17,6 +18,7 @@ import Data.Text.IO (readFile)
 import Data.Text.Zipper (insertChar, insertMany, clearZipper)
 import Data.List (isPrefixOf)
 import Data.List.NonEmpty (NonEmpty((:|)))
+import System.IO.Error (isDoesNotExistError)
 
 import qualified Text.Megaparsec as Megaparsec
 import Text.Megaparsec hiding (parse, runParser)
@@ -165,21 +167,27 @@ handle_editor_event interpreter ev = case ev of
     paletteAction .= (\filename -> do
       focus .= Input
       istate <- use interpreterState
-      text <- liftIO $ readFile (unpack filename)
-      (result, istate') <- liftIO $ (run interpreter) istate $ do
-        mod <- eval_mod interpreter filename text
-        (intern_module interpreter) (mod^.module_header) mod
-        pure mod
-      case result of
-        Left err -> do
-          interpreterState .= istate'
-          outputState .= show err
-        _ -> do 
-          (modules, istate'') <- liftIO $ (run interpreter) istate' $ (get_modules interpreter)
-          interpreterState .= istate''
-          case modules of
-            Left err -> outputState %= (<> ("\n" <> show err)) -- TODO: change!!
-            Right val -> loadedModules .= val)
+      out <- liftIO $ (Right <$> readFile (unpack filename)) `Exception.catch` (pure . Left)
+      case out of 
+        Right text -> do
+          (result, istate') <- liftIO $ (run interpreter) istate $ do
+            mod <- eval_mod interpreter filename text
+            (intern_module interpreter) (mod^.module_header) mod
+            pure mod
+          case result of
+            Left err -> do
+              interpreterState .= istate'
+              outputState .= show err
+            _ -> do 
+              (modules, istate'') <- liftIO $ (run interpreter) istate' $ (get_modules interpreter)
+              interpreterState .= istate''
+              case modules of
+                Left err -> outputState %= (<> ("\n" <> show err)) -- TODO: change!!
+                Right val -> loadedModules .= val
+        Left e
+          | isDoesNotExistError e -> outputState .= ("file does not exist: " <> unpack filename)
+          | otherwise -> outputState .= "something went wrong reading file")
+                                     
     
 
   -- Do Import
