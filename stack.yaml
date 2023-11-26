@@ -21,6 +21,7 @@ extra-deps:
   - vty-6.1
   - terminfo-0.4.1.6
 
+  # vty-crossplatform???
   ## windows specific
   # - vty-windows-0.2.0.0
   # - unix-2.8.2.0

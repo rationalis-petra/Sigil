@@ -22,7 +22,7 @@ import Control.Monad
 import Control.Monad.Except (MonadError, throwError, catchError)
 
 
-{------------------------------ BACKTRACKING MONAD -----------------------------}
+{-------------------------- BACKTRACKING COMPUTATION ---------------------------}
 
 
 data Backtrack e a  
