@@ -7,7 +7,6 @@ import Control.Monad.Except (MonadError, throwError, catchError)
 import Control.Lens ((^.))
 
 import Data.Text (Text)
-import Data.List.NonEmpty(NonEmpty(..))
   
 import Prettyprinter
 import Prettyprinter.Render.Sigil
@@ -22,11 +21,11 @@ import Sigil.Analysis.NameResolution
 import Sigil.Concrete.Internal (InternalCore, InternalModule)
 
 eval_expr :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> [ImportDef] -> Text -> m (InternalCore, InternalCore)
-eval_expr i@(Interpreter {..}) imports line = do
-  env <- get_env (Path $ "repl" :| []) imports
-  precs <- get_precs (Path $ "repl" :| []) imports
-  resolution <- get_resolve (Path $ "repl" :| []) imports
+  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> Text -> [ImportDef] -> Text -> m (InternalCore, InternalCore)
+eval_expr i@(Interpreter {..}) package_name imports line = do
+  env <- get_env package_name imports
+  precs <- get_precs package_name imports
+  resolution <- get_resolve package_name imports
   parsed <- core precs "playground" line  -- TODO: eof??
   resolved <- resolve_closed (("unbound name" <+>) . pretty) resolution parsed
     `catchError` (throwError . (<+>) "Resolution:")
@@ -37,19 +36,19 @@ eval_expr i@(Interpreter {..}) imports line = do
   pure (norm, ty)
 
 eval_mod :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> Text -> Text -> m InternalModule
-eval_mod i@(Interpreter {..}) modulename modul = do
-  parsed <- mod get_precs modulename modul -- TODO: eof??
+  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> Text -> Text -> Text -> m InternalModule
+eval_mod i@(Interpreter {..}) package_name modulename modul = do
+  parsed <- mod (get_precs package_name) modulename modul -- TODO: eof??
     `catchError` (throwError . (<+>) "Parse:")
 
-  resolve_vars <- get_resolve (parsed^.module_header) (parsed^.module_imports)
+  resolve_vars <- get_resolve package_name (parsed^.module_imports)
   resolved <- resolve_module
                (("unbound name" <+>) . pretty)
                (parsed^.module_header)
                (fmap Right resolve_vars) parsed
     `catchError` (throwError . (<+>) "Resolution:")
 
-  env <- get_env (parsed^.module_header) (parsed^.module_imports)
+  env <- get_env package_name (parsed^.module_imports)
   check_module (CheckInterp (interp_eval i) (interp_eq i) spretty) env resolved
     `catchError` (throwError . (<+>) "Inference:")
 

@@ -18,6 +18,7 @@ import Data.Text.IO (readFile)
 import Data.Text.Zipper (insertChar, insertMany, clearZipper)
 import Data.List (isPrefixOf)
 import Data.List.NonEmpty (NonEmpty((:|)))
+import qualified Data.Map as Map
 import System.IO.Error (isDoesNotExistError)
 
 import qualified Text.Megaparsec as Megaparsec
@@ -61,13 +62,13 @@ data InteractiveState s = InteractiveState
 
   -- session
   , _loadedModules :: [Path]
-  , _imports :: [ImportDef]
+  , _location :: (Text, [ImportDef])
 
   -- interpreter
   , _interpreterState :: s
   }
 
-data ID = Input | Module | Output | Palette
+data ID = Input | Navigation | Output | Palette
   deriving (Ord, Show, Eq)
 
 $(makeLenses ''InteractiveState)
@@ -79,11 +80,21 @@ interactive_tui interpreter _ = do
   let app = App { appDraw = draw
                 , appChooseCursor  = choose_cursor
                 , appHandleEvent = app_handle_event interpreter
-                , appStartEvent = return ()
+                , appStartEvent = do
+                    istate <- use interpreterState
+                    (merr, state')  <- liftIO $ (run interpreter) istate $ 
+                      (intern_package interpreter)
+                      "sigil-user" (Package
+                                    (PackageHeader "sigil-user" [] (0,0,0))
+                                    (MTree Map.empty))
+                    case merr of
+                      Right _ -> pure ()
+                      Left err -> outputState .= show ("error in initialization:" <+> err)
+                    interpreterState .= state'
                 , appAttrMap = const (A.attrMap V.defAttr [])
                 }
       initial_state = InteractiveState
-        { _imports = []
+        { _location = ("sigil-user", [])
         , _focus = Input
         , _editorState = editor Input Nothing ""
         , _charInputState = Nothing
@@ -104,9 +115,11 @@ draw st =
                  , hBorder 
                  , str "Output:"
                  , str (st^.outputState)]
-          , vBorder, vBox ([str "loaded modules"] <> map (str . ("  " <>) .  show . pretty) (st^.loadedModules)
+          , vBorder, vBox ([str ("package " <> unpack (st^.(location._1)))]
                            <> [hBorder]
-                           <> [str "module repl", str "  import"] <> map (str . ("    " <>) . show . pretty) (st^.imports))]
+                           <> [str "loaded modules"] <> map (str . ("  " <>) .  show . pretty) (st^.loadedModules)
+                           <> [hBorder]
+                           <> [str "imports"] <> map (str . ("  " <>) . show . pretty) (st^.location._2))]
       palette = centerLayer
         $ border
         $ hLimit 60
@@ -151,9 +164,9 @@ handle_editor_event interpreter ev = case ev of
   (T.VtyEvent (V.EvKey (V.KChar 'e') [V.MCtrl])) -> do
     istate <- use interpreterState
     editor <- use editorState
-    imp <- use imports
+    (pname, imports) <- use location
     let text = pack $ unlines $ getEditContents editor
-    (result, state') <- liftIO $ (run interpreter) istate (eval_expr interpreter imp text)
+    (result, state') <- liftIO $ (run interpreter) istate (eval_expr interpreter pname imports text)
     interpreterState .= state'
     case result of
       Right (val, ty) -> do
@@ -167,19 +180,20 @@ handle_editor_event interpreter ev = case ev of
     paletteAction .= (\filename -> do
       focus .= Input
       istate <- use interpreterState
+      pkg_name <- use (location._1)
       out <- liftIO $ (Right <$> readFile (unpack filename)) `Exception.catch` (pure . Left)
       case out of 
         Right text -> do
           (result, istate') <- liftIO $ (run interpreter) istate $ do
-            mod <- eval_mod interpreter filename text
-            (intern_module interpreter) (mod^.module_header) mod
+            mod <- eval_mod interpreter pkg_name filename text
+            (intern_module interpreter) pkg_name (mod^.module_header) mod
             pure mod
           case result of
             Left err -> do
               interpreterState .= istate'
               outputState .= show err
             _ -> do 
-              (modules, istate'') <- liftIO $ (run interpreter) istate' $ (get_modules interpreter)
+              (modules, istate'') <- liftIO $ (run interpreter) istate' $ (get_available_modules interpreter) pkg_name 
               interpreterState .= istate''
               case modules of
                 Left err -> outputState %= (<> ("\n" <> show err)) -- TODO: change!!
@@ -197,7 +211,7 @@ handle_editor_event interpreter ev = case ev of
       focus .= Input
       case Megaparsec.runParser pImport "import" import_statement of
         Left _ -> outputState .= "import parser failure"
-        Right val -> imports %= (val :))
+        Right val -> (location._2) %= (val :))
 
   (T.VtyEvent (V.EvKey (V.KChar c) [])) -> do 
     char_st <- use charInputState

@@ -33,7 +33,7 @@ import Prettyprinter.Render.Sigil (SigilDoc)
 import Prettyprinter hiding (lparen, rparen)
 
 import Sigil.Abstract.Syntax
-import Sigil.Abstract.Names (Path, OptBind(..), name)
+import Sigil.Abstract.Names (OptBind(..), name)
 import Sigil.Concrete.Decorations.Range
 import Sigil.Concrete.Parsed
 
@@ -44,7 +44,7 @@ import Sigil.Parse.Outer
 import Sigil.Parse.Mixfix
 
 
-mod :: MonadError SigilDoc m => (Path -> [ImportDef] -> m Precedences)
+mod :: MonadError SigilDoc m => ([ImportDef] -> m Precedences)
   -> Text -> Text -> m ParsedModule
 mod get_precs filename input = do
   raw_mod <- parse syn_mod filename input
@@ -71,9 +71,9 @@ update_precs_def precs def =
 {-                                                                             -}
 {-------------------------------------------------------------------------------}      
 
-mix_mod :: MonadError SigilDoc m => (Path -> [ImportDef] -> m Precedences) -> SynModule -> m ParsedModule
+mix_mod :: MonadError SigilDoc m => ([ImportDef] -> m Precedences) -> SynModule -> m ParsedModule
 mix_mod get_precs (RModule title imports exports entries) = do
-  precs <- get_precs title imports
+  precs <- get_precs imports
   body <- let go precs = \case
                 [] -> pure []
                 (entry : entries) -> do

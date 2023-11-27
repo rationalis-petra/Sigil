@@ -28,9 +28,8 @@ import Data.Map (Map)
 import Prettyprinter.Render.Sigil
 
 import Sigil.Abstract.Names
-import Sigil.Abstract.Environment
 import Sigil.Analysis.Typecheck
-import Sigil.Abstract.Syntax (ImportDef)
+import Sigil.Abstract.Syntax (ImportDef, MTree)
 import Sigil.Parse.Mixfix (Precedences)
 import Sigil.Concrete.Internal
 
@@ -38,7 +37,7 @@ import Sigil.Concrete.Internal
 {---------------------------------- INTERFACE ----------------------------------}
 
 
-data Image a = Image (World a) (Restarts a)
+data Image a = Image (MTree a) (Restarts a)
 
 type Restarts a = [IO a]
 
@@ -51,6 +50,7 @@ data Interpreter m err env s t = Interpreter
   { reify :: InternalCore -> m t
   , reflect :: t -> m InternalCore
 
+  {--------------------- Term Queries and Transformations ----------------------}
   -- Evaluate a term t in the environment e
   , eval :: (err -> err) -> env -> t -> t -> m t
   -- Return true if two terms are canonically equal, false otherwise 
@@ -58,17 +58,28 @@ data Interpreter m err env s t = Interpreter
   -- Higher Order Unification algorithm implementation
   -- , solve_formula :: e -> Formula t -> m (Substitution t)
 
-  -- environment manipulation
-  -- load a module into the interpreter's state
-  , intern_module :: Path -> InternalModule -> m ()
+  {------------------------- Environment Manipulation --------------------------}
+  -- Load a module into the interpreter's state
+  , intern_module :: Text -> Path -> InternalModule -> m ()
+  , intern_package :: Text -> InternalPackage -> m ()
 
-  -- get the initial environment/precedences for a given module (path) with a
-  -- set of imports
-  , get_env :: Path -> [ImportDef] -> m env
-  , get_precs :: Path -> [ImportDef] -> m Precedences
-  , get_resolve :: Path -> [ImportDef] -> m (Map Text QualName)
-  , get_modules :: m [Path]
+  {---------------------------- Environment Queries ----------------------------}
+  -- Get the initial environment/precedences for a given package with a
+  -- set of imports.
+  , get_env :: Text -> [ImportDef] -> m env
+  , get_precs :: Text -> [ImportDef] -> m Precedences
+  , get_resolve :: Text -> [ImportDef] -> m (Map Text QualName)
 
+  -- As above, but in the context of a specific module, rather than a package + imports.
+  , get_module_env :: Text -> Path -> m env
+  , get_module_precs :: Text -> Path -> m Precedences
+  , get_module_resolve :: Text -> Path -> m (Map Text QualName)
+
+  -- Get all module paths in a package (does not include imported modules)
+  , get_available_modules :: Text -> m [Path]
+  , get_available_packages :: m [Text]
+
+  {------------------------------ Using the Monad ------------------------------}
   -- The Monad m
   , run :: forall a. s -> m a -> IO (Either err a, s)
 
@@ -76,6 +87,7 @@ data Interpreter m err env s t = Interpreter
   , start_state :: s
   , stop :: m ()
 
+  {---------------------------------- Images -----------------------------------}
   -- Producing/Loading an image 
   , from_image :: Image InternalCore -> m ()
   , to_image :: m (Image InternalCore)

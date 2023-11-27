@@ -1,13 +1,16 @@
 module Sigil.Abstract.Syntax
   ( Core(..)
-  , Tel
-  , Module(..)
   , Entry(..)
+  , Module(..)
+  , Package(..)
+  , PackageHeader(..)
+  , MTree(..)
   , ImportModifier(..)
   , ExportModifier(..)
   , ImportDef(..)
   , ExportDef(..)
   , Pattern(..)
+  , Tel
   , Case
   , Forallχ
   , Coreχ
@@ -25,6 +28,9 @@ module Sigil.Abstract.Syntax
   , Singleχ
 
   -- Lenses
+  , package_header
+  , package_modules
+  
   , module_header
   , module_imports
   , module_exports
@@ -39,9 +45,9 @@ module Sigil.Abstract.Syntax
 
 {----------------------------------- SYNTAX ------------------------------------}
 {- This file contains definitions relating to the syntax                       -}
-{- • Core   : The type of the core calculus                                    -}
-{- • Module : The type of file-level modules.                                  -}
-{- • Clause : Type of Seuth clauses                                            -}
+{- • Core    : The type of the core calculus.                                  -}
+{- • Module  : The type of file-level modules.                                 -}
+{- • Package : The type of packages, collections of modules.                   -}
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
@@ -51,8 +57,10 @@ import Prelude hiding (lookup, length)
 import Control.Lens (makeLenses, (^.))
 import Data.Kind
 import Data.List (intersperse)
+import Data.Map (Map)
 import Data.Set (Set)
 import Data.Foldable
+import Data.Bifunctor (bimap) 
 import Data.Text hiding (zipWith, foldl', tail, head, intersperse, map)
 
 import Prettyprinter
@@ -99,7 +107,7 @@ data Core b n χ
   | Absχ (Absχ χ) (b n (Core b n χ)) (Core b n χ)
   | Appχ (Appχ χ) (Core b n χ) (Core b n χ)
 
-  -- Heterogeneous Univalent identity type & Dependent Lifting of Identity Terms
+  -- Identity, Dependent Ap, Symmetry
   | Eqlχ (Eqlχ χ) (Tel b n (Core b n χ)) (Core b n χ) (Core b n χ) (Core b n χ)
   | Dapχ (Dapχ χ) (Tel b n (Core b n χ)) (Core b n χ)
 
@@ -145,6 +153,28 @@ type Forallχ (φ :: Type -> Constraint) χ
     , φ (Dapχ χ)
     )
 
+{--------------------------------- PACKAGE TYPE ----------------------------------}
+{-                                                                                -}
+{- •                                                                              -}
+{---------------------------------------------------------------------------------}
+
+data PackageHeader = PackageHeader
+  { _name :: Text
+  , _provides :: [Text]
+  , _version :: (Int, Int, Int)
+  -- , _options :: Options (optimization/debuggng etc.)
+  }
+
+data Package m = Package { _package_header :: PackageHeader
+                         , _package_modules :: (MTree m)
+                         }
+
+newtype MTree m = MTree (Map Text (Maybe m, Maybe (MTree m)))
+
+$(makeLenses ''Package)
+
+instance Functor MTree where
+  fmap f (MTree wmap) = MTree $ fmap (bimap (fmap f) (fmap (fmap f))) wmap
 
 {---------------------------------- MODULE TYPE ----------------------------------}
 {-                                                                               -}
@@ -168,7 +198,6 @@ type Forallχ (φ :: Type -> Constraint) χ
 {-     of the given type).                                                       -}
 {-                                                                               -}
 {---------------------------------------------------------------------------------}
-
 
 data Module b v χ  
   = Module { _module_header :: Path
@@ -362,23 +391,12 @@ pretty_core_builder pretty_name pretty_coreχ c =
         unwind (Appχ _ l r) = unwind l <> [r]
         unwind t = [t]
 
-
--- pretty_bind_builder :: 
---   (Core b n χ -> Doc ann)
---   -> (n -> Doc ann)
---   -> (Coreχ b n χ -> Doc ann)
---   -> Bool
---   -> b n (Core b n χ)
---   -> Doc ann
--- pretty_bind_builder pretty_core pretty_name pretty_core isFnc entry = 
-
 pretty_entry_builder :: (b n (Core b n χ) -> Maybe n) -> (n -> Doc ann) -> (b n (Core b n χ) -> Doc ann) -> (Core b n χ -> Doc ann) -> Entry b n χ -> Doc ann
 pretty_entry_builder name pretty_name pretty_bind pretty_core entry =
   case entry of
     (Singleχ _ bind val) ->
       vsep [ pretty_bind bind
            , maybe "_" pretty_name (name bind) <+> "≜" <+> align (pretty_core val) ]
-
 
 pretty_mod_builder :: (Entry b n χ -> Doc ann) -> Module b n χ -> Doc ann
 pretty_mod_builder pretty_entry m =

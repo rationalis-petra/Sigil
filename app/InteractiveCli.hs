@@ -7,7 +7,7 @@ import Prelude hiding (mod, getLine, putStr, putStrLn, readFile, null)
 
 import Control.Monad (void)
 import Control.Monad.Except (MonadError)
-import Control.Lens (makeLenses, (^.), (%~))
+import Control.Lens (makeLenses, (^.), (%~), _1, _2)
 import Data.List.NonEmpty
 import Data.Text (Text, unpack, null)
 import Data.Text.IO
@@ -35,7 +35,7 @@ newtype InteractiveCliOpts = InteractiveCliOpts
 
 
 newtype InteractiveState = InteractiveState
-  { _imports :: [ImportDef]
+  { _location :: (Text, [ImportDef])
   }
   deriving (Show, Eq)
 
@@ -51,8 +51,8 @@ data Command
 interactive_cli :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e)
   => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> InteractiveCliOpts -> IO ()
 interactive_cli interp@(Interpreter {..}) opts = do
-    s <- if not (null (ifile opts)) then eval_file (ifile opts) start_state else pure start_state
-    loop s (InteractiveState [])
+    s <- if not (null (ifile opts)) then eval_file "sigil-user" (ifile opts) start_state else pure start_state
+    loop s (InteractiveState ("sigil-user", []))
   where
     loop :: s -> InteractiveState -> IO ()
     loop state istate =  do
@@ -61,7 +61,8 @@ interactive_cli interp@(Interpreter {..}) opts = do
       line <- getLine
       case read_command line of  
         Eval line -> do
-          (result, state') <- run state $ eval_expr interp (istate^.imports) line 
+          (result, state') <-
+            run state $ eval_expr interp (istate^.location._1) (istate^.location._2) line 
           case result of
             Right (val, ty) -> do
               putDocLn $ "val:" <+> nest 2 (pretty val)
@@ -70,10 +71,10 @@ interactive_cli interp@(Interpreter {..}) opts = do
           loop state' istate
 
         Load filename -> do 
-          state' <- eval_file filename state
+          state' <- eval_file (istate^.location._1) filename state
           loop state' istate
           
-        Import def -> loop state ((imports %~ (def :)) istate)
+        Import def -> loop state ((location._2 %~ (def :)) istate)
 
         Quit -> void $ run state stop
 
@@ -81,12 +82,12 @@ interactive_cli interp@(Interpreter {..}) opts = do
           putDocLn $ "Malformed command: " <+> err
           loop state istate
 
-    eval_file :: Text -> s -> IO s
-    eval_file filename state = do
+    eval_file :: Text ->Text -> s -> IO s
+    eval_file package_name filename state = do
       text <- readFile (unpack filename)
       (result, state') <- run state $ do
-        mod <- eval_mod interp filename text
-        intern_module (mod^.module_header) mod
+        mod <- eval_mod interp package_name filename text
+        intern_module package_name (mod^.module_header) mod
         pure mod
         
       case result of

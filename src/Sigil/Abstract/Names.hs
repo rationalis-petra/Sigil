@@ -53,7 +53,6 @@ type UniqueName = (Integer, Text)
 -- A qualified name is one which depends on the value of a toplevel definition
 type QualName = NonEmpty Text
 
--- data DBName = QDBName QualName | DeBruijn Int (Maybe Text)
 newtype Name = Name (Either QualName UniqueName)
   deriving (Eq, Ord)
 

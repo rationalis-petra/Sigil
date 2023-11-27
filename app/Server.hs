@@ -99,7 +99,7 @@ processMessage :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environmen
   => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> s -> Socket -> InMessage -> IO s
 processMessage interp@(Interpreter {..}) state socket = \case
   EvalExpr uid _ code -> do
-    (result, state') <- run state $ eval_expr interp [] code
+    (result, state') <- run state $ eval_expr interp "sigil-user" [] code
     let object = case result of
           Right (val, _) -> toJSON $ OutResult uid (renderStrict (layoutPretty defaultLayoutOptions (pretty val)))
           Left err -> toJSON $ OutError uid (renderStrict (layoutPretty defaultLayoutOptions err))

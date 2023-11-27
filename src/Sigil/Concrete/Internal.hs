@@ -3,6 +3,7 @@ module Sigil.Concrete.Internal
   , InternalCore
   , InternalEntry
   , InternalModule
+  , InternalPackage
   , Pattern(..)
   , pattern Uni
   , pattern Var
@@ -52,6 +53,8 @@ type InternalCore = Core AnnBind Name Internal
 type InternalEntry = Entry AnnBind Name Internal
 
 type InternalModule = Module AnnBind Name Internal  
+
+type InternalPackage = Package InternalModule
 
 {-# COMPLETE Uni, Var, Prd, Abs, App, Eql, Dap, Ind, Ctr, Rec, IPrd, IAbs, TyCon #-}
 
