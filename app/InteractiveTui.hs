@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-type-defaults #-}
 module InteractiveTui
   ( InteractiveTuiOpts(..)
   , interactive_tui ) where
@@ -27,7 +28,7 @@ import Text.Megaparsec.Char as C
 import qualified Graphics.Vty as V
 import qualified Brick.AttrMap as A
 import qualified Brick.Types as T
-import Brick.Widgets.Core (joinBorders, str, hBox, vBox, hLimit, vLimit)
+import Brick.Widgets.Core (joinBorders, str, hBox, vBox, hLimit, vLimit, withAttr)
 import Brick.Widgets.Border (border, hBorder, vBorder)
 import Brick.Widgets.Center (centerLayer)
 import Brick.Widgets.Edit
@@ -38,6 +39,7 @@ import Prettyprinter.Render.Sigil
 import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
 import Sigil.Abstract.Environment
+import Sigil.Concrete.Internal (InternalModule)
 import Sigil.Parse.Lexer
 import Sigil.Interpret.Interpreter
 import Sigil.Concrete.Internal (InternalCore)
@@ -61,15 +63,27 @@ data InteractiveState s = InteractiveState
   , _paletteAction :: Text -> T.EventM ID (InteractiveState s) ()
 
   -- session
-  , _loadedModules :: [Path]
-  , _location :: (Text, [ImportDef])
+  , _loadedPackages :: [Text]
+  , _availableModules :: [Path]
+  , _location :: (Text, Maybe InternalModule, [ImportDef])
+
+  -- side panel
+  , _packageIx :: Int
+  , _moduleIx :: Int
+  , _importIx :: Int
 
   -- interpreter
   , _interpreterState :: s
   }
 
-data ID = Input | Navigation | Output | Palette
+data NavLoc = NavPackage | NavModule | NavEntry
   deriving (Ord, Show, Eq)
+  
+data ID = Input | Navigation NavLoc | Output | Palette
+  deriving (Ord, Show, Eq)
+
+data Dir = DUp | DDown | DLeft | DRight
+  deriving (Eq, Ord, Show)
 
 $(makeLenses ''InteractiveState)
 
@@ -82,25 +96,48 @@ interactive_tui interpreter _ = do
                 , appHandleEvent = app_handle_event interpreter
                 , appStartEvent = do
                     istate <- use interpreterState
-                    (merr, state')  <- liftIO $ (run interpreter) istate $ 
+                    (merr, state')  <- liftIO $ (run interpreter) istate $ do
                       (intern_package interpreter)
-                      "sigil-user" (Package
-                                    (PackageHeader "sigil-user" [] (0,0,0))
-                                    (MTree Map.empty))
+                        "sigil-user" (Package
+                                      (PackageHeader "sigil-user" [] (0,0,0))
+                                      (MTree Map.empty))
+                      packages <- get_available_packages interpreter
+                      modules <- get_available_modules interpreter "sigil-user"
+                      pure $ (packages, modules)
+                      
                     case merr of
-                      Right _ -> pure ()
+                      Right (packages, modules) -> do
+                        availableModules .= modules
+                        loadedPackages .= packages
                       Left err -> outputState .= show ("error in initialization:" <+> err)
                     interpreterState .= state'
-                , appAttrMap = const (A.attrMap V.defAttr [])
+                , appAttrMap =
+                  const (A.attrMap V.defAttr
+                         [ (A.attrName "title", V.withStyle V.defAttr V.bold)
+                         , (A.attrName "emphasis", V.withStyle V.defAttr V.italic)
+                         , (A.attrName "selected",
+                            V.withForeColor
+                             (V.withBackColor V.defAttr (V.rgbColor 197 200 198))
+                             (V.rgbColor 29 31 33))])
                 }
       initial_state = InteractiveState
-        { _location = ("sigil-user", [])
-        , _focus = Input
+        { _focus = Input
         , _editorState = editor Input Nothing ""
         , _charInputState = Nothing
+
         , _outputState = ""
-        , _loadedModules = []
+
+        -- session
+        , _location = ("sigil-user", Nothing, [])
+        , _availableModules = []
+        , _loadedPackages = []
+        , _packageIx = 0
+        , _moduleIx = 0
+        , _importIx = 0
+
         , _interpreterState = (start_state interpreter)
+
+        -- palette
         , _paletteState = editor Palette Nothing ""  
         , _paletteAction = pure . const ()
         }
@@ -113,21 +150,77 @@ draw st =
         joinBorders . border $ hBox
           [ vBox [(renderEditor (str . unlines) (st^.focus == Input) (st^.editorState))
                  , hBorder 
-                 , str "Output:"
+                 , withAttr (A.attrName "title") (str "Output")
                  , str (st^.outputState)]
-          , vBorder, vBox ([str ("package " <> unpack (st^.(location._1)))]
-                           <> [hBorder]
-                           <> [str "loaded modules"] <> map (str . ("  " <>) .  show . pretty) (st^.loadedModules)
-                           <> [hBorder]
-                           <> [str "imports"] <> map (str . ("  " <>) . show . pretty) (st^.location._2))]
+          , vBorder, module_browser]
+
+      module_browser = 
+        vBox ([withAttr (A.attrName "title") (str "Packages")]
+              <> packagesList
+              <> [hBorder]
+              <> [withAttr (A.attrName "title") (str "Modules")]
+              <> modulesList
+              <> [hBorder]
+              <> importsWidget)
+
+      packagesList =
+        if (st^.focus) == Navigation NavPackage
+        then zipWith (\s i -> (if i == st^.packageIx then withAttr (A.attrName "selected")
+                                else (if s == st^.location._1 then withAttr (A.attrName "emphasis") else id))
+                              (str . ("  " <>) .  show . pretty $ s))
+             (st^.loadedPackages) [0..]
+
+        else fmap (\s -> (if (s == st^.location._1) then withAttr (A.attrName "emphasis") else id)
+                    (str . ("  " <>) .  show . pretty $ s)) (st^.loadedPackages)
+             
+      modulesList =
+        if (st^.focus) == Navigation NavModule
+        then zipWith (\s i -> (if i == st^.moduleIx then withAttr (A.attrName "selected")
+                                else (if Just s == fmap _module_header (st^.location._2) then withAttr (A.attrName "emphasis") else id))
+                              (str . ("  " <>) .  show . pretty $ s))
+             (st^.availableModules) [0..]
+        else fmap (\s -> (if (Just s == fmap _module_header (st^.location._2)) then withAttr (A.attrName "emphasis") else id)
+                    (str . ("  " <>) .  show . pretty $ s)) (st^.availableModules)
+
+      importsWidget =
+        case (st^.location._2) of
+          Just mdle -> [str $ show $ pretty mdle]
+          Nothing -> [withAttr (A.attrName "title") (str "Imports")] <> importsList
+
+      importsList = 
+        if (st^.focus) == Navigation NavEntry
+        then zipWith (\s i -> (if i == st^.importIx then withAttr (A.attrName "selected") else id)
+                              (str . ("  " <>) .  show . pretty $ s))
+             (st^.location._3) [0..]
+        else fmap (str . ("  " <>) .  show . pretty) (st^.location._3)
+  
       palette = centerLayer
         $ border
         $ hLimit 60
         $ vLimit 1
         $ renderEditor (str . unlines) (st^.focus == Palette) (st^.paletteState)
+      
   in case (st^.focus) of 
     Palette -> [palette, main_panel] -- (palette : main_panel)
     _ -> [main_panel]
+
+change_focus :: Dir -> ID -> ID
+change_focus DUp    (Navigation loc)
+  | loc == NavPackage = Navigation NavPackage
+  | loc == NavModule  = Navigation NavPackage
+  | loc == NavEntry   = Navigation NavModule
+change_focus DDown  (Navigation loc)
+  | loc == NavPackage = Navigation NavModule
+  | loc == NavModule  = Navigation NavEntry
+  | loc == NavEntry   = Navigation NavEntry
+change_focus DLeft  (Navigation _)  = Input
+change_focus DRight Input = Navigation NavModule 
+change_focus _ v = v
+
+-- data NavLoc = NavPackage | NavModule | NavEntry
+--   deriving (Ord, Show, Eq)
+  
+-- data ID = Input | Navigation NavLoc | Output | Palette
 
 choose_cursor :: InteractiveState s -> [T.CursorLocation ID] -> Maybe (T.CursorLocation ID)
 choose_cursor st locs = find (liftEq (==) (Just $ st^.focus) . T.cursorLocationName) locs
@@ -137,15 +230,47 @@ app_handle_event :: forall m e s t ev. (MonadError SigilDoc m, MonadGen m, Envir
 app_handle_event interpreter = \case
   (T.VtyEvent (V.EvKey V.KEsc [])) -> halt
 
-  -- Do definition
-  -- (T.VtyEvent (V.EvKey (V.KChar 'd') [V.MCtrl])) -> do
+  (T.VtyEvent (V.EvKey V.KUp    [V.MCtrl])) -> focus %= change_focus DUp
+  (T.VtyEvent (V.EvKey V.KDown  [V.MCtrl])) -> focus %= change_focus DDown
+  (T.VtyEvent (V.EvKey V.KLeft  [V.MCtrl])) -> focus %= change_focus DLeft
+  (T.VtyEvent (V.EvKey V.KRight [V.MCtrl])) -> focus %= change_focus DRight
 
   ev -> do
     f <- use focus
     case f of 
       Input -> handle_editor_event interpreter ev
       Palette -> handle_palette_event ev
+      Navigation loc -> handle_nav_event loc ev
       _ -> pure ()
+
+handle_nav_event :: NavLoc -> T.BrickEvent ID e -> T.EventM ID (InteractiveState s) ()
+handle_nav_event loc ev =
+  let ix :: Lens' (InteractiveState s) Int
+      ix = case loc of   
+        NavPackage -> packageIx
+        NavModule ->  moduleIx
+        NavEntry ->   importIx
+      inc = do
+        upper <- case loc of 
+          NavPackage -> length <$> use loadedPackages
+          NavModule -> length <$> use availableModules
+          NavEntry -> length <$> use (location._3)
+        ix %= min upper . (+ 1)
+      dec = ix %= max 0 . (\x -> x - 1)
+
+      del = do
+        ixval <- use ix
+        case loc of 
+          NavPackage -> pure () -- TODO: add action
+          NavModule -> pure () -- TODO: add action
+          NavEntry ->
+            (location._3) %= fmap snd . filter ((/= ixval) . fst) . zip [0..]
+
+  in case ev of
+    (T.VtyEvent (V.EvKey (V.KUp)       [])) -> dec
+    (T.VtyEvent (V.EvKey (V.KDown)     [])) -> inc 
+    (T.VtyEvent (V.EvKey (V.KChar 'd') [])) -> del
+    _ -> pure ()
 
 handle_palette_event :: T.BrickEvent ID e -> T.EventM ID (InteractiveState s) ()
 handle_palette_event ev = case ev of 
@@ -164,7 +289,7 @@ handle_editor_event interpreter ev = case ev of
   (T.VtyEvent (V.EvKey (V.KChar 'e') [V.MCtrl])) -> do
     istate <- use interpreterState
     editor <- use editorState
-    (pname, imports) <- use location
+    (pname, _, imports) <- use location
     let text = pack $ unlines $ getEditContents editor
     (result, state') <- liftIO $ (run interpreter) istate (eval_expr interpreter pname imports text)
     interpreterState .= state'
@@ -197,13 +322,12 @@ handle_editor_event interpreter ev = case ev of
               interpreterState .= istate''
               case modules of
                 Left err -> outputState %= (<> ("\n" <> show err)) -- TODO: change!!
-                Right val -> loadedModules .= val
+                Right val -> availableModules .= val
         Left e
           | isDoesNotExistError e -> outputState .= ("file does not exist: " <> unpack filename)
           | otherwise -> outputState .= "IO error encountered reading file: " <> unpack filename)
                                      
     
-
   -- Do Import
   (T.VtyEvent (V.EvKey (V.KChar 'b') [V.MCtrl])) -> do
     focus .= Palette
@@ -211,7 +335,7 @@ handle_editor_event interpreter ev = case ev of
       focus .= Input
       case Megaparsec.runParser pImport "import" import_statement of
         Left _ -> outputState .= "import parser failure"
-        Right val -> (location._2) %= (val :))
+        Right val -> (location._3) %= (val :))
 
   (T.VtyEvent (V.EvKey (V.KChar c) [])) -> do 
     char_st <- use charInputState
