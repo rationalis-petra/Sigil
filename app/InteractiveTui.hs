@@ -228,7 +228,13 @@ choose_cursor st locs = find (liftEq (==) (Just $ st^.focus) . T.cursorLocationN
 app_handle_event :: forall m e s t ev. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
                     Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> T.BrickEvent ID ev -> T.EventM ID (InteractiveState s) ()
 app_handle_event interpreter = \case
-  (T.VtyEvent (V.EvKey V.KEsc [])) -> halt
+  (T.VtyEvent (V.EvKey V.KEsc [])) -> do
+    f <- use focus
+    case f of
+      Palette -> do
+        paletteState %= applyEdit clearZipper
+        focus .= Input
+      _ -> halt
 
   (T.VtyEvent (V.EvKey V.KUp    [V.MCtrl])) -> focus %= change_focus DUp
   (T.VtyEvent (V.EvKey V.KDown  [V.MCtrl])) -> focus %= change_focus DDown
