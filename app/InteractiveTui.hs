@@ -269,8 +269,10 @@ handle_nav_event loc ev =
         case loc of 
           NavPackage -> pure () -- TODO: add action
           NavModule -> pure () -- TODO: add action
-          NavEntry ->
+          NavEntry -> do
             (location._3) %= fmap snd . filter ((/= ixval) . fst) . zip [0..]
+            upper <- length <$> use (location._3)
+            importIx %= min upper
 
   in case ev of
     (T.VtyEvent (V.EvKey (V.KUp)       [])) -> dec
