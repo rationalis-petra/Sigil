@@ -10,14 +10,13 @@ import Control.Monad (void)
 import Control.Monad.Except (MonadError)
 import Control.Monad.IO.Class (liftIO)
 import Lens.Micro
-import Lens.Micro.TH
+-- import Lens.Micro.TH
 import Lens.Micro.Mtl
 import Data.Functor.Classes (liftEq)
 import Data.Foldable (find)
-import Data.Text (Text, pack, unpack, strip)
+import Data.Text (Text, unpack, strip)
 import Data.Text.IO (readFile)
-import Data.Text.Zipper (insertChar, insertMany, clearZipper)
-import Data.List (isPrefixOf)
+import Data.Text.Zipper (clearZipper)
 import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.Map as Map
 import System.IO.Error (isDoesNotExistError)
@@ -31,7 +30,6 @@ import qualified Brick.Types as T
 import Brick.Widgets.Core (joinBorders, str, hBox, vBox, hLimit, vLimit, withAttr)
 import Brick.Widgets.Border (border, hBorder, vBorder)
 import Brick.Widgets.Center (centerLayer)
-import Brick.Widgets.Edit
 import Brick.Main
 import Prettyprinter
 import Prettyprinter.Render.Sigil
@@ -39,53 +37,16 @@ import Prettyprinter.Render.Sigil
 import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
 import Sigil.Abstract.Environment
-import Sigil.Concrete.Internal (InternalModule)
 import Sigil.Parse.Lexer
 import Sigil.Interpret.Interpreter
 import Sigil.Concrete.Internal (InternalCore)
 
+import qualified Tui.Editor as Editor
+import Tui.Types
 import InterpretUtils  
 
 data InteractiveTuiOpts = InteractiveTuiOpts
   deriving (Show, Read, Eq)
-
-data InteractiveState s = InteractiveState
-  { _focus :: ID
-  -- text editor
-  , _editorState :: Editor String ID
-  , _charInputState :: Maybe [Char]
-
-  -- output
-  , _outputState :: String
-
-  -- palette 
-  , _paletteState :: Editor String ID
-  , _paletteAction :: Text -> T.EventM ID (InteractiveState s) ()
-
-  -- session
-  , _loadedPackages :: [Text]
-  , _availableModules :: [Path]
-  , _location :: (Text, Maybe InternalModule, [ImportDef])
-
-  -- side panel
-  , _packageIx :: Int
-  , _moduleIx :: Int
-  , _importIx :: Int
-
-  -- interpreter
-  , _interpreterState :: s
-  }
-
-data NavLoc = NavPackage | NavModule | NavEntry
-  deriving (Ord, Show, Eq)
-  
-data ID = Input | Navigation NavLoc | Output | Palette
-  deriving (Ord, Show, Eq)
-
-data Dir = DUp | DDown | DLeft | DRight
-  deriving (Eq, Ord, Show)
-
-$(makeLenses ''InteractiveState)
 
 
 interactive_tui :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
@@ -122,8 +83,7 @@ interactive_tui interpreter _ = do
                 }
       initial_state = InteractiveState
         { _focus = Input
-        , _editorState = editor Input Nothing ""
-        , _charInputState = Nothing
+        , _editorState = Editor.editor Input
 
         , _outputState = ""
 
@@ -138,7 +98,7 @@ interactive_tui interpreter _ = do
         , _interpreterState = (start_state interpreter)
 
         -- palette
-        , _paletteState = editor Palette Nothing ""  
+        , _paletteState = Editor.editor Palette
         , _paletteAction = pure . const ()
         }
   void $ defaultMain app initial_state
@@ -148,7 +108,7 @@ draw :: InteractiveState s -> [T.Widget ID]
 draw st =
   let main_panel =
         joinBorders . border $ hBox
-          [ vBox [(renderEditor (str . unlines) (st^.focus == Input) (st^.editorState))
+          [ vBox [(Editor.draw (st^.editorState) Input)
                  , hBorder 
                  , withAttr (A.attrName "title") (str "Output")
                  , str (st^.outputState)]
@@ -198,7 +158,7 @@ draw st =
         $ border
         $ hLimit 60
         $ vLimit 1
-        $ renderEditor (str . unlines) (st^.focus == Palette) (st^.paletteState)
+        $ Editor.draw (st^.paletteState) Palette
       
   in case (st^.focus) of 
     Palette -> [palette, main_panel] -- (palette : main_panel)
@@ -232,7 +192,7 @@ app_handle_event interpreter = \case
     f <- use focus
     case f of
       Palette -> do
-        paletteState %= applyEdit clearZipper
+        paletteState %= Editor.applyEdit clearZipper
         focus .= Input
       _ -> halt
 
@@ -285,9 +245,9 @@ handle_palette_event ev = case ev of
   (T.VtyEvent (V.EvKey V.KEnter [])) -> do 
     palette <- use paletteState
     action <- use paletteAction
-    paletteState %= applyEdit clearZipper
-    action (strip . pack . unlines $ getEditContents palette)
-  _ -> zoom paletteState $ handleEditorEvent ev
+    paletteState %= Editor.applyEdit clearZipper
+    action (strip $ Editor.getText palette)
+  _ -> zoom paletteState $ Editor.handleEvent ev
 
 
 handle_editor_event :: forall m e s t ev. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
@@ -298,7 +258,7 @@ handle_editor_event interpreter ev = case ev of
     istate <- use interpreterState
     editor <- use editorState
     (pname, _, imports) <- use location
-    let text = pack $ unlines $ getEditContents editor
+    let text = Editor.getText editor
     (result, state') <- liftIO $ (run interpreter) istate (eval_expr interpreter pname imports text)
     interpreterState .= state'
     case result of
@@ -345,159 +305,8 @@ handle_editor_event interpreter ev = case ev of
         Left _ -> outputState .= "import parser failure"
         Right val -> (location._3) %= (val :))
 
-  (T.VtyEvent (V.EvKey (V.KChar c) [])) -> do 
-    char_st <- use charInputState
-    case char_st of
-      Nothing | c == ';' -> charInputState .= Just []
-              | otherwise -> zoom editorState $ handleEditorEvent ev
-      Just cs -> char_update c cs
-  _ -> zoom editorState $ handleEditorEvent ev
+  _ -> zoom editorState $ Editor.handleEvent ev
 
-char_update :: Char -> [Char] -> T.EventM ID (InteractiveState s) ()
-char_update c cs = case filter (isPrefixOf (cs <> [c]) . fst) unicode_input_map of 
-  [] -> do
-    charInputState .= Nothing
-    editorState %= applyEdit (insertMany ((';' : cs) <> [c]))
-  [(str, out)]
-    | str == cs <> [c] -> do
-        editorState %= applyEdit (insertChar out)
-        charInputState .= Nothing
-    | otherwise -> charInputState .= Just (cs <> [c])
-  _ -> charInputState .= Just (cs <> [c])
-  
-unicode_input_map :: [([Char], Char)]
-unicode_input_map =
-  [ ("sA", '𝔸')
-  , ("sN", 'ℕ')
-  , ("sU", '𝕌')
-  , ("sZ", 'ℤ')
-
-  -- numeric & algebraic operations 
-  , (":-", '÷')
-  , ("x" , '×')
-  , ("*" , '⋅')
-  , ("v/", '√')
-  , ("^" , '∧')
-  , ("-^", '⊼')
-  , ("v" , '∨')
-  , ("-v", '⊽')
-  , ("v-", '⊻')
-  , ("-.", '¬')
-
-  -- equality & comparisons
-  , ("~=" , '≃')
-  , ("~==", '≅')
-  , ("^=" , '≜')
-  , ("/=" , '≠')
-  , ("==" , '≡')
-  , ("/==", '≢')
-  , ("?=" , '≟')
-  , ("o=" , '≗')
-  , (">=" , '≥')
-  , ("!=" , '≠')
-  , ("<=" , '≤')
-
-  -- Sigil specific
-  , ("A" , '⍝')
-  , ("e|", '⋳')
-  , ("|e", '⋻')
-  , ("le", '⮜')
-  , ("ri", '⮞') 
-  , ("de", '≜')
-  , ("rc", 'ᛉ')
-  , ("rr", 'ᛯ')
-  , ("ri", 'ᛣ')
-
-  -- arraos
-  , ("to", '→')
-  , ("fm", '←')
-  , ("up", '↑')
-  , ("dn", '↓')
-
-  -- Subscripts
-  , ("_0", '₀')
-  , ("_1", '₁')
-  , ("_2", '₂')
-  , ("_3", '₃')
-  , ("_4", '₄')
-  , ("_5", '₅')
-  , ("_6", '₆')
-  , ("_7", '₇')
-  , ("_8", '₈')
-  , ("_9", '₉')
-  , ("_=", '₌')
-  , ("_-", '₋')
-  , ("_+", '₊')
-  , ("_a", 'ₐ')
-  , ("_e", 'ₑ')
-  , ("_h", 'ₕ')
-  , ("_i", 'ᵢ')
-  , ("_j", 'ⱼ')
-  , ("_l", 'ₗ')
-  , ("_m", 'ₘ')
-  , ("_n", 'ₙ')
-  , ("_o", 'ₒ')
-  , ("_p", 'ₚ')
-  , ("_r", 'ᵣ')
-  , ("_s", 'ₛ')
-  , ("_t", 'ₜ')
-  , ("_u", 'ᵤ')
-  , ("_v", 'ᵥ')
-  , ("_x", 'ₓ')
-
-  -- greek
-  , ("ga", 'α')
-  , ("gb", 'β')
-  , ("gc", 'ψ')
-  , ("gd", 'δ')
-  , ("ge", 'ε')
-  , ("gf", 'φ')
-  , ("gg", 'γ')
-  , ("gh", 'η')
-  , ("gi", 'ι')
-  , ("gj", 'ξ')
-  , ("gk", 'κ')
-  , ("gl", 'λ')
-  , ("gm", 'μ')
-  , ("gn", 'ν')
-  , ("go", 'ο')
-  , ("gp", 'π')
-  , ("gr", 'ρ')
-  , ("gs", 'σ')
-  , ("gt", 'τ')
-  , ("gu", 'θ')
-  , ("gv", 'ω')
-  , ("gw", 'ς')
-  , ("gx", 'χ')
-  , ("gy", 'υ')
-  , ("gz", 'ζ')
-  , ("gA", 'Α')
-  , ("gB", 'Β')
-  , ("gC", 'Ψ')
-  , ("gD", 'Δ')
-  , ("gE", 'Ε')
-  , ("gF", 'Φ')
-  , ("gG", 'Γ')
-  , ("gH", 'Η')
-  , ("gI", 'Ι')
-  , ("gJ", 'Ξ')
-  , ("gK", 'Κ')
-  , ("gL", 'Λ')
-  , ("gM", 'Μ')
-  , ("gN", 'Ν')
-  , ("gO", 'Ο')
-  , ("gP", 'Π')
-  , ("gR", 'R')
-  , ("gS", 'Σ')
-  , ("gT", 'Τ')
-  , ("gU", 'Θ')
-  , ("gV", 'Ω')
-  , ("gW", 'Σ')
-  , ("gX", 'Χ')
-  , ("gY", 'Υ')
-  , ("gZ", 'Ζ')
-
-  ]
 
 type TParser = Parsec Text Text
 
