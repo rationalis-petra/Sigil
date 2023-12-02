@@ -1,20 +1,6 @@
-module Tui.Unicode
-  ( char_update
-  , unicode_input_map
-  ) where
+module Tui.Defaults.UnicodeInput
+  (unicode_input_map) where
 
-import Data.List (isPrefixOf)
-
-import Data.Text.Zipper (TextZipper, insertChar, insertMany)
-
-char_update :: Char -> [Char] -> (Maybe [Char], TextZipper String -> TextZipper String) 
-char_update c cs = case filter (isPrefixOf (cs <> [c]) . fst) unicode_input_map of 
-  [] -> (Nothing, (insertMany ((';' : cs) <> [c])))
-  [(str, out)]
-    | str == cs <> [c] -> (Nothing, (insertChar out))
-    | otherwise -> (Just (cs <> [c]), id)
-  _ -> (Just (cs <> [c]), id)
-  
 
 unicode_input_map :: [([Char], Char)]
 unicode_input_map =

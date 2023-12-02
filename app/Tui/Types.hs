@@ -32,13 +32,13 @@ import Tui.Editor (Editor)
 data InteractiveState s = InteractiveState
   { _focus :: ID
   -- text editor
-  , _editorState :: Editor ID
+  , _editorState :: Editor (InteractiveState s) ID
 
   -- output
   , _outputState :: String
 
   -- palette 
-  , _paletteState :: Editor ID
+  , _paletteState :: Editor (InteractiveState s) ID
   , _paletteAction :: Text -> T.EventM ID (InteractiveState s) ()
 
   -- session

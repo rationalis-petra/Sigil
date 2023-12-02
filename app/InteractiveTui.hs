@@ -43,6 +43,7 @@ import Sigil.Concrete.Internal (InternalCore)
 
 import qualified Tui.Editor as Editor
 import Tui.Types
+import Tui.Defaults.EditorKeymap
 import InterpretUtils  
 
 data InteractiveTuiOpts = InteractiveTuiOpts
@@ -83,7 +84,7 @@ interactive_tui interpreter _ = do
                 }
       initial_state = InteractiveState
         { _focus = Input
-        , _editorState = Editor.editor Input
+        , _editorState = Editor.editor Input default_keymap
 
         , _outputState = ""
 
@@ -98,7 +99,7 @@ interactive_tui interpreter _ = do
         , _interpreterState = (start_state interpreter)
 
         -- palette
-        , _paletteState = Editor.editor Palette
+        , _paletteState = (Editor.mode .~ Editor.Insert) (Editor.editor Palette default_keymap)
         , _paletteAction = pure . const ()
         }
   void $ defaultMain app initial_state
@@ -188,13 +189,13 @@ choose_cursor st locs = find (liftEq (==) (Just $ st^.focus) . T.cursorLocationN
 app_handle_event :: forall m e s t ev. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
                     Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> T.BrickEvent ID ev -> T.EventM ID (InteractiveState s) ()
 app_handle_event interpreter = \case
-  (T.VtyEvent (V.EvKey V.KEsc [])) -> do
-    f <- use focus
-    case f of
-      Palette -> do
-        paletteState %= Editor.applyEdit clearZipper
-        focus .= Input
-      _ -> halt
+  -- (T.VtyEvent (V.EvKey V.KEsc [])) -> do
+  --   f <- use focus
+  --   case f of
+  --     Palette -> do
+  --       paletteState %= Editor.applyEdit clearZipper
+  --       focus .= Input
+  --     _ -> halt
 
   (T.VtyEvent (V.EvKey V.KUp    [V.MCtrl])) -> focus %= change_focus DUp
   (T.VtyEvent (V.EvKey V.KDown  [V.MCtrl])) -> focus %= change_focus DDown
@@ -246,8 +247,9 @@ handle_palette_event ev = case ev of
     palette <- use paletteState
     action <- use paletteAction
     paletteState %= Editor.applyEdit clearZipper
+    (paletteState.Editor.mode) .= Editor.Insert
     action (strip $ Editor.getText palette)
-  _ -> zoom paletteState $ Editor.handleEvent ev
+  _ -> Editor.handleEvent ev paletteState
 
 
 handle_editor_event :: forall m e s t ev. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
@@ -305,7 +307,7 @@ handle_editor_event interpreter ev = case ev of
         Left _ -> outputState .= "import parser failure"
         Right val -> (location._3) %= (val :))
 
-  _ -> zoom editorState $ Editor.handleEvent ev
+  _ -> Editor.handleEvent ev editorState 
 
 
 type TParser = Parsec Text Text
