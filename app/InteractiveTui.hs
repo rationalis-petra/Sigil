@@ -5,7 +5,6 @@ module InteractiveTui
 
 import Prelude hiding (mod, getLine, putStr, putStrLn, readFile, null)
 
-import qualified Control.Exception as Exception
 import Control.Monad (void)
 import Control.Monad.Except (MonadError)
 import Control.Monad.IO.Class (liftIO)
@@ -14,16 +13,10 @@ import Lens.Micro
 import Lens.Micro.Mtl
 import Data.Functor.Classes (liftEq)
 import Data.Foldable (find)
-import Data.Text (Text, unpack, strip)
-import Data.Text.IO (readFile)
+import Data.Text (strip)
 import Data.Text.Zipper (clearZipper)
-import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.Map as Map
-import System.IO.Error (isDoesNotExistError)
 
-import qualified Text.Megaparsec as Megaparsec
-import Text.Megaparsec hiding (parse, runParser)
-import Text.Megaparsec.Char as C
 import qualified Graphics.Vty as V
 import qualified Brick.AttrMap as A
 import qualified Brick.Types as T
@@ -37,14 +30,12 @@ import Prettyprinter.Render.Sigil
 import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
 import Sigil.Abstract.Environment
-import Sigil.Parse.Lexer
 import Sigil.Interpret.Interpreter
 import Sigil.Concrete.Internal (InternalCore)
 
 import qualified Tui.Editor as Editor
 import Tui.Types
 import Tui.Defaults.EditorKeymap
-import InterpretUtils  
 
 data InteractiveTuiOpts = InteractiveTuiOpts
   deriving (Show, Read, Eq)
@@ -84,7 +75,7 @@ interactive_tui interpreter _ = do
                 }
       initial_state = InteractiveState
         { _focus = Input
-        , _editorState = Editor.editor Input default_keymap
+        , _editorState = Editor.editor Input (module_keymap interpreter)
 
         , _outputState = ""
 
@@ -186,9 +177,11 @@ change_focus _ v = v
 choose_cursor :: InteractiveState s -> [T.CursorLocation ID] -> Maybe (T.CursorLocation ID)
 choose_cursor st locs = find (liftEq (==) (Just $ st^.focus) . T.cursorLocationName) locs
 
-app_handle_event :: forall m e s t ev. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-                    Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> T.BrickEvent ID ev -> T.EventM ID (InteractiveState s) ()
-app_handle_event interpreter = \case
+-- app_handle_event :: forall m e s t ev. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
+--                     Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> T.BrickEvent ID ev -> T.EventM ID (InteractiveState s) ()
+app_handle_event :: forall m e s t ev. Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t
+  -> T.BrickEvent ID ev -> T.EventM ID (InteractiveState s) ()
+app_handle_event _ = \case
   -- (T.VtyEvent (V.EvKey V.KEsc [])) -> do
   --   f <- use focus
   --   case f of
@@ -205,7 +198,7 @@ app_handle_event interpreter = \case
   ev -> do
     f <- use focus
     case f of 
-      Input -> handle_editor_event interpreter ev
+      Input -> Editor.handleEvent ev editorState
       Palette -> handle_palette_event ev
       Navigation loc -> handle_nav_event loc ev
       _ -> pure ()
@@ -250,82 +243,3 @@ handle_palette_event ev = case ev of
     (paletteState.Editor.mode) .= Editor.Insert
     action (strip $ Editor.getText palette)
   _ -> Editor.handleEvent ev paletteState
-
-
-handle_editor_event :: forall m e s t ev. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t  -> T.BrickEvent ID ev -> T.EventM ID (InteractiveState s) ()
-handle_editor_event interpreter ev = case ev of
-  -- Evaluate Playground
-  (T.VtyEvent (V.EvKey (V.KChar 'e') [V.MCtrl])) -> do
-    istate <- use interpreterState
-    editor <- use editorState
-    (pname, _, imports) <- use location
-    let text = Editor.getText editor
-    (result, state') <- liftIO $ (run interpreter) istate (eval_expr interpreter pname imports text)
-    interpreterState .= state'
-    case result of
-      Right (val, ty) -> do
-        outputState .= (show $ vsep [ "val:" <+> nest 2 (pretty val)
-                                   , "type:" <+> nest 2 (pretty ty) ])
-      Left err -> outputState .= show err
-
-  -- Load File
-  (T.VtyEvent (V.EvKey (V.KChar 'f') [V.MCtrl])) -> do
-    focus .= Palette
-    paletteAction .= (\filename -> do
-      focus .= Input
-      istate <- use interpreterState
-      pkg_name <- use (location._1)
-      out <- liftIO $ (Right <$> readFile (unpack filename)) `Exception.catch` (pure . Left)
-      case out of 
-        Right text -> do
-          (result, istate') <- liftIO $ (run interpreter) istate $ do
-            mod <- eval_mod interpreter pkg_name filename text
-            (intern_module interpreter) pkg_name (mod^.module_header) mod
-            pure mod
-          case result of
-            Left err -> do
-              interpreterState .= istate'
-              outputState .= show err
-            _ -> do 
-              (modules, istate'') <- liftIO $ (run interpreter) istate' $ (get_available_modules interpreter) pkg_name 
-              interpreterState .= istate''
-              case modules of
-                Left err -> outputState %= (<> ("\n" <> show err)) -- TODO: change!!
-                Right val -> availableModules .= val
-        Left e
-          | isDoesNotExistError e -> outputState .= ("file does not exist: " <> unpack filename)
-          | otherwise -> outputState .= "IO error encountered reading file: " <> unpack filename)
-                                     
-    
-  -- Do Import
-  (T.VtyEvent (V.EvKey (V.KChar 'b') [V.MCtrl])) -> do
-    focus .= Palette
-    paletteAction .= (\import_statement -> do
-      focus .= Input
-      case Megaparsec.runParser pImport "import" import_statement of
-        Left _ -> outputState .= "import parser failure"
-        Right val -> (location._3) %= (val :))
-
-  _ -> Editor.handleEvent ev editorState 
-
-
-type TParser = Parsec Text Text
-
-pImport :: TParser ImportDef
-pImport = do
-  let
-    sep :: TParser a -> TParser b -> TParser [a]
-    sep p separator = ((: []) <$> p <|> pure []) >>= \v ->
-        (v <> ) <$> many (try (separator *> p))
-
-  l <- sep anyvar (C.char '.' <* sc)
-  path <- case l of 
-    [] -> fail "import path must be nonempty"
-    (x:xs) -> pure (Path $ x:|xs)
-  modifier <- pModifier <|> pure ImSingleton
-  pure $ Im (path, modifier)
-
-pModifier :: TParser ImportModifier
-pModifier = 
-  const ImWildcard <$> (lexeme (C.char '.') *> symbol "(..)")
