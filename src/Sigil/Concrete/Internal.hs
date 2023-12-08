@@ -15,8 +15,6 @@ module Sigil.Concrete.Internal
   , pattern Ind
   , pattern Ctr
   , pattern Rec
-  , pattern IAbs
-  , pattern IPrd
   , pattern TyCon ) where
 
 import Data.Functor.Identity
@@ -31,19 +29,17 @@ import Sigil.Concrete.Decorations.Range
 data Internal
 
 type instance Functorχ Internal = Identity
-type instance Coreχ AnnBind Name Internal = ImplCore AnnBind Name Internal
+type instance Coreχ AnnBind Name Internal = TyCon AnnBind Name Internal
 type instance Varχ Internal = ()
 type instance Uniχ Internal = ()
-type instance Prdχ Internal = ()
-type instance Absχ Internal = ()
+type instance Prdχ Internal = ArgType
+type instance Absχ Internal = ArgType
 type instance Appχ Internal = ()
 type instance Eqlχ Internal = ()
 type instance Dapχ Internal = ()
 type instance Indχ Internal = ()
 type instance Ctrχ Internal = ()
 type instance Recχ Internal = ()
-type instance IAbsχ Internal = ()
-type instance IPrdχ Internal = ()
 type instance TyConχ Internal = ()
 
 type instance Singleχ Internal = ()
@@ -56,7 +52,7 @@ type InternalModule = Module AnnBind Name Internal
 
 type InternalPackage = Package InternalModule
 
-{-# COMPLETE Uni, Var, Prd, Abs, App, Eql, Dap, Ind, Ctr, Rec, IPrd, IAbs, TyCon #-}
+{-# COMPLETE Uni, Var, Prd, Abs, App, Eql, Dap, Ind, Ctr, Rec, TyCon #-}
 
 pattern Uni :: Integer -> InternalCore
 pattern Uni n <- Uniχ () n
@@ -66,13 +62,13 @@ pattern Var :: Name -> InternalCore
 pattern Var n <- Varχ () n 
   where Var n = Varχ () n
 
-pattern Prd :: AnnBind Name InternalCore -> InternalCore -> InternalCore
-pattern Prd b ty <- Prdχ () b ty 
-  where Prd b ty = Prdχ () b ty
+pattern Prd :: ArgType -> AnnBind Name InternalCore -> InternalCore -> InternalCore
+pattern Prd at b ty <- Prdχ at b ty 
+  where Prd at b ty = Prdχ at b ty
 
-pattern Abs :: AnnBind Name InternalCore -> InternalCore -> InternalCore
-pattern Abs b e <- Absχ () b e 
-  where Abs b e = Absχ () b e
+pattern Abs :: ArgType -> AnnBind Name InternalCore -> InternalCore -> InternalCore
+pattern Abs at b e <- Absχ at b e 
+  where Abs at b e = Absχ at b e
 
 pattern App :: InternalCore -> InternalCore -> InternalCore
 pattern App l r <- Appχ () l r
@@ -98,17 +94,17 @@ pattern Rec :: AnnBind Name InternalCore -> InternalCore -> [(Pattern Name, Inte
 pattern Rec bind val cases <- Recχ () bind val cases
   where Rec bind val cases = Recχ () bind val cases
 
-pattern IPrd :: AnnBind Name InternalCore -> InternalCore -> InternalCore
-pattern IPrd b ty <- Coreχ (IPrdχ () b ty)
-  where IPrd b ty = Coreχ (IPrdχ () b ty)
+-- pattern IPrd :: AnnBind Name InternalCore -> InternalCore -> InternalCore
+-- pattern IPrd b ty <- Coreχ (IPrdχ () b ty)
+--   where IPrd b ty = Coreχ (IPrdχ () b ty)
 
-pattern IAbs :: AnnBind Name InternalCore -> InternalCore -> InternalCore
-pattern IAbs b ty <- Coreχ (IAbsχ () b ty)
-  where IAbs b ty = Coreχ (IAbsχ () b ty)
+-- pattern IAbs :: AnnBind Name InternalCore -> InternalCore -> InternalCore
+-- pattern IAbs b ty <- Coreχ (IAbsχ () b ty)
+--   where IAbs b ty = Coreχ (IAbsχ () b ty)
 
-pattern TyCon :: Name -> InternalCore -> InternalCore
-pattern TyCon n e <- Coreχ (TyConχ () n e)  
-  where TyCon n e = Coreχ (TyConχ () n e)
+pattern TyCon :: InternalCore -> Name -> InternalCore -> InternalCore
+pattern TyCon e n t <- Coreχ (TyConχ () e n t)  
+  where TyCon e n t = Coreχ (TyConχ () e n t)
 
 
 instance Pretty InternalCore where
@@ -131,12 +127,9 @@ instance Pretty InternalCore where
           _ -> c
     Var name -> pretty name
 
- 
-    Prd _ _ -> pretty_prd_like c
-    IPrd _ _ -> pretty_prd_like c
+    Prd _ _ _ -> pretty_prd_like c
   
-    Abs _ _ -> pretty_abs_like c
-    IAbs _ _ -> pretty_abs_like c
+    Abs _ _ _ -> pretty_abs_like c
 
     App l r -> sep $ fmap bracket $ unwind (App l r)
 
@@ -159,7 +152,7 @@ instance Pretty InternalCore where
           (PatCtr n pats) -> pretty (":" <> n) <+> sep (map pretty_pat pats)
           (PatVar n) -> pretty n
 
-    TyCon _ _ -> "tycon"
+    TyCon e n t -> pretty e <+> "⦃" <> pretty n <+> "⮜" <+> pretty t <> "⦄"
   
     where 
       pretty_prd_like e =
@@ -167,18 +160,16 @@ instance Pretty InternalCore where
         where
           tel = telescope e
         
-          telescope (Prd bind e) =  pretty_annbind False bind : telescope e
-          telescope (IPrd bind e) = ("{" <> pretty_annbind False bind <> "}") : telescope e
+          telescope (Prd at bind e) = (if (at == Implicit)
+                                       then "⟨" <> pretty_annbind False bind <> "⟩"
+                                       else pretty_annbind False bind) : telescope e
           telescope b = [pretty b]
 
       pretty_abs_like e =
         let (args, body) = telescope e
-            telescope (Abs bind e) =
+            telescope (Abs at bind e) =
               let (args, body) = telescope e in 
-                ((False, bind) : args, body)
-            telescope (IAbs bind e) =
-              let (args, body) = telescope e in
-                ((True, bind) : args, body)
+                ((at == Implicit, bind) : args, body)
             telescope body = ([], body)
     
             pretty_args [(False, bind)] =
@@ -219,11 +210,9 @@ instance Pretty InternalCore where
       unwind t = [t]
   
 
-instance Pretty (ImplCore AnnBind Name Internal) where
+instance Pretty (TyCon AnnBind Name Internal) where
   pretty ic = case ic of 
-    IAbsχ _ b body -> "λ ⟨" <> pretty_bind True b <> "⟩" <+> "→" <+> pretty body
-    IPrdχ _ b body -> "⟨" <> pretty b <> "⟩" <+> "→" <+> pretty body
-    TyConχ _ n body -> "[" <> pretty n <+> "<:" <+> pretty body <> "]"   -- Constrains named type n  
+    TyConχ _ e n body -> pretty e <+> "⦃" <> pretty n <+> "⮜" <+> pretty body <> "⦄"   -- Constrains named type n  
 
 instance Pretty InternalEntry where
   pretty = pretty_entry_builder name pretty pretty pretty

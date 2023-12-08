@@ -17,6 +17,7 @@ import Sigil.Abstract.Names
 import Sigil.Abstract.Environment
 import Sigil.Abstract.AlphaEq
 import Sigil.Concrete.Internal
+import Sigil.Concrete.Decorations.Implicit
   
 
 {------------------------------ THE TERM CLASSES -------------------------------}
@@ -58,7 +59,7 @@ class Term a where
 
 data Sem m
   = SUni Integer
-  | SPrd Name (Sem m) (Sem m)
+  | SPrd ArgType Name (Sem m) (Sem m)
   | SAbs Name (Sem m -> m (Sem m))
   | SEql [(Name, (Sem m, Sem m, Sem m), Sem m)] (Sem m) (Sem m) (Sem m)
   | SDap (Sem m)
@@ -111,7 +112,7 @@ instance Term InternalCore where
 read_nf :: forall err ann m. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Normal m -> m InternalCore
 read_nf (Normal ty val) = case (ty, val) of 
   -- Values
-  (SPrd name a b, f) -> do
+  (SPrd at name a b, f) -> do
     let
       fnc_name = (maybe name id (get_name f))
       neua = Neutral a $ NeuVar name
@@ -120,7 +121,7 @@ read_nf (Normal ty val) = case (ty, val) of
 
     a' <- read_nf $ Normal (SUni lvl) a
     f' <- read_nf =<< (Normal <$> (b `app` neua) <*> (f `app` neuvar))
-    pure $ Abs (bind fnc_name a') f'
+    pure $ Abs at (bind fnc_name a') f'
 
   -- TODO: figure out what to do with SEql telescope?!
   -- Possibly it is guaranteed to be empty, as SDap is a telescope??
@@ -129,12 +130,12 @@ read_nf (Normal ty val) = case (ty, val) of
 
   -- Types
   (SUni _, SUni i) -> pure $ Uni i
-  (SUni k, SPrd name a b) -> do
+  (SUni k, SPrd at name a b) -> do
     let neua :: Sem m
         neua = Neutral a $ NeuVar name
     a' <- (read_nf $ Normal (SUni k) a)
     b' <- (read_nf =<< Normal (SUni k) <$> (b `app` neua))
-    pure $ Prd (bind name a') b'
+    pure $ Prd at (bind name a') b'
   (SUni k, SEql tel ty a a') -> do
     let read_nf_tel _ out [] = pure out
         read_nf_tel in_tel out ((name, (ty, v1, v2), id) : tel) = do 
@@ -163,7 +164,7 @@ read_nf (Normal ty val) = case (ty, val) of
         recur (Ctr label ind_ty) cty' (reverse vals)
         where
           recur v _ [] = pure v
-          recur v (SPrd _ a b) (val:vals) = do
+          recur v (SPrd _ _ a b) (val:vals) = do
             b' <- b `app` val
             val' <- read_nf (Normal a val)
             recur (App v val') b' vals
@@ -182,7 +183,7 @@ read_ne neu = case neu of
   NeuRec nm ty val cases -> do
     ty' <- read_nf (Normal (SUni $ uni_level ty) ty)
     (_, a, b) <- case ty of
-      SPrd rnm a b -> pure (rnm, a, b)
+      SPrd _ rnm a b -> pure (rnm, a, b)
       _ -> throw "bad read_ne in recursive"
     b' <- b `app` a
     val'<- read_ne val
@@ -197,13 +198,13 @@ read_ne neu = case neu of
 eval :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => InternalCore -> Map Name (Sem m) -> m (Sem m)
 eval term env = case term of
   Uni n -> pure $ SUni n
-  Prd bnd b -> do
+  Prd at bnd b -> do
     nm <- fromMaybe (throw "Prd must bind a name") (fmap pure $ name bnd)
     a <- fromMaybe (throw "Prd must bind a type") (fmap pure $ tipe bnd)
     a' <- eval a env
-    pure $ SPrd nm a' $ SAbs nm (\val -> eval b (insert nm val env))
+    pure $ SPrd at nm a' $ SAbs nm (\val -> eval b (insert nm val env))
   Var name -> lookup_err ?lift_err name env
-  Abs bnd body -> do
+  Abs _ bnd body -> do
     nme <- fromMaybe (throw "Abs must bind a name") (fmap pure $ name bnd)
     pure $ SAbs nme (\val -> eval body (insert nme val env))
   App l r -> do
@@ -266,10 +267,10 @@ eval term env = case term of
   Ctr label ty -> SCtr label <$> (eval ty env) <*> pure []
   Rec (AnnBind (rname, rty)) val cases -> do
     rty' <- eval rty env
-    (pname, a, b) <- case rty' of 
-      SPrd pname a b -> pure (pname, a, b)
+    (at, pname, a, b) <- case rty' of 
+      SPrd at pname a b -> pure (at, pname, a, b)
       _ -> throw "Rec fn must have product type"
-    let rec_fn = SAbs pname (\val -> recur env rname (SPrd pname a b) val cases')
+    let rec_fn = SAbs pname (\val -> recur env rname (SPrd at pname a b) val cases')
         cases' = (map to_case_fn cases)
 
         to_case_fn (pat, core) =
@@ -291,7 +292,7 @@ eval term env = case term of
         match_neu env (PatCtr label subpats) (SInd _ _ ctors) = do
           -- args <- ty_args label ctors
           let ty_args = \case -- TODO: borked! include name!
-                (SPrd _ a b) -> [a] <> ty_args b
+                (SPrd _ _ a b) -> [a] <> ty_args b
                 _ -> []
           args <- case find ((== label) . fst) ctors of
             Just (_, ty) -> ty_args <$> ty (Neutral rty' (NeuVar rname))
@@ -299,20 +300,18 @@ eval term env = case term of
           foldl (\m (pat, arg) -> m >>= \env -> match_neu env pat arg) (pure env) (zip subpats args)
         match_neu _ _ ty = throw ("bad type in match_neu:" <+> pretty ty)
     val' <- eval val env
-    recur env rname (SPrd pname a b) val' cases' 
+    recur env rname (SPrd at pname a b) val' cases' 
   
   -- Implicit terms 
-  IPrd _ _ -> throw "don't know how to eval IPrd"
-  IAbs _ _ -> throw "don't know how to eval IAbs"
-  TyCon _ _ -> throw "don't know how to eval tycon"
+  TyCon _ _ _ -> throw "don't know how to eval tycon"
 
 
 eval_sem :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Map Name (Sem m) -> (Sem m) -> m (Sem m)
 eval_sem env term = case term of
   SUni n -> pure $ SUni n
-  SPrd n a b -> do
+  SPrd at n a b -> do
     a' <- eval_sem env a
-    pure $ SPrd n a' $ SAbs n (eval_sem env <=< app b)
+    pure $ SPrd at n a' $ SAbs n (eval_sem env <=< app b)
   SAbs n f -> do
     pure $ SAbs n (eval_sem env <=< f)
   SEql tel ty v1 v2 -> do
@@ -361,7 +360,7 @@ app :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => (Sem m) ->
 app (SAbs _ fnc) val = fnc val
 app (SCtr label ty vals) v =
   pure $ SCtr label ty (v : vals)
-app (Neutral (SPrd _ a b) neu) v =
+app (Neutral (SPrd _ _ a b) neu) v =
   Neutral <$> (b `app` v) <*> pure (NeuApp neu (Normal a v))
 app l r = throw ("bad args to app:" <+> pretty l <+> "and" <+> pretty r) 
 
@@ -388,18 +387,18 @@ eql :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Map Name (
   -> InternalCore -> InternalCore -> m (Sem m)
 eql env tel tipe v1 v2 = case tipe of
   Neutral _ _ -> SEql tel tipe <$> eval v1 env <*> eval v2 env -- TODO: is this neutral??
-  SPrd name a fnc -> do
+  SPrd at name a fnc -> do
     u <- fresh_varn "u"
     v <- fresh_varn "v"
     id <- fresh_varn "id"
     -- TODO: subst left of tel in u
     aleft <- eval_sem (foldl (\env (nm, (_, l, _), _) -> insert nm l env) env tel) a
     aright <- eval_sem (foldl (\env (nm, (_, _, r), _) -> insert nm r env) env tel) a
-    pure (SPrd u aleft $ SAbs u
+    pure (SPrd at u aleft $ SAbs u
            (\uval ->
-             pure $ SPrd v aright $ SAbs v
+             pure $ SPrd at v aright $ SAbs v
              (\vval ->
-               SPrd id <$> seql (insert u uval . insert v vval $ env) tel a uval vval <*> (pure $ SAbs id
+               SPrd at id <$> seql (insert u uval . insert v vval $ env) tel a uval vval <*> (pure $ SAbs id
                (\idval -> do
                    b <- fnc `app` (Neutral a (NeuVar name)) -- TODO: I think this is wrong?
                    eql (insert u uval . insert v vval . insert id idval . insert name (Neutral a (NeuVar name)) $ env)
@@ -419,7 +418,7 @@ eql env tel tipe v1 v2 = case tipe of
 
 recur :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err)
   => Map Name (Sem m) -> Name -> Sem m -> Sem m -> [(Sem m -> Maybe (m (Sem m)), m (Pattern Name, Sem m))] -> m (Sem m)
-recur _ rname rty@(SPrd _ _ b) val cases =
+recur _ rname rty@(SPrd _ _ _ b) val cases =
     case val of 
       SCtr _ _ _ -> case find (isJust) (map (($ val) . fst) cases) of 
         Just (Just m) -> m
@@ -433,18 +432,18 @@ seql :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Map Name 
   -> Sem m -> Sem m -> m (Sem m)
 seql env tel tipe v1 v2 = case tipe of
   Neutral _ _ -> SEql tel tipe <$> eval_sem env v1 <*> eval_sem env v2 -- TODO: is this neutral??
-  SPrd name a fnc -> do
+  SPrd at name a fnc -> do
     u <- fresh_varn "u"
     v <- fresh_varn "v"
     id <- fresh_varn "id"
     -- TODO: subst left of tel in u
     aleft <- eval_sem (foldl (\env (nm, (_, l, _), _) -> insert nm l env) env tel) a
     aright <- eval_sem (foldl (\env (nm, (_, _, r), _) -> insert nm r env) env tel) a
-    pure (SPrd u aleft $ SAbs u
+    pure (SPrd at u aleft $ SAbs u
            (\uval ->
-             pure $ SPrd v aright $ SAbs v 
+             pure $ SPrd at v aright $ SAbs v 
              (\vval ->
-               SPrd id <$> (seql (insert u uval . insert v vval $ env) tel a uval vval) <*> (pure $ SAbs id
+               SPrd at id <$> (seql (insert u uval . insert v vval $ env) tel a uval vval) <*> (pure $ SAbs id
                (\idval -> do
                    b <- fnc `app` (Neutral a (NeuVar name)) -- TODO: I think this is wrong?
                    v1' <- v1 `app` uval
@@ -474,7 +473,7 @@ env_eval = eval_helper ?lift_err eval_var
 uni_level :: Sem m -> Integer
 uni_level sem = case sem of 
   SUni n -> n
-  SPrd _ l r -> max (uni_level l) (uni_level r)
+  SPrd _ _ l r -> max (uni_level l) (uni_level r)
   SAbs _ _ -> 0
   SEql _ ty _ _ -> uni_level ty
   SDap val -> uni_level val
@@ -487,7 +486,7 @@ throw doc = throwError $ ?lift_err doc
 
 get_name :: Sem m -> Maybe Name  
 get_name = \case  
-  SPrd nm _ _ -> Just nm
+  SPrd _ nm _ _ -> Just nm
   SAbs nm _ -> Just nm
   _ -> Nothing
 
@@ -516,7 +515,9 @@ instance Pretty (Sem m) where
           '8' -> '₈'
           '9' -> '₉'
           _ -> c
-    SPrd n a b -> pretty n <> " : " <> pretty a <+> "→" <+> pretty b
+    SPrd at n a b -> case at of
+      Regular -> "(" <> pretty n <+> "⮜" <+> pretty a <> ")" <+> "→" <+> pretty b
+      Implicit -> "⟨" <> pretty n <+> "⮜" <+> pretty a <> ")" <+> "→" <+> pretty b
     SAbs n _ -> "λ (" <> pretty n <> ")" <+> "..."
     SEql tel ty a b -> "ι" <+> pretty_tel tel <+> "." <+> pretty ty <+> pretty a <+> pretty b
       where 

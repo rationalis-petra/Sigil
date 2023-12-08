@@ -28,6 +28,7 @@ import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
 import Sigil.Abstract.Substitution (subst, (↦), free_vars)
 import Sigil.Abstract.Environment
+import Sigil.Concrete.Decorations.Implicit
 import Sigil.Concrete.Resolved
 import Sigil.Concrete.Decorations.Range
 import Sigil.Concrete.Internal
@@ -79,7 +80,7 @@ instance Checkable Name InternalCore InternalCore where
           r' <- check' env r arg_ty
           pure (App l' r', subst (n ↦ r) ret_ty)
       
-        Abs (AnnBind (n, a)) body -> do
+        Abs at (AnnBind (n, a)) body -> do
           (a', aty) <- infer' env a
           a_norm <- normalize' env aty a'
      
@@ -87,9 +88,9 @@ instance Checkable Name InternalCore InternalCore where
           (body', ret_ty) <- infer' env' body
           n' <- if n `Set.member` free_vars ret_ty then pure n else fresh_var "_"
      
-          pure (Abs (AnnBind (n, a')) body', Prd (AnnBind (n', a')) ret_ty)
+          pure (Abs at (AnnBind (n, a')) body', Prd at (AnnBind (n', a')) ret_ty)
      
-        Prd (AnnBind (n, a)) b -> do
+        Prd at (AnnBind (n, a)) b -> do
           (a', aty) <- infer' env a
           a_norm <- normalize' env aty a'
      
@@ -98,7 +99,7 @@ instance Checkable Name InternalCore InternalCore where
      
           i <- check_lvl lift_err aty
           j <- check_lvl lift_err bty
-          pure (Prd (AnnBind (n, a')) b', Uni (max i j))
+          pure (Prd at (AnnBind (n, a')) b', Uni (max i j))
       
         Dap [] val -> do  
           (val', val_ty) <- infer' env val
@@ -173,18 +174,28 @@ instance Checkable Name InternalCore InternalCore where
           | otherwise -> throwError' "universe-level check failed"
         
         -- TODO: generalize to more bindings; notably untyped bindings!!
-        (Abs (AnnBind (n, a)) body, Prd (AnnBind (n',a')) ret_ty) -> do
-          (_, kind) <- infer interp env a
-          check_eq (range term) interp env kind a a'
-          let ret_ty' = if (n == n') then ret_ty else subst (n' ↦ Var n) ret_ty
-          body' <- check'(insert n (Nothing, a) env) body ret_ty'
-          pure $ Abs (AnnBind (n, a')) body'
-        (Abs _ _, _) -> throwError' $ "expected λ-term to have Π-type, got" <+> pretty ty
+        (Abs at₁ (AnnBind (n, a)) body, Prd at₂ (AnnBind (n',a')) ret_ty)
+          | at₁ == at₂ -> do
+              (_, kind) <- infer interp env a
+              check_eq (range term) interp env kind a a'
+              let ret_ty' = if (n == n') then ret_ty else subst (n' ↦ Var n) ret_ty
+              body' <- check'(insert n (Nothing, a) env) body ret_ty'
+              pure $ Abs at₁ (AnnBind (n, a')) body'
+          | at₁ == Regular -> do
+              -- therefore at₂ == Implicit
+              (_, kind) <- infer interp env a
+              check_eq (range term) interp env kind a a'
+              let ret_ty' = if (n == n') then ret_ty else subst (n' ↦ Var n) ret_ty
+              body' <- check'(insert n (Nothing, a) env) body ret_ty'
+              -- TODO: is this safe?! we are adding n' to the scope of function..
+              pure $ Abs at₂ (AnnBind (n', a')) (Abs at₁ (AnnBind (n, a')) body')
+          | otherwise -> throwError' $ "Implicit-Regular argument type mismatch" 
+        (Abs _ _ _, _) -> throwError' $ "expected λ-term to have Π-type, got" <+> pretty ty
         
-        (Prd (AnnBind (n, a)) b, _) -> do
+        (Prd at (AnnBind (n, a)) b, _) -> do -- TODO: universe check???
           a' <- check' env a ty
           b' <- check' (insert n (Nothing, a) env) b ty
-          pure $ Prd (AnnBind (n, a')) b'
+          pure $ Prd at (AnnBind (n, a')) b'
         
         (Ctr label ity, ty) -> do
           case prod_out ty of
@@ -228,7 +239,7 @@ instance Checkable Name ResolvedCore InternalCore where
           rnorm <- normalize' env arg_ty r'
           pure (App l' r', subst (n ↦ rnorm) ret_ty)
         
-        Absχ _ (OptBind (Just n, Just a)) body -> do
+        Absχ (_,at) (OptBind (Just n, Just a)) body -> do
           (a', asort) <- infer' env a
           a_norm <- normalize' env asort a'
         
@@ -236,9 +247,9 @@ instance Checkable Name ResolvedCore InternalCore where
           (body', ret_ty) <- infer' env' body
           n' <- if n `Set.member` free_vars ret_ty then pure n else fresh_var "_"
         
-          pure (Abs (AnnBind (n, a')) body', Prd (AnnBind (n', a')) ret_ty)
+          pure (Abs at (AnnBind (n, a')) body', Prd at (AnnBind (n', a')) ret_ty)
         
-        Prdχ _ (OptBind (maybe_n, Just a)) b -> do
+        Prdχ (_,at) (OptBind (maybe_n, Just a)) b -> do
           (a', aty) <- infer' env a
           a_norm <- normalize' env aty a'
         
@@ -248,7 +259,7 @@ instance Checkable Name ResolvedCore InternalCore where
         
           i <- check_lvl lift_err aty
           j <- check_lvl lift_err bty
-          pure (Prd (AnnBind (n', a')) b', Uni (max i j))
+          pure (Prd at (AnnBind (n', a')) b', Uni (max i j))
 
         Dapχ _ [] val -> do  
           (val', val_ty) <- infer' env val
@@ -321,7 +332,7 @@ instance Checkable Name ResolvedCore InternalCore where
           (rty', rsort) <- infer' env rty
           rnorm <- normalize' env rsort rty'
           (_, inty, out) <- case rnorm of
-            (Prd (AnnBind (nm, inty)) out) -> pure (nm, inty, out)
+            (Prd _ (AnnBind (nm, inty)) out) -> pure (nm, inty, out)
             _ -> throwError' "Expecting recursive function have product type"
           val' <- check' env val inty
 
@@ -343,7 +354,8 @@ instance Checkable Name ResolvedCore InternalCore where
                 case find ((== label) . fst) ctors of 
                   Just (_, cty) -> 
                     let cty' = subst (rn ↦ ty) cty
-                        pargs (Prd (AnnBind (_, a)) b) = [a] <> pargs b
+                        pargs (Prd Regular (AnnBind (_, a)) b) = [a] <> pargs b
+                        pargs (Prd Implicit (AnnBind (_, a)) b) = [a] <> pargs b
                         pargs _ = []
                     in pure $ pargs cty'
                   Nothing -> throwError' "Failed to find label for recursion"
@@ -372,27 +384,46 @@ instance Checkable Name ResolvedCore InternalCore where
           | j < k -> pure (Uni j)
           | otherwise -> throwError' "universe-level check failed"
       
-        (Absχ _ (OptBind (Just n, Just a)) body, Prd (AnnBind (n',a')) ret_ty) -> do
-          (a_typd, a_kind) <- infer' env a
-          a_normal <- normalize' env a_kind a_typd
-          check_eq (range term) interp env a_kind a_typd a'
-          let ret_ty' = if (n == n') then ret_ty else subst (n' ↦ Var n) ret_ty
-          body' <- check' (insert n (Nothing, a_normal) env) body ret_ty'
-          pure $ Abs (AnnBind (n, a_typd)) body'
+        (Absχ (_,at₁) (OptBind (Just n₁, Just a₁)) body, Prd at₂ (AnnBind (n₂, a₂)) ret_ty)
+          | at₁ == at₂ -> do
+              (a_typd, a_kind) <- infer' env a₁
+              a_normal <- normalize' env a_kind a_typd
+              check_eq (range term) interp env a_kind a_typd a₂
+              let ret_ty' = if (n₁ == n₂) then ret_ty else subst (n₂ ↦ Var n₁) ret_ty
+              body' <- check' (insert n₁ (Nothing, a_normal) env) body ret_ty'
+              pure $ Abs at₁ (AnnBind (n₁, a_typd)) body'
+          | at₁ == Regular -> do
+              (a_typd, a_kind) <- infer' env a₁
+              a_normal <- normalize' env a_kind a_typd
+              n'₂ <- freshen n₂
+              let fnc_ty = subst (n₂ ↦ Var n'₂) ret_ty
+              fnc' <- check' (insert n'₂ (Nothing, a_normal) env) term fnc_ty
+              
+              pure $ Abs at₂ (AnnBind (n'₂, a₂)) fnc'
+          | otherwise -> throwError' "Implicit/Regular argument type mismatch in inference"
+        
 
-        (Absχ _ (OptBind (Just n, Nothing)) body, Prd (AnnBind (n',a')) ret_ty) -> do
-          let ret_ty' = if (n == n') then ret_ty else subst (n' ↦ Var n) ret_ty
-          body' <- check' (insert n (Nothing, a') env) body ret_ty'
-          pure $ Abs (AnnBind (n, a')) body'
+        (Absχ (_,at₁) (OptBind (Just n₁, Nothing)) body, Prd at₂ (AnnBind (n₂, a)) ret_ty)
+          | at₁ == at₂ -> do
+              let ret_ty' = if (n₁ == n₂) then ret_ty else subst (n₂ ↦ Var n₁) ret_ty
+              body' <- check' (insert n₁ (Nothing, a) env) body ret_ty'
+              pure $ Abs at₁ (AnnBind (n₁, a)) body'
+          | at₁ == Regular -> do
+              n'₂ <- freshen n₂
+              let fnc_ty = subst (n₂ ↦ Var n'₂) ret_ty
+              fnc' <- check' (insert n'₂ (Nothing, a) env) term fnc_ty
+              
+              pure $ Abs at₂ (AnnBind (n'₂, a)) fnc'
+          | otherwise -> throwError' "Implicit/Regular argument type mismatch in inference"
 
         (Absχ {}, _) -> throwError' $ "expected λ-term to have Π-type, got" <+> pretty ty
       
-        (Prdχ _ (OptBind (mn, Just a)) b, _) -> do
+        (Prdχ (_,at) (OptBind (mn, Just a)) b, _) -> do
           a' <- check' env a ty
           a_normal <- normalize' env ty a'
           n <- maybe (fresh_var "_") pure mn
           b' <- check' (insert n (Nothing, a_normal) env) b ty
-          pure $ Prd (AnnBind (n, a')) b'
+          pure $ Prd at (AnnBind (n, a')) b'
 
   
         (Indχ _ n (Just a) ctors, ty) -> do

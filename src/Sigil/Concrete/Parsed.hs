@@ -36,6 +36,7 @@ import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
 import Sigil.Abstract.AlphaEq
 import Sigil.Concrete.Decorations.Range
+import Sigil.Concrete.Decorations.Implicit
 
 data PUnit = PUnit
 
@@ -50,8 +51,8 @@ type instance Functorχ Parsed = Maybe
 type instance Coreχ OptBind Text Parsed = PUnit
 type instance Varχ Parsed = Range
 type instance Uniχ Parsed = Range
-type instance Prdχ Parsed = Range
-type instance Absχ Parsed = Range
+type instance Prdχ Parsed = (Range, ArgType)
+type instance Absχ Parsed = (Range, ArgType)
 type instance Appχ Parsed = Range
 type instance Eqlχ Parsed = Range
 type instance Dapχ Parsed = Range
@@ -80,13 +81,13 @@ pattern Var :: Range -> Text -> ParsedCore
 pattern Var r n <- Varχ r n
   where Var r n = Varχ r n
 
-pattern Prd :: Range -> OptBind Text ParsedCore -> ParsedCore -> ParsedCore
-pattern Prd r b e <- Prdχ r b e
-  where Prd r b e = Prdχ r b e
+pattern Prd :: Range -> ArgType -> OptBind Text ParsedCore -> ParsedCore -> ParsedCore
+pattern Prd r ty b e <- Prdχ (r,ty) b e
+  where Prd r ty b e = Prdχ (r,ty) b e
 
-pattern Abs :: Range -> OptBind Text ParsedCore -> ParsedCore -> ParsedCore
-pattern Abs r b e <- Absχ r b e
-  where Abs r b e = Absχ r b e
+pattern Abs :: Range -> ArgType -> OptBind Text ParsedCore -> ParsedCore -> ParsedCore
+pattern Abs r ty b e <- Absχ (r,ty) b e
+  where Abs r ty b e = Absχ (r,ty) b e
 
 pattern App :: Range -> ParsedCore -> ParsedCore -> ParsedCore
 pattern App r a b <- Appχ r a b
@@ -117,8 +118,8 @@ instance HasRange ParsedCore where
     Core -> mempty
     Uni r _ -> r
     Var r _ -> r
-    Prd r _ _ -> r
-    Abs r _ _ -> r
+    Prd r _ _ _ -> r
+    Abs r _ _ _ -> r
     App r _ _ -> r
     Eql r _ _ _ _ -> r
     Dap r _ _ -> r

@@ -71,6 +71,7 @@ import qualified Sigil.Abstract.Substitution as Sub
 import Sigil.Abstract.Substitution hiding (empty, lookup, insert)
 
 import Sigil.Concrete.Internal
+import Sigil.Concrete.Decorations.Implicit
 --import Sigil.Interpret.Term
 
 
@@ -286,17 +287,17 @@ unify_eq quant_vars a b = case (a, b) of
   --   pure $ Just (add_bind Forall a, [(a :≗: a'), (b :≗: b')], id)
 
   -- TODO: this is not in Caledon!!! do we have a case prd-prd or prd-any or any-prd??? 
-  (Prd (AnnBind (n, ty)) body, Prd (AnnBind (n', ty')) body') -> 
+  (Prd Regular (AnnBind (n, ty)) body, Prd Regular (AnnBind (n', ty')) body') -> 
     pure $ Just (add_bind Forall n ty quant_vars, mempty, [(ty :≗: ty'), (body :≗: subst (n' ↦ Var n) body')])
 
   -- Case Lam-Lam
-  (Abs (AnnBind (n, ty)) body, Abs (AnnBind (n', ty')) body') -> 
+  (Abs Regular (AnnBind (n, ty)) body, Abs Regular (AnnBind (n', ty')) body') -> 
     pure $ Just (add_bind Forall n ty quant_vars, mempty, [(ty :≗: ty'), (body :≗: subst (n' ↦ Var n) body')])
 
   -- Case Lam-Any (both left and right variants)
-  (s, Abs (AnnBind (n, ty)) body) -> 
+  (s, Abs Regular (AnnBind (n, ty)) body) -> 
     pure $ Just (add_bind Forall n ty quant_vars, mempty, [s :≗: (body `app` Var n)])
-  (Abs (AnnBind (n, ty)) body, s) -> 
+  (Abs Regular (AnnBind (n, ty)) body, s) -> 
     pure $ Just (add_bind Forall n ty quant_vars, mempty, [(body `app` Var n) :≗: s])
 
 
@@ -571,7 +572,7 @@ unify_eq quant_vars a b = case (a, b) of
         pure $ (x, wind (x, map (Var . aname) aₙₛ))
 
       let to_l_term term = case term of
-              Prd bind body -> Abs bind $ to_l_term body
+              Prd Regular bind body -> Abs Regular bind $ to_l_term body
               _ -> foldr app (action $ fmap aname aₙₛ) $ map snd xₘₛ
           -- The term L, which we will substitute for x
           l = to_l_term ty
@@ -583,7 +584,7 @@ unify_eq quant_vars a b = case (a, b) of
           -- applied to B (see transition in description)
           subst_bty :: Substitution' -> InternalCore -> [(Name, InternalCore)] -> m [(Name, InternalCore)]
           subst_bty sub term l = case (term,l) of 
-            (Prd b ty, (x, xi):xmr) ->
+            (Prd Regular b ty, (x, xi):xmr) ->
               (:) (x, vbuild $ subst sub (snd $ unann b))
                 <$> (subst_bty (Sub.insert (aname b) xi sub) ty xmr)
             (_, []) -> pure []
@@ -829,15 +830,15 @@ wind (n, vars) = foldr App (Var n) vars
 --   a -> ([], a)
 
 untelescope :: ([AnnBind Name InternalCore], InternalCore) -> InternalCore
-untelescope (bindings, body) = foldr Abs body bindings
+untelescope (bindings, body) = foldr (Abs Regular) body bindings
 
 telescope_type :: InternalCore -> ([AnnBind Name InternalCore], InternalCore)
 telescope_type term = case term of
-  Prd binding b -> (_1 %~ (:) binding) $ telescope_type b
+  Prd Regular binding b -> (_1 %~ (:) binding) $ telescope_type b
   a -> ([], a)
 
 untelescope_type :: ([AnnBind Name InternalCore], InternalCore) -> InternalCore
-untelescope_type (bindings, ty) = foldr Prd ty bindings
+untelescope_type (bindings, ty) = foldr (Prd Regular) ty bindings
   
 flatten :: Formula a -> FlatFormula a
 flatten formula = case formula of
@@ -847,7 +848,7 @@ flatten formula = case formula of
 
 get_base :: Int -> InternalCore -> InternalCore 
 get_base 0 a = a                            
-get_base n (Abs _ r) = get_base (n - 1) r
+get_base n (Abs _ _ r) = get_base (n - 1) r
 get_base _ a = a
 
 
@@ -860,7 +861,7 @@ get_base _ a = a
 
 app :: InternalCore -> InternalCore -> InternalCore  
 app val arg = case val of 
-  Abs (AnnBind (n, _)) e -> subst ((n ↦ arg) :: Substitution') e
+  Abs _ (AnnBind (n, _)) e -> subst ((n ↦ arg) :: Substitution') e
   _ -> App val arg 
 
 aname :: AnnBind n b -> n

@@ -11,14 +11,15 @@ import Prettyprinter
 import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
 import Sigil.Concrete.Decorations.Range
+import Sigil.Concrete.Decorations.Implicit
 
 
 data Resolved
 type instance Coreχ OptBind Name Resolved = ()
 type instance Varχ Resolved = Range
 type instance Uniχ Resolved = Range
-type instance Prdχ Resolved = Range
-type instance Absχ Resolved = Range
+type instance Prdχ Resolved = (Range, ArgType)
+type instance Absχ Resolved = (Range, ArgType)
 type instance Appχ Resolved = Range
 type instance Eqlχ Resolved = Range
 type instance Dapχ Resolved = Range
@@ -44,8 +45,8 @@ instance HasRange ResolvedCore where
     Coreχ _ -> mempty
     Uniχ r _ -> r
     Varχ r _ -> r
-    Prdχ r _ _ -> r
-    Absχ r _ _ -> r
+    Prdχ (r,_) _ _ -> r
+    Absχ (r,_) _ _ -> r
     Appχ r _ _ -> r
     Eqlχ r _ _ _ _ -> r
     Dapχ r _ _ -> r

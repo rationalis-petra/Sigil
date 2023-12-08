@@ -45,19 +45,19 @@ instance ResolveTo ParsedCore ResolvedCore where
       Just (Left n) -> pure $ Varχ rn $ Name $ Right (n, name)
       Just (Right q) -> pure $ Varχ rn $ Name $ Left q
       Nothing -> throwError $ lift_err name
-    Prd rn (OptBind (t, a)) ty -> do
+    Prd rn at (OptBind (t, a)) ty -> do
       id <- fresh_id
       let n = (\text -> Name $ Right (id,text)) <$> t
           vars' = maybe vars (\t -> insert t (Left id) vars) t
       a' <- mapM (resolve lift_err vars) a
-      Prdχ rn (OptBind (n, a')) <$> resolve lift_err vars' ty
-    Abs rn (OptBind (t, ty)) e -> do
+      Prdχ (rn, at) (OptBind (n, a')) <$> resolve lift_err vars' ty
+    Abs rn at (OptBind (t, ty)) e -> do
       id <- fresh_id
       let
         n = (\text -> Name $ Right (id,text)) <$> t 
         vars' = maybe vars (\t -> insert t (Left id) vars) t
       ty' <- mapM (resolve lift_err vars) ty
-      Absχ rn (OptBind (n, ty')) <$> resolve lift_err vars' e
+      Absχ (rn,at) (OptBind (n, ty')) <$> resolve lift_err vars' e
     App rn l r -> Appχ rn <$> resolve lift_err vars l <*> resolve lift_err vars r
     Eql rn tel ty a a' -> do
       (vars', tel') <- resolve_tel vars tel
