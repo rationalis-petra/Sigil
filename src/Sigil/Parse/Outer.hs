@@ -33,6 +33,7 @@ import Sigil.Abstract.Syntax
   ( ImportModifier(..), ImportDef(..),
     ExportModifier(..), ExportDef(..), Pattern(..))
 import Sigil.Concrete.Decorations.Range
+import Sigil.Concrete.Decorations.Implicit
 import Sigil.Parse.Syntax
 import Sigil.Parse.Combinator
 import Sigil.Parse.Lexer
@@ -133,7 +134,7 @@ syn_entry = mutual
         pure (args, val)
 
       let tofn [] v = v
-          tofn (x:xs) v = RAbs mempty (Just x) (Nothing) (tofn xs v)
+          tofn (x:xs) v = RAbs mempty Regular (Just x) (Nothing) (tofn xs v)
 
       case args of 
         [] -> error "impossible!"
@@ -175,18 +176,20 @@ syn_core level = do
   where
     plam :: ParserT m Syntax
     plam = 
-      let unscope :: Range -> [(Maybe Text, Maybe Syntax)] -> Syntax -> Syntax
-          unscope range = flip $ foldl (flip . uncurry $ RAbs range)
+      let unscope :: Range -> [(ArgType, Maybe Text, Maybe Syntax)] -> Syntax -> Syntax
+          unscope range = flip $ foldl (\body (aty, mt, ms) -> RAbs range aty mt ms body)
 
-          args :: ParserT m [(Maybe Text, Maybe Syntax)]
+          args :: ParserT m [(ArgType, Maybe Text, Maybe Syntax)]
           args = many (tyarg <||> arg)
 
-          tyarg :: ParserT m (Maybe Text, Maybe Syntax)
-          tyarg = between lparen rparen $
-                    (\n t -> (Just n, Just t)) <$> anyvar <*> (symbol "⮜" *> syn_core level)
+          tyarg :: ParserT m (ArgType, Maybe Text, Maybe Syntax)
+          tyarg = (between lparen rparen $
+                    (\n t -> (Regular, Just n, Just t)) <$> anyvar <*> (symbol "⮜" *> syn_core level))
+                  <|> (between langle rangle $
+                    (\n t -> (Implicit, Just n, Just t)) <$> anyvar <*> (symbol "⮜" *> syn_core level))
 
-          arg :: ParserT m (Maybe Text, Maybe Syntax)
-          arg =  notFollowedBy (symbol "→") *> ((,Nothing) . Just <$> anyvar)
+          arg :: ParserT m (ArgType, Maybe Text, Maybe Syntax)
+          arg =  notFollowedBy (symbol "→") *> ((Regular,,Nothing) . Just <$> anyvar)
 
           mklam :: ParserT m (Range -> Syntax)
           mklam = do
@@ -206,7 +209,7 @@ syn_core level = do
         mkprod = do
           (mn, mty) <- parg <* (symbol "→")
           bdy <- syn_core level
-          pure $ \r -> RPrd r mn mty bdy
+          pure $ \r -> RPrd r Regular mn mty bdy
 
         parg :: ParserT m (Maybe Text, Maybe Syntax)
         parg = annarg <||> ty_only

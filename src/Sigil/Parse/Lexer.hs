@@ -5,6 +5,8 @@ module Sigil.Parse.Lexer
   , lexeme
   , lparen
   , rparen
+  , langle
+  , rangle
   , anyvar
   , subscript_int
   ) where
@@ -51,6 +53,12 @@ lparen = const () <$> char '(' <* sc
 
 rparen :: (MonadParsec e Text m) => m ()  
 rparen = const () <$> char ')' <* sc
+
+langle :: (MonadParsec e Text m) => m ()  
+langle = const () <$> char '(' <* sc
+
+rangle :: (MonadParsec e Text m) => m ()  
+rangle = const () <$> char ')' <* sc
 
 subscript_int :: (MonadParsec e Text m) => m Integer
 subscript_int = lexeme $ to_int 1 . reverse <$> many1 sub_numchar

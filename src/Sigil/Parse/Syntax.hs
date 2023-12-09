@@ -15,6 +15,7 @@ import Prettyprinter
 
 import Sigil.Abstract.Names (Path(..))
 import Sigil.Concrete.Decorations.Range
+import Sigil.Concrete.Decorations.Implicit
 import Sigil.Abstract.Syntax
   (Pattern(..), ImportDef, ExportDef)
 
@@ -26,8 +27,8 @@ data MixToken s = NamePart Text | Syn s
 data Syntax
   = RMix Range [MixToken Syntax]
   | RUni Range Integer
-  | RPrd Range (Maybe Text) (Maybe Syntax) Syntax
-  | RAbs Range (Maybe Text) (Maybe Syntax) Syntax
+  | RPrd Range ArgType (Maybe Text) (Maybe Syntax) Syntax
+  | RAbs Range ArgType (Maybe Text) (Maybe Syntax) Syntax
   | REql Range RawTel Syntax Syntax Syntax
   | RDap Range RawTel Syntax
   | RInd Range Text (Maybe Syntax) [(Text, Syntax)]
@@ -64,18 +65,23 @@ instance Pretty Syntax where
   pretty = \case 
     RMix _ toks -> "mix [" <> sep (map pretty toks) <> "]"
     RUni _ n -> "𝕌" <> pretty n
-    RPrd _ mt ms body ->
-      (case (mt, ms) of
-         (Just t, Just v) -> "(" <> pretty t <+> "⮜" <+> pretty v <> ")"
-         (Just t, Nothing) -> "(" <> pretty t <+> "⮜ _)"
-         (Nothing, Just v) -> pretty v
-         _ -> "_")
+    RPrd _ at mt ms body ->
+      let lp = if at == Regular then "(" else "⟨"
+          rp = if at == Regular then ")" else "⟩"
+      in case (mt, ms) of
+        (Just t, Just v) -> lp <> pretty t <+> "⮜" <+> pretty v <> rp
+        (Just t, Nothing) -> lp <> pretty t <+> "⮜ _" <> rp
+        (Nothing, Just v) -> pretty v
+        _ -> "_"
       <+> "→" <+> pretty body
-    RAbs _ mt ms body -> "λ"
-       <+> (case (mt, ms) of
-              (Just t, Just v) -> "(" <> pretty t <+> "⮜" <+> pretty v <> ")"
+    RAbs _ at mt ms body ->
+      let lp = if at == Regular then "(" else "⟨"
+          rp = if at == Regular then ")" else "⟩"
+      in "λ"
+      <+> (case (mt, ms) of
+              (Just t, Just v) -> lp <> pretty t <+> "⮜" <+> pretty v <> rp
               (Just t, Nothing) -> pretty t
-              (Nothing, Just v) -> "(_ ⮜" <+> pretty v <> ")"
+              (Nothing, Just v) -> lp <> "_ ⮜" <+> pretty v <> rp
               _ -> "_")
       <+> "→" <+> pretty body
     REql _ tel ty v1 v2 -> "ι" <+> pretty_tel tel <+> pretty ty <+> pretty v1 <+> pretty v2

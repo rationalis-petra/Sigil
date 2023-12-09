@@ -35,7 +35,6 @@ import Prettyprinter hiding (lparen, rparen)
 import Sigil.Abstract.Syntax
 import Sigil.Abstract.Names (OptBind(..), name)
 import Sigil.Concrete.Decorations.Range
-import Sigil.Concrete.Decorations.Implicit
 import Sigil.Concrete.Parsed
 
 import Sigil.Parse.Lexer (scn)
@@ -112,12 +111,12 @@ mix_core precs = \case
     vals' <- go vals
     parseMix (mixfix precs) vals'
   RUni rn n -> pure $ Uniχ rn n 
-  RPrd rn mt ms body ->
-    Prdχ (rn, Regular)
+  RPrd rn aty mt ms body ->
+    Prdχ (rn, aty)
     <$> (OptBind . (mt ,) <$> mapM (mix_core precs) ms)
     <*> mix_core (update_precs (maybeToList mt) precs) body
-  RAbs rn mt ms body ->
-    Absχ (rn, Regular)
+  RAbs rn aty mt ms body ->
+    Absχ (rn, aty)
     <$> (OptBind . (mt ,) <$> mapM (mix_core precs) ms)
     <*> mix_core (update_precs (maybeToList mt) precs) body
   REql rn rt ty v1 v2 -> do

@@ -23,6 +23,7 @@ import Sigil.Abstract.Names (Path(..))
 import Sigil.Abstract.Syntax
 import Sigil.Abstract.AlphaEq
 import Sigil.Concrete.Parsed
+import Sigil.Concrete.Decorations.Implicit
   
 
 expr_ops :: Map Text PrecedenceNode
@@ -371,16 +372,16 @@ parse_mod =
 𝓊 = RUni mempty
 
 abs :: [Text] -> Syntax -> Syntax
-abs = flip $ foldr (\var body -> RAbs mempty (Just var) Nothing body)
+abs = flip $ foldr (\var body -> RAbs mempty Regular (Just var) Nothing body)
 
 lam :: [(Text, Syntax)] -> Syntax -> Syntax
-lam = flip $ foldr (\(v, s) body -> RAbs mempty (Just v) (Just s) body)
+lam = flip $ foldr (\(v, s) body -> RAbs mempty Regular (Just v) (Just s) body)
 
 pi :: [(Text, Syntax)] -> Syntax -> Syntax
-pi = flip $ foldr (\(v, s) body -> RPrd mempty (Just v) (Just s) body)
+pi = flip $ foldr (\(v, s) body -> RPrd mempty Regular (Just v) (Just s) body)
 
 (→) :: [Syntax] -> Syntax -> Syntax
-(→) = flip $ foldr (\ty body -> RPrd mempty Nothing (Just ty) body)
+(→) = flip $ foldr (\ty body -> RPrd mempty Regular Nothing (Just ty) body)
 
 μ :: Text -> Syntax -> [(Text, Syntax)] -> Syntax
 μ var ty = RInd mempty var (Just ty)
@@ -431,12 +432,14 @@ syn_eq l r = case (l, r) of
     liftEq (tok_eq syn_eq) toks toks'
   (RUni _ n, RUni _ n') ->
     n == n'
-  (RPrd _ mt mty body, RPrd _ mt' mty' body') ->
-    liftEq (==) mt mt'
+  (RPrd _ aty mt mty body, RPrd _ aty' mt' mty' body') ->
+    aty == aty'
+    && liftEq (==) mt mt'
     && liftEq syn_eq mty mty'
     && syn_eq body body'
-  (RAbs _ mt mty body, RAbs _ mt' mty' body') ->
-    liftEq (==) mt mt'
+  (RAbs _ aty mt mty body, RAbs _ aty' mt' mty' body') ->
+    aty == aty'
+    && liftEq (==) mt mt'
     && liftEq syn_eq mty mty'
     && syn_eq body body'
   (REql _ tel ty v1 v2, REql _ tel' ty' v1' v2') ->
