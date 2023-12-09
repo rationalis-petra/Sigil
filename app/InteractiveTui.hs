@@ -71,8 +71,18 @@ interactive_tui interpreter _ = do
                          , (A.attrName "selected",
                             V.withForeColor
                              (V.withBackColor V.defAttr (V.rgbColor 197 200 198))
-                             (V.rgbColor 29 31 33))])
+                             (V.rgbColor 29 31 33))
+                         , (A.attrName "green",
+                            V.withForeColor V.defAttr
+                             (V.rgbColor 181 189 104))
+                         , (A.attrName "yellow",
+                            V.withForeColor V.defAttr
+                             (V.rgbColor 240 198 116))
+                         , (A.attrName "red",
+                            V.withForeColor V.defAttr
+                             (V.rgbColor 204 102 102))])
                 }
+            
       initial_state = InteractiveState
         { _focus = Input
         , _editorState = Editor.editor Input (module_keymap interpreter)
@@ -100,7 +110,7 @@ draw :: InteractiveState s -> [T.Widget ID]
 draw st =
   let main_panel =
         joinBorders . border $ hBox
-          [ vBox [(Editor.draw (st^.editorState) Input)
+          [ vBox [(Editor.draw True (st^.editorState) Input)
                  , hBorder 
                  , withAttr (A.attrName "title") (str "Output")
                  , str (st^.outputState)]
@@ -150,7 +160,7 @@ draw st =
         $ border
         $ hLimit 60
         $ vLimit 1
-        $ Editor.draw (st^.paletteState) Palette
+        $ Editor.draw False (st^.paletteState) Palette
       
   in case (st^.focus) of 
     Palette -> [palette, main_panel] -- (palette : main_panel)

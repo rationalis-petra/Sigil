@@ -20,8 +20,9 @@ import Lens.Micro.TH
 import Lens.Micro.Mtl
 
 import qualified Brick.Types as T
+import qualified Brick.AttrMap as A
 import qualified Brick.Widgets.Edit as E
-import Brick.Widgets.Core (str)
+import Brick.Widgets.Core (str, withAttr, (<=>))
 import qualified Graphics.Vty as V
 
 import Tui.Unicode  
@@ -53,9 +54,17 @@ editor id initial_keymap = Editor
   , _mode = Normal
   }
 
-draw :: (Ord id, Show id) => Editor s id -> id -> T.Widget id
-draw st focus =
-  E.renderEditor (str . unlines) (st^.label == focus) (st^.brickEditor)
+draw :: (Ord id, Show id) => Bool -> Editor s id -> id -> T.Widget id
+draw drawModeline st focus =
+  E.renderEditor (str . unlines) (st^.label == focus) (st^.brickEditor) &
+    if drawModeline
+    then flip (<=>) (setModeColor (st^.mode) $ str (show (st^.mode)))
+    else id
+  where
+    setModeColor mode widget = case mode of
+      Normal -> withAttr (A.attrName "red") widget
+      Insert -> withAttr (A.attrName "green") widget
+      _ -> widget 
 
 handleEvent :: forall ev s id. Eq id => T.BrickEvent id ev -> Lens' s (Editor s id) -> T.EventM id s ()
 handleEvent ev self = case ev of
@@ -65,7 +74,7 @@ handleEvent ev self = case ev of
     cmode <- use (self.mode)
     let (st', maction) = keypress ((this^.keyActions) self cmode) keys (k, mods)
     self.keyState .= st'
-    case maction of 
+    case maction of
       Just action -> action
       Nothing
         | cmode == Insert -> case st' of
