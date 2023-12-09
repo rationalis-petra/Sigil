@@ -56,7 +56,7 @@ syn_mod = do
   (title, ports) <- module_header
   let imports = lefts ports
       exports = rights ports
-  body <- many $ L.nonIndented scn syn_entry
+  body <- many $ L.nonIndented scn (syn_entry <* scn)
   pure $ RModule title imports exports body
 
   where

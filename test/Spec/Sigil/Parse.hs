@@ -350,6 +350,12 @@ parse_mod =
       (smodul (Path ["single-def"]) [] []
        [sentry "x" (mix [np "true"])])
 
+    , mod_test "extra-whitespace"
+      "module single-def \n\
+      \x ≜ true  \n \n"
+      (smodul (Path ["single-def"]) [] []
+       [sentry "x" (mix [np "true"])])
+
     , mod_test "multi-def"
       "module multi-def \n\
       \x ≜ true\n\
