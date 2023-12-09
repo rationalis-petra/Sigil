@@ -54,9 +54,17 @@ default_keymap self = \case
             , ([(V.KChar 'd', []), (V.KChar '0', [])], self %= applyEdit Z.killToBOL)
             , ([(V.KChar 'd', []), (V.KChar 'd', [])], self %= applyEdit (Z.deleteChar . Z.killToEOL . Z.gotoBOL))
 
+            -- 'Change' (delete + move into insert mode)
+            , ([(V.KChar 'c', []), (V.KChar 'w', [])], self %= applyEdit Z.deleteWord >> self.mode .= Insert)
+            , ([(V.KChar 'c', []), (V.KChar 'b', [])], self %= applyEdit Z.deletePrevWord >> self.mode .= Insert)
+            , ([(V.KChar 'c', []), (V.KChar '$', [])], self %= applyEdit Z.killToEOL >> self.mode .= Insert)
+            , ([(V.KChar 'c', []), (V.KChar '0', [])], self %= applyEdit Z.killToBOL >> self.mode .= Insert)
+            , ([(V.KChar 'c', []), (V.KChar 'd', [])], self %= applyEdit (Z.deleteChar . Z.killToEOL . Z.gotoBOL) >> self.mode .= Insert)
+
             -- Mode change
             , ([(V.KChar 'i', [])], self.mode .= Insert)
             , ([(V.KChar 'I', [])], self %= applyEdit Z.gotoBOL >> self.mode .= Insert)
+            , ([(V.KChar 'a', [])], self.mode .= Insert >> self %= applyEdit Z.moveRight)
             , ([(V.KChar 'A', [])], self %= applyEdit Z.gotoEOL >> self.mode .= Insert)
             , ([(V.KChar 'o', [])], self.mode .= Insert >> self %= applyEdit (Z.breakLine . Z.gotoEOL))
             , ([(V.KChar 'O', [])], self.mode .= Insert >> self %= applyEdit (Z.moveUp . Z.breakLine . Z.gotoBOL))
@@ -101,17 +109,25 @@ module_keymap interpreter self = \case
             , ([(V.KChar 'd', []), (V.KChar '0', [])], self %= applyEdit Z.killToBOL)
             , ([(V.KChar 'd', []), (V.KChar 'd', [])], self %= applyEdit (Z.deleteChar . Z.killToEOL . Z.gotoBOL))
 
+            -- 'Change' (delete + move into insert mode)
+            , ([(V.KChar 'c', []), (V.KChar 'w', [])], self %= applyEdit Z.deleteWord >> self.mode .= Insert)
+            , ([(V.KChar 'c', []), (V.KChar 'b', [])], self %= applyEdit Z.deletePrevWord >> self.mode .= Insert)
+            , ([(V.KChar 'c', []), (V.KChar '$', [])], self %= applyEdit Z.killToEOL >> self.mode .= Insert)
+            , ([(V.KChar 'c', []), (V.KChar '0', [])], self %= applyEdit Z.killToBOL >> self.mode .= Insert)
+            , ([(V.KChar 'c', []), (V.KChar 'd', [])], self %= applyEdit (Z.deleteChar . Z.killToEOL . Z.gotoBOL) >> self.mode .= Insert)
+
             -- Mode change
             , ([(V.KChar 'i', [])], self.mode .= Insert)
             , ([(V.KChar 'I', [])], self %= applyEdit Z.gotoBOL >> self.mode .= Insert)
+            , ([(V.KChar 'a', [])], self.mode .= Insert >> self %= applyEdit Z.moveRight)
             , ([(V.KChar 'A', [])], self %= applyEdit Z.gotoEOL >> self.mode .= Insert)
             , ([(V.KChar 'o', [])], self.mode .= Insert >> self %= applyEdit (Z.breakLine . Z.gotoEOL))
             , ([(V.KChar 'O', [])], self.mode .= Insert >> self %= applyEdit (Z.moveUp . Z.breakLine . Z.gotoBOL))
 
             -- Evaluate
             , ([(V.KChar ' ', []), (V.KChar 'e', [])], eval_text interpreter (getText . view self))
-            , ([(V.KChar ' ', []), (V.KChar 'f', [])], load_file interpreter)
-            , ([(V.KChar ' ', []), (V.KChar 'i', [])], add_import)
+            , ([(V.KChar ' ', []), (V.KChar 'm', []), (V.KChar 'f', [])], load_file interpreter)
+            , ([(V.KChar ' ', []), (V.KChar 'm', []), (V.KChar 'i', [])], add_import)
 
             -- Quit
             , ([(V.KChar ' ', []), (V.KChar 'q', []), (V.KChar 'q', [])], halt)
