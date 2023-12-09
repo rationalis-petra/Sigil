@@ -1,0 +1,414 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<!-- 2023-12-09 Sat 22:08 -->
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sigil Overview</title>
+<meta name="author" content="Connor Redfern" />
+<meta name="generator" content="Org Mode" />
+<style>
+  #content { max-width: 60em; margin: auto; }
+  .title  { text-align: center;
+             margin-bottom: .2em; }
+  .subtitle { text-align: center;
+              font-size: medium;
+              font-weight: bold;
+              margin-top:0; }
+  .todo   { font-family: monospace; color: red; }
+  .done   { font-family: monospace; color: green; }
+  .priority { font-family: monospace; color: orange; }
+  .tag    { background-color: #eee; font-family: monospace;
+            padding: 2px; font-size: 80%; font-weight: normal; }
+  .timestamp { color: #bebebe; }
+  .timestamp-kwd { color: #5f9ea0; }
+  .org-right  { margin-left: auto; margin-right: 0px;  text-align: right; }
+  .org-left   { margin-left: 0px;  margin-right: auto; text-align: left; }
+  .org-center { margin-left: auto; margin-right: auto; text-align: center; }
+  .underline { text-decoration: underline; }
+  #postamble p, #preamble p { font-size: 90%; margin: .2em; }
+  p.verse { margin-left: 3%; }
+  pre {
+    border: 1px solid #e6e6e6;
+    border-radius: 3px;
+    background-color: #f2f2f2;
+    padding: 8pt;
+    font-family: monospace;
+    overflow: auto;
+    margin: 1.2em;
+  }
+  pre.src {
+    position: relative;
+    overflow: auto;
+  }
+  pre.src:before {
+    display: none;
+    position: absolute;
+    top: -8px;
+    right: 12px;
+    padding: 3px;
+    color: #555;
+    background-color: #f2f2f299;
+  }
+  pre.src:hover:before { display: inline; margin-top: 14px;}
+  /* Languages per Org manual */
+  pre.src-asymptote:before { content: 'Asymptote'; }
+  pre.src-awk:before { content: 'Awk'; }
+  pre.src-authinfo::before { content: 'Authinfo'; }
+  pre.src-C:before { content: 'C'; }
+  /* pre.src-C++ doesn't work in CSS */
+  pre.src-clojure:before { content: 'Clojure'; }
+  pre.src-css:before { content: 'CSS'; }
+  pre.src-D:before { content: 'D'; }
+  pre.src-ditaa:before { content: 'ditaa'; }
+  pre.src-dot:before { content: 'Graphviz'; }
+  pre.src-calc:before { content: 'Emacs Calc'; }
+  pre.src-emacs-lisp:before { content: 'Emacs Lisp'; }
+  pre.src-fortran:before { content: 'Fortran'; }
+  pre.src-gnuplot:before { content: 'gnuplot'; }
+  pre.src-haskell:before { content: 'Haskell'; }
+  pre.src-hledger:before { content: 'hledger'; }
+  pre.src-java:before { content: 'Java'; }
+  pre.src-js:before { content: 'Javascript'; }
+  pre.src-latex:before { content: 'LaTeX'; }
+  pre.src-ledger:before { content: 'Ledger'; }
+  pre.src-lisp:before { content: 'Lisp'; }
+  pre.src-lilypond:before { content: 'Lilypond'; }
+  pre.src-lua:before { content: 'Lua'; }
+  pre.src-matlab:before { content: 'MATLAB'; }
+  pre.src-mscgen:before { content: 'Mscgen'; }
+  pre.src-ocaml:before { content: 'Objective Caml'; }
+  pre.src-octave:before { content: 'Octave'; }
+  pre.src-org:before { content: 'Org mode'; }
+  pre.src-oz:before { content: 'OZ'; }
+  pre.src-plantuml:before { content: 'Plantuml'; }
+  pre.src-processing:before { content: 'Processing.js'; }
+  pre.src-python:before { content: 'Python'; }
+  pre.src-R:before { content: 'R'; }
+  pre.src-ruby:before { content: 'Ruby'; }
+  pre.src-sass:before { content: 'Sass'; }
+  pre.src-scheme:before { content: 'Scheme'; }
+  pre.src-screen:before { content: 'Gnu Screen'; }
+  pre.src-sed:before { content: 'Sed'; }
+  pre.src-sh:before { content: 'shell'; }
+  pre.src-sql:before { content: 'SQL'; }
+  pre.src-sqlite:before { content: 'SQLite'; }
+  /* additional languages in org.el's org-babel-load-languages alist */
+  pre.src-forth:before { content: 'Forth'; }
+  pre.src-io:before { content: 'IO'; }
+  pre.src-J:before { content: 'J'; }
+  pre.src-makefile:before { content: 'Makefile'; }
+  pre.src-maxima:before { content: 'Maxima'; }
+  pre.src-perl:before { content: 'Perl'; }
+  pre.src-picolisp:before { content: 'Pico Lisp'; }
+  pre.src-scala:before { content: 'Scala'; }
+  pre.src-shell:before { content: 'Shell Script'; }
+  pre.src-ebnf2ps:before { content: 'ebfn2ps'; }
+  /* additional language identifiers per "defun org-babel-execute"
+       in ob-*.el */
+  pre.src-cpp:before  { content: 'C++'; }
+  pre.src-abc:before  { content: 'ABC'; }
+  pre.src-coq:before  { content: 'Coq'; }
+  pre.src-groovy:before  { content: 'Groovy'; }
+  /* additional language identifiers from org-babel-shell-names in
+     ob-shell.el: ob-shell is the only babel language using a lambda to put
+     the execution function name together. */
+  pre.src-bash:before  { content: 'bash'; }
+  pre.src-csh:before  { content: 'csh'; }
+  pre.src-ash:before  { content: 'ash'; }
+  pre.src-dash:before  { content: 'dash'; }
+  pre.src-ksh:before  { content: 'ksh'; }
+  pre.src-mksh:before  { content: 'mksh'; }
+  pre.src-posh:before  { content: 'posh'; }
+  /* Additional Emacs modes also supported by the LaTeX listings package */
+  pre.src-ada:before { content: 'Ada'; }
+  pre.src-asm:before { content: 'Assembler'; }
+  pre.src-caml:before { content: 'Caml'; }
+  pre.src-delphi:before { content: 'Delphi'; }
+  pre.src-html:before { content: 'HTML'; }
+  pre.src-idl:before { content: 'IDL'; }
+  pre.src-mercury:before { content: 'Mercury'; }
+  pre.src-metapost:before { content: 'MetaPost'; }
+  pre.src-modula-2:before { content: 'Modula-2'; }
+  pre.src-pascal:before { content: 'Pascal'; }
+  pre.src-ps:before { content: 'PostScript'; }
+  pre.src-prolog:before { content: 'Prolog'; }
+  pre.src-simula:before { content: 'Simula'; }
+  pre.src-tcl:before { content: 'tcl'; }
+  pre.src-tex:before { content: 'TeX'; }
+  pre.src-plain-tex:before { content: 'Plain TeX'; }
+  pre.src-verilog:before { content: 'Verilog'; }
+  pre.src-vhdl:before { content: 'VHDL'; }
+  pre.src-xml:before { content: 'XML'; }
+  pre.src-nxml:before { content: 'XML'; }
+  /* add a generic configuration mode; LaTeX export needs an additional
+     (add-to-list 'org-latex-listings-langs '(conf " ")) in .emacs */
+  pre.src-conf:before { content: 'Configuration File'; }
+
+  table { border-collapse:collapse; }
+  caption.t-above { caption-side: top; }
+  caption.t-bottom { caption-side: bottom; }
+  td, th { vertical-align:top;  }
+  th.org-right  { text-align: center;  }
+  th.org-left   { text-align: center;   }
+  th.org-center { text-align: center; }
+  td.org-right  { text-align: right;  }
+  td.org-left   { text-align: left;   }
+  td.org-center { text-align: center; }
+  dt { font-weight: bold; }
+  .footpara { display: inline; }
+  .footdef  { margin-bottom: 1em; }
+  .figure { padding: 1em; }
+  .figure p { text-align: center; }
+  .equation-container {
+    display: table;
+    text-align: center;
+    width: 100%;
+  }
+  .equation {
+    vertical-align: middle;
+  }
+  .equation-label {
+    display: table-cell;
+    text-align: right;
+    vertical-align: middle;
+  }
+  .inlinetask {
+    padding: 10px;
+    border: 2px solid gray;
+    margin: 10px;
+    background: #ffffcc;
+  }
+  #org-div-home-and-up
+   { text-align: right; font-size: 70%; white-space: nowrap; }
+  textarea { overflow-x: auto; }
+  .linenr { font-size: smaller }
+  .code-highlighted { background-color: #ffff00; }
+  .org-info-js_info-navigation { border-style: none; }
+  #org-info-js_console-label
+    { font-size: 10px; font-weight: bold; white-space: nowrap; }
+  .org-info-js_search-highlight
+    { background-color: #ffff00; color: #000000; font-weight: bold; }
+  .org-svg { }
+</style>
+<link rel="stylesheet" href="sigil-style.css" type="text/css"/>
+</head>
+<body>
+<div id="content" class="content">
+<h1 class="title">Sigil Overview</h1>
+<div style="text-align:left">
+<p>
+<a href="../index.html">Sigil</a> / Overview
+</p>
+</div>
+
+<div id="outline-container-orgde871ba" class="outline-2">
+<h2 id="orgde871ba">Introduction</h2>
+<div class="outline-text-2" id="text-orgde871ba">
+<p>
+Sigil is for the most part a Dependently-Typed lambda calclus plus inductive
+types. Specifically, it is based on Observational Homotopy Type Theory (O.H.T.T)
+(see the <a href="https://ncatlab.org/nlab/show/higher+observational+type+theory">nlab</a> or the excellent talks (<a href="https://www.youtube.com/watch?v=FrxkVzItMzA">Part 1</a>, <a href="https://www.youtube.com/watch?v=5ciDNfmvMdU">Part 2</a>, <a href="https://www.youtube.com/watch?v=9pDddxB7LbE">Part 3</a>)).
+</p>
+</div>
+</div>
+
+<div id="outline-container-org6110c21" class="outline-2">
+<h2 id="org6110c21">Expressions</h2>
+<div class="outline-text-2" id="text-org6110c21">
+</div>
+<div id="outline-container-org69cedf6" class="outline-3">
+<h3 id="org69cedf6">Comments</h3>
+<div class="outline-text-3" id="text-org69cedf6">
+<p>
+Comments are denoted with either the '⍝' symbol (for single line comments) or
+the '⋳' and '⋻' symbols for multi-line comments. 
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sigil"><span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">This is a comment</span>
+
+<span style="color: #969896; font-style: italic;">&#8947; </span><span style="color: #969896; font-style: italic;">This is the start of a multi-line comment</span>
+<span style="color: #969896; font-style: italic;">  it continues here...</span>
+<span style="color: #969896; font-style: italic;">  ... and ends here</span><span style="color: #969896; font-style: italic;"> &#8955;</span>
+</pre>
+</div>
+</div>
+</div>
+
+<div id="outline-container-orgc85c8ad" class="outline-3">
+<h3 id="orgc85c8ad">Universes</h3>
+<div class="outline-text-3" id="text-orgc85c8ad">
+<p>
+The sigil langauges feature a series of hierarchical universes, typed
+<code>𝕌 = 𝕌₀, 𝕌₁, 𝕌₂, …</code>.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org3f19eb8" class="outline-3">
+<h3 id="org3f19eb8">Functions and Variables</h3>
+<div class="outline-text-3" id="text-org3f19eb8">
+<p>
+As a dependently-typed lambda calculus, Sigil has functions and the
+dependent product type. Use λ to start a function, followd by one or more
+arguments, which are (optionally annotated) symbols (annotations use the <code>⮜</code>). A
+simple identity function would look like:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sigil"><span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">The identity function</span>
+<span style="color: #b5bd68;">&#955;</span> <span style="color: #81a2be;">A</span> <span style="color: #c5c8c6;">(</span>x <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">A</span><span style="color: #c5c8c6;">)</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">A</span>
+
+<span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">The identity function's type</span>
+<span style="color: #c5c8c6;">(</span><span style="color: #81a2be;">A</span> <span style="color: #de935f;">&#11164;</span> <span style="color: #b5bd68;">&#120140;</span><span style="color: #c5c8c6;">)</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">A</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">A</span>
+</pre>
+</div>
+
+<p>
+Parameters (variables) can use underscores to associate themselves with a
+particular fixity. There is currently no way of declaring precedence. 
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sigil"><span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">infix is allowed</span>
+<span style="color: #b5bd68;">&#955;</span> _+_ n m <span style="color: #de935f;">&#8594;</span> n + m
+
+<span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">prefix is allowed (and is also the default, so the underscore is unnecessary)</span>
+<span style="color: #b5bd68;">&#955;</span> f_ x <span style="color: #de935f;">&#8594;</span> f x
+
+<span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">postfix is allowed</span>
+<span style="color: #b5bd68;">&#955;</span> n _! <span style="color: #de935f;">&#8594;</span> n !
+
+<span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">closed is allowed</span>
+<span style="color: #b5bd68;">&#955;</span> &#8970;_&#8971; x <span style="color: #de935f;">&#8594;</span> &#8970; x &#8971;
+
+<span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">can be combined</span>
+<span style="color: #b5bd68;">&#955;</span> if_then_else_ c e1 e2 <span style="color: #de935f;">&#8594;</span> if c then e1 else e2
+</pre>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org8b8221a" class="outline-3">
+<h3 id="org8b8221a">Inductive Types</h3>
+<div class="outline-text-3" id="text-org8b8221a">
+<p>
+Inductive types are probably the most distinct from what you might expect.
+Inductive types are declared with the <code>μ</code> keyword. This is followed by the name
+of the type you wish to declare (in the below example, 'N'), alonf with its'
+kind. On a newline (and indented) you can then declare any number of
+constructors. IMPORTANT: The name (below, N), is only bound in the inductive
+type declaration.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sigil"><span style="color: #b5bd68;">&#956;</span> <span style="color: #81a2be;">N</span> <span style="color: #de935f;">&#11164;</span> <span style="color: #b5bd68;">&#120140;</span>.
+  zero <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">N</span>
+  succ <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">N</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">N</span>
+</pre>
+</div>
+
+<p>
+Inductive constructors must be prefixed via a colon ':' character, and must be
+paired with the type they are from. If we imagine that 'N' is bound the the type
+above, then the following are valid inductive values:
+</p>
+<div class="org-src-container">
+<pre class="src src-sigil"><span style="color: #81a2be;">:zero</span> &#65128; <span style="color: #81a2be;">N</span>
+<span style="color: #c5c8c6;">(</span><span style="color: #81a2be;">:succ</span> &#65128; <span style="color: #81a2be;">N</span><span style="color: #c5c8c6;">)</span> <span style="color: #c5c8c6;">(</span><span style="color: #81a2be;">:zero</span> &#65128; <span style="color: #81a2be;">N</span><span style="color: #c5c8c6;">)</span>
+</pre>
+</div>
+
+<p>
+This is important to note when doing pattern-matching, as patterns also use the
+colon prefix. The pattern-matching construct is also somewhat unusual, in that
+it involves simultaneously defining a recursive function and immediately
+invoking it. The induction term uses the 'φ' keyword, followed by the name and type of
+the recursive function that you are defining. Then, after a comma ',' provide
+the value that the function is being called with. As an example, the 'add'
+function would be defined as follows:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sigil"><span style="color: #b5bd68;">&#955;</span> n m <span style="color: #de935f;">&#8594;</span> <span style="color: #b5bd68;">&#966;</span> rec <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">N</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">N</span>, m. 
+  <span style="color: #81a2be;">:zero</span> <span style="color: #de935f;">&#8594;</span> n
+  <span style="color: #81a2be;">:succ</span> <span style="color: #de935f;">&#8594;</span> succ <span style="color: #c5c8c6;">(</span>rec i<span style="color: #c5c8c6;">)</span>
+</pre>
+</div>
+</div>
+</div>
+</div>
+
+<div id="outline-container-orga9fb309" class="outline-2">
+<h2 id="orga9fb309">Modules</h2>
+<div class="outline-text-2" id="text-orga9fb309">
+</div>
+<div id="outline-container-orga17ab5b" class="outline-3">
+<h3 id="orga17ab5b">Module Header</h3>
+<div class="outline-text-3" id="text-orga17ab5b">
+<div class="org-src-container">
+<pre class="src src-sigil"><span style="color: #b5bd68;">module</span> test.vals
+  <span style="color: #b5bd68;">import</span> 
+    num.nat.<span style="color: #c5c8c6;">(</span>..<span style="color: #c5c8c6;">)</span>
+</pre>
+</div>
+</div>
+</div>
+
+<div id="outline-container-orgb314257" class="outline-3">
+<h3 id="orgb314257">Definitions</h3>
+<div class="outline-text-3" id="text-orgb314257">
+<p>
+Definitions are given as a name followed by the '≜' keyword, and then the
+expression (value) which you want to define. For example, the below assigns the
+Natural number type (used earlier) to the symbol 'ℕ'.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sigil"><span style="color: #81a2be;">&#8469;</span> <span style="color: #de935f;">&#8796;</span> <span style="color: #b5bd68;">&#956;</span> <span style="color: #81a2be;">M</span> <span style="color: #de935f;">&#11164;</span> <span style="color: #b5bd68;">&#120140;</span>.
+  zero <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">M</span>
+  succ <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">M</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">M</span>
+</pre>
+</div>
+
+<p>
+Definitions can also come with annotations beforehand, allowing annotations to
+be omitted from function arguments:
+</p>
+<div class="org-src-container">
+<pre class="src src-sigil">id <span style="color: #de935f;">&#11164;</span> <span style="color: #c5c8c6;">(</span><span style="color: #81a2be;">A</span> <span style="color: #de935f;">&#11164;</span> <span style="color: #b5bd68;">&#120140;</span><span style="color: #c5c8c6;">)</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">A</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">A</span>
+id <span style="color: #de935f;">&#8796;</span> <span style="color: #b5bd68;">&#955;</span> <span style="color: #81a2be;">A</span> x <span style="color: #de935f;">&#8594;</span> x
+</pre>
+</div>
+
+<p>
+Function definitions can also use a list of names before the '≜' as arguments
+to the function:
+</p>
+<div class="org-src-container">
+<pre class="src src-sigil">_+_ <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">&#8469;</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">&#8469;</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">&#8469;</span>
+_+_ n m <span style="color: #de935f;">&#8796;</span> <span style="color: #b5bd68;">&#966;</span> rec <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">&#8469;</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">&#8469;</span>, m.
+  <span style="color: #81a2be;">:zero</span> <span style="color: #de935f;">&#8594;</span> n
+  <span style="color: #81a2be;">:succ</span> i <span style="color: #de935f;">&#8594;</span> succ <span style="color: #c5c8c6;">(</span>rec i<span style="color: #c5c8c6;">)</span>
+</pre>
+</div>
+
+
+<p>
+Tip: define utility funtions/values that bundle an inductive constructor to make
+defining inductive values more convenient.
+</p>
+<div class="org-src-container">
+<pre class="src src-sigil">zero <span style="color: #de935f;">&#8796;</span> <span style="color: #81a2be;">:zero</span> &#65128; <span style="color: #81a2be;">&#8469;</span>
+succ <span style="color: #de935f;">&#8796;</span> <span style="color: #81a2be;">:succ</span> &#65128; <span style="color: #81a2be;">&#8469;</span>
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>

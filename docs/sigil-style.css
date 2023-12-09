@@ -27,6 +27,10 @@ h1, h2 {
   border-bottom: 0.01em solid #9995;
 }
 
+img {
+    width: 100%;
+}
+
 pre {
     /* background-color: #141b2c; */
     background-color: var(--alt-background);
