@@ -55,7 +55,6 @@ load_file :: forall m e s t id. (MonadError SigilDoc m, MonadGen m, Environment 
 load_file interpreter = do
   focus .= Palette
   paletteAction .= (\filename -> do
-    focus .= Input
     istate <- use interpreterState
     pkg_name <- use (location._1)
     out <- liftIO $ (Right <$> readFile (unpack filename)) `Exception.catch` (pure . Left)
@@ -84,7 +83,6 @@ add_import :: T.EventM id (InteractiveState s) ()
 add_import = do
   focus .= Palette
   paletteAction .= (\import_statement -> do
-    focus .= Input
     case Megaparsec.runParser pImport "import" import_statement of
       Left _ -> outputState .= "import parser failure"
       Right val -> (location._3) %= (val :))

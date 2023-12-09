@@ -169,27 +169,12 @@ change_focus DLeft  (Navigation _)  = Input
 change_focus DRight Input = Navigation NavModule 
 change_focus _ v = v
 
--- data NavLoc = NavPackage | NavModule | NavEntry
---   deriving (Ord, Show, Eq)
-  
--- data ID = Input | Navigation NavLoc | Output | Palette
-
 choose_cursor :: InteractiveState s -> [T.CursorLocation ID] -> Maybe (T.CursorLocation ID)
 choose_cursor st locs = find (liftEq (==) (Just $ st^.focus) . T.cursorLocationName) locs
 
--- app_handle_event :: forall m e s t ev. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
---                     Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> T.BrickEvent ID ev -> T.EventM ID (InteractiveState s) ()
 app_handle_event :: forall m e s t ev. Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t
   -> T.BrickEvent ID ev -> T.EventM ID (InteractiveState s) ()
 app_handle_event _ = \case
-  -- (T.VtyEvent (V.EvKey V.KEsc [])) -> do
-  --   f <- use focus
-  --   case f of
-  --     Palette -> do
-  --       paletteState %= Editor.applyEdit clearZipper
-  --       focus .= Input
-  --     _ -> halt
-
   (T.VtyEvent (V.EvKey V.KUp    [V.MCtrl])) -> focus %= change_focus DUp
   (T.VtyEvent (V.EvKey V.KDown  [V.MCtrl])) -> focus %= change_focus DDown
   (T.VtyEvent (V.EvKey V.KLeft  [V.MCtrl])) -> focus %= change_focus DLeft
@@ -242,4 +227,10 @@ handle_palette_event ev = case ev of
     paletteState %= Editor.applyEdit clearZipper
     (paletteState.Editor.mode) .= Editor.Insert
     action (strip $ Editor.getText palette)
+    focus .= Input
+  (T.VtyEvent (V.EvKey (V.KChar 'g') [V.MCtrl])) -> do 
+    paletteState %= Editor.applyEdit clearZipper
+    (paletteState.Editor.mode) .= Editor.Insert
+    focus .= Input
+   
   _ -> Editor.handleEvent ev paletteState

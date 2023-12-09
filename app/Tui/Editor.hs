@@ -107,6 +107,3 @@ move_right = applyEdit Z.moveRight
 
 move_left :: Editor s n -> Editor s n 
 move_left = applyEdit Z.moveLeft
-
--- move_word :: Editors n -> Editor s n
--- move_word 
