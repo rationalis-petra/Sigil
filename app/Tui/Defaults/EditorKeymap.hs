@@ -27,16 +27,16 @@ import Tui.Keymap
 
 default_keymap :: Lens' s (Editor s id) -> EditMode -> Keymap (T.EventM id s ())
 default_keymap self = \case 
-  Normal -> [ ([(V.KUp, [])],    self %= move_up)
-            , ([(V.KDown, [])],  self %= move_down)
-            , ([(V.KLeft, [])],  self %= move_left)
-            , ([(V.KRight, [])], self %= move_right)
+  Normal -> [ ([(V.KUp, [])],    self %= applyEdit Z.moveUp)
+            , ([(V.KDown, [])],  self %= applyEdit Z.moveDown)
+            , ([(V.KLeft, [])],  self %= applyEdit Z.moveLeft)
+            , ([(V.KRight, [])], self %= applyEdit Z.moveRight)
 
             -- Movement
-            , ([(V.KChar 'k', [])], self %= move_up)
-            , ([(V.KChar 'j', [])], self %= move_down)
-            , ([(V.KChar 'h', [])], self %= move_left)
-            , ([(V.KChar 'l', [])], self %= move_right)
+            , ([(V.KChar 'k', [])], self %= applyEdit Z.moveUp)
+            , ([(V.KChar 'j', [])], self %= applyEdit Z.moveDown)
+            , ([(V.KChar 'h', [])], self %= applyEdit Z.moveLeft)
+            , ([(V.KChar 'l', [])], self %= applyEdit Z.moveRight)
             , ([(V.KChar 'b', [])], self %= applyEdit Z.moveWordLeft)
             , ([(V.KChar 'w', [])], self %= applyEdit Z.moveWordRight)
             , ([(V.KChar 'e', [])], self %= applyEdit Z.moveWordRight)
@@ -83,15 +83,15 @@ module_keymap :: forall m e s t id. (MonadError SigilDoc m, MonadGen m, Environm
               -> Lens' (InteractiveState s) (Editor (InteractiveState s) id) -> EditMode -> Keymap (T.EventM id (InteractiveState s) ())
 module_keymap interpreter self = \case 
             -- Movement
-  Normal -> [ ([(V.KUp, [])],    self %= move_up)
-            , ([(V.KDown, [])],  self %= move_down)
-            , ([(V.KLeft, [])],  self %= move_left)
-            , ([(V.KRight, [])], self %= move_right)
+  Normal -> [ ([(V.KUp, [])],    self %= applyEdit Z.moveUp)
+            , ([(V.KDown, [])],  self %= applyEdit Z.moveDown)
+            , ([(V.KLeft, [])],  self %= applyEdit Z.moveLeft)
+            , ([(V.KRight, [])], self %= applyEdit Z.moveRight)
 
-            , ([(V.KChar 'k', [])], self %= move_up)
-            , ([(V.KChar 'j', [])], self %= move_down)
-            , ([(V.KChar 'h', [])], self %= move_left)
-            , ([(V.KChar 'l', [])], self %= move_right)
+            , ([(V.KChar 'k', [])], self %= applyEdit Z.moveUp)
+            , ([(V.KChar 'j', [])], self %= applyEdit Z.moveDown)
+            , ([(V.KChar 'h', [])], self %= applyEdit Z.moveLeft)
+            , ([(V.KChar 'l', [])], self %= applyEdit Z.moveRight)
             , ([(V.KChar 'b', [])], self %= applyEdit Z.moveWordLeft)
             , ([(V.KChar 'w', [])], self %= applyEdit Z.moveWordRight)
             , ([(V.KChar 'e', [])], self %= applyEdit Z.moveWordRight)

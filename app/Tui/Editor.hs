@@ -11,15 +11,9 @@ module Tui.Editor
   , applyEdit
   , handleEvent
   , EditMode(..)
-
-  , move_left
-  , move_right
-  , move_up
-  , move_down
   ) where
 
 import Data.Text (Text, pack)
-import qualified Data.Text.Zipper as Z
 import Data.Text.Zipper (TextZipper)
 import Lens.Micro
 import Lens.Micro.TH
@@ -95,15 +89,3 @@ getText = pack . unlines . E.getEditContents . _brickEditor
 
 applyEdit :: (TextZipper String -> TextZipper String) -> Editor s n -> Editor s n
 applyEdit f = (brickEditor %~ E.applyEdit f)
-
-move_up :: Editor s n -> Editor s n 
-move_up = applyEdit Z.moveUp
-
-move_down :: Editor s n -> Editor s n 
-move_down = applyEdit Z.moveDown
-
-move_right :: Editor s n -> Editor s n 
-move_right = applyEdit Z.moveRight
-
-move_left :: Editor s n -> Editor s n 
-move_left = applyEdit Z.moveLeft
