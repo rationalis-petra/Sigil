@@ -127,27 +127,26 @@ syn_entry = mutual
         pure $ Just (name, tipe))
         <||> pure Nothing
       
-      (args, val) <- L.nonIndented scn $ do
-        args <- many1 anyvar
+      let tofn [] v = v
+          tofn ((at, x):xs) v = RAbs mempty at (Just x) (Nothing) (tofn xs v)
+
+      (name, def) <- L.nonIndented scn $ do
+        name <- anyvar
+        args <- many (((Regular,) <$> anyvar) <||> between langle rangle ((Implicit,) <$> anyvar))
         symbol "≜"
         val <- syn_core level
-        pure (args, val)
+        let def =  RSingle mempty name (fmap snd ann) (tofn args val)
+        pure (name, def)
 
-      let tofn [] v = v
-          tofn (x:xs) v = RAbs mempty Regular (Just x) (Nothing) (tofn xs v)
-
-      case args of 
-        [] -> error "impossible!"
-        (name : xs) -> do
-          case ann of
-            Just (name', _) ->
-              if (name == name') then
-                pure ()
-              else
-                fail "annotated name and definitional name must be identical"
-            Nothing -> pure ()
-            
-          pure $ RSingle mempty name (fmap snd ann) (tofn xs val)
+      case ann of
+        Just (name', _) ->
+          if (name == name') then
+            pure ()
+          else
+            fail "annotated name and definitional name must be identical"
+        Nothing -> pure ()
+           
+      pure $ def
 
 
 {--------------------------------- CORE PARSER ---------------------------------}
@@ -189,7 +188,8 @@ syn_core level = do
                         (\n t -> (Implicit, Just n, Just t)) <$> anyvar <*> (symbol "⮜" *> syn_core level))
 
           arg :: ParserT m (ArgType, Maybe Text, Maybe Syntax)
-          arg =  notFollowedBy (symbol "→") *> ((Regular,,Nothing) . Just <$> anyvar)
+          arg = notFollowedBy (symbol "→") *>
+            (((Regular,,Nothing) . Just <$> anyvar) <||> between langle rangle ((Implicit,,Nothing) . Just <$> anyvar))
 
           mklam :: ParserT m (Range -> Syntax)
           mklam = do
