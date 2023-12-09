@@ -3,15 +3,17 @@ module Tui.Unicode
   , unicode_input_map
   ) where
 
-import Data.List (isPrefixOf)
+import Data.List (isPrefixOf, find)
 
 import Data.Text.Zipper (TextZipper, insertChar, insertMany)
 
 char_update :: Char -> [Char] -> (Maybe [Char], TextZipper String -> TextZipper String) 
 char_update c cs = case filter (isPrefixOf (cs <> [c]) . fst) unicode_input_map of 
-  [] -> (Nothing, (insertMany ((';' : cs) <> [c])))
+  [] -> case find ((==) cs . fst) unicode_input_map of
+    Just (_, out) -> (Nothing, insertMany ([out,c]))
+    _ -> (Nothing, (insertMany ((';' : cs) <> [c])))
   [(str, out)]
-    | str == cs <> [c] -> (Nothing, (insertChar out))
+    | str == cs <> [c] -> (Nothing, insertChar out)
     | otherwise -> (Just (cs <> [c]), id)
   _ -> (Just (cs <> [c]), id)
   
