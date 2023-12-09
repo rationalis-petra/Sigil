@@ -243,6 +243,11 @@ parse_expr =
       "λ (A ⮜ 𝕌) (x ⮜ A) → x"
       (lam [("A", mix [sy (𝓊 0)]), ("x", mix [np "A"])] (mix [np "x"]))
 
+    -- Lambda: Implicit Arguments
+    , expr_test "lam-ann"
+      "λ ⟨A ⮜ 𝕌⟩ → A"
+      (ilam [("A", mix [sy (𝓊 0)])] (mix [np "A"]))
+
     -- Product: Annotations, multiple arguments etc.
     , expr_test "prd-ann"
       "(A ⮜ 𝕌) → A"
@@ -250,6 +255,11 @@ parse_expr =
     , expr_test "prd-noann"
       "𝕌 → 𝕌"
       ([mix [sy (𝓊 0)]] → mix [sy (𝓊 0)])
+
+    -- Products: Implicit Arguments
+    , expr_test "lam-ann"
+      "⟨A ⮜ 𝕌⟩ → A"
+      (ipi [("A", mix [sy (𝓊 0)])] (mix [np "A"]))
 
     -- Inductive Types: 
     , expr_test "ind-empty"
@@ -374,11 +384,20 @@ parse_mod =
 abs :: [Text] -> Syntax -> Syntax
 abs = flip $ foldr (\var body -> RAbs mempty Regular (Just var) Nothing body)
 
+-- iabs :: [Text] -> Syntax -> Syntax
+-- iabs = flip $ foldr (\var body -> RAbs mempty Implicit (Just var) Nothing body)
+
 lam :: [(Text, Syntax)] -> Syntax -> Syntax
 lam = flip $ foldr (\(v, s) body -> RAbs mempty Regular (Just v) (Just s) body)
 
+ilam :: [(Text, Syntax)] -> Syntax -> Syntax
+ilam = flip $ foldr (\(v, s) body -> RAbs mempty Implicit (Just v) (Just s) body)
+
 pi :: [(Text, Syntax)] -> Syntax -> Syntax
 pi = flip $ foldr (\(v, s) body -> RPrd mempty Regular (Just v) (Just s) body)
+
+ipi :: [(Text, Syntax)] -> Syntax -> Syntax
+ipi = flip $ foldr (\(v, s) body -> RPrd mempty Implicit (Just v) (Just s) body)
 
 (→) :: [Syntax] -> Syntax -> Syntax
 (→) = flip $ foldr (\ty body -> RPrd mempty Regular Nothing (Just ty) body)
