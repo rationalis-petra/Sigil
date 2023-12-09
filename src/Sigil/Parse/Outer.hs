@@ -184,9 +184,9 @@ syn_core level = do
 
           tyarg :: ParserT m (ArgType, Maybe Text, Maybe Syntax)
           tyarg = (between lparen rparen $
-                    (\n t -> (Regular, Just n, Just t)) <$> anyvar <*> (symbol "⮜" *> syn_core level))
-                  <|> (between langle rangle $
-                    (\n t -> (Implicit, Just n, Just t)) <$> anyvar <*> (symbol "⮜" *> syn_core level))
+                   (\n t -> (Regular, Just n, Just t)) <$> anyvar <*> (symbol "⮜" *> syn_core level))
+                  <||> (between langle rangle $
+                        (\n t -> (Implicit, Just n, Just t)) <$> anyvar <*> (symbol "⮜" *> syn_core level))
 
           arg :: ParserT m (ArgType, Maybe Text, Maybe Syntax)
           arg =  notFollowedBy (symbol "→") *> ((Regular,,Nothing) . Just <$> anyvar)
@@ -207,19 +207,21 @@ syn_core level = do
       where
         mkprod :: ParserT m (Range -> Syntax)
         mkprod = do
-          (mn, mty) <- parg <* (symbol "→")
+          (at, mn, mty) <- parg <* (symbol "→")
           bdy <- syn_core level
-          pure $ \r -> RPrd r Regular mn mty bdy
+          pure $ \r -> RPrd r at mn mty bdy
 
-        parg :: ParserT m (Maybe Text, Maybe Syntax)
+        parg :: ParserT m (ArgType, Maybe Text, Maybe Syntax)
         parg = annarg <||> ty_only
 
-        annarg :: ParserT m (Maybe Text, Maybe Syntax)
-        annarg = between lparen rparen $
-          (\l r -> (Just l, Just r)) <$> anyvar <*> (symbol "⮜" *> syn_core level)
+        annarg :: ParserT m (ArgType, Maybe Text, Maybe Syntax)
+        annarg = (between lparen rparen $
+                  (\l r -> (Regular, Just l, Just r)) <$> anyvar <*> (symbol "⮜" *> syn_core level))
+                 <||> (between langle rangle $
+                       (\l r -> (Implicit, Just l, Just r)) <$> anyvar <*> (symbol "⮜" *> syn_core level))
 
-        ty_only :: ParserT m (Maybe Text, Maybe Syntax)
-        ty_only = (\t -> (Nothing, Just t)) <$> choice' [plam, pexpr]
+        ty_only :: ParserT m (ArgType, Maybe Text, Maybe Syntax)
+        ty_only = (\t -> (Regular, Nothing, Just t)) <$> choice' [plam, pexpr]
 
 
     pid :: ParserT m Syntax

@@ -144,7 +144,7 @@ instance Pretty InternalCore where
     Ctr label _  -> ":" <> pretty label 
 
     Rec recur val cases -> vsep
-      [ "φ" <+> pretty_annbind True recur <> "," <+> pretty val <> "."
+      [ "φ" <+> pretty_annbind Regular True recur <> "," <+> pretty val <> "."
       , indent 2 (align (vsep (map (\(pat, val) -> pretty_pat pat <+> "→" <+> pretty val) cases)))
       ]
       where 
@@ -160,36 +160,31 @@ instance Pretty InternalCore where
         where
           tel = telescope e
         
-          telescope (Prd at bind e) = (if (at == Implicit)
-                                       then "⟨" <> pretty_annbind False bind <> "⟩"
-                                       else pretty_annbind False bind) : telescope e
+          telescope (Prd at bind e) = (pretty_annbind at False bind) : telescope e
           telescope b = [pretty b]
 
       pretty_abs_like e =
         let (args, body) = telescope e
             telescope (Abs at bind e) =
               let (args, body) = telescope e in 
-                ((at == Implicit, bind) : args, body)
+                ((at , bind) : args, body)
             telescope body = ([], body)
     
-            pretty_args [(False, bind)] =
-              pretty_annbind True bind
-            pretty_args [(True, bind)] =
-              ("⟨" <> pretty_annbind True bind <> "⟩")
-            pretty_args ((False, bind) : xs) =
-              pretty_annbind True bind <+> pretty_args xs
-            pretty_args ((True, bind) : xs) =
-              ("⟨" <> pretty_annbind True bind <> "⟩") <+> pretty_args xs
+            pretty_args [(at, bind)] = pretty_annbind at True bind
+            pretty_args ((at, bind) : xs) = pretty_annbind at True bind <+> pretty_args xs
             pretty_args [] = mempty
         in
           ("λ" <+> pretty_args args <+> "→") <+> nest 2 (bracket body)
 
-      pretty_annbind fnc = \case
-        AnnBind (Name (Right (_, "_")), ty) ->
-          if fnc
-          then "(_⮜" <> pretty ty <> ")"
-          else bracket ty
-        AnnBind (n, ty) -> "(" <> pretty n <+> "⮜" <+> pretty ty <> ")"
+      pretty_annbind at fnc bind =
+        let lp = if at == Regular then "(" else "⟨"
+            rp = if at == Regular then ")" else "⟩"
+        in case bind of 
+          AnnBind (Name (Right (_, "_")), ty) ->
+            if fnc
+            then lp <>"_⮜" <> pretty ty <> rp
+            else bracket ty
+          AnnBind (n, ty) -> lp <> pretty n <+> "⮜" <+> pretty ty <> rp
 
       pretty_tel [] = ""
       pretty_tel [(bind, val)] = pretty_eq_bind bind <+> pretty val

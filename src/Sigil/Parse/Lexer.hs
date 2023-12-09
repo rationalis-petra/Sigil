@@ -46,19 +46,19 @@ lexeme :: (MonadParsec e Text m) => m a -> m a
 lexeme = L.lexeme sc
 
 symbol :: (MonadParsec e Text m) => Text -> m ()
-symbol txt = const () <$> (string txt <* (lookAhead (satisfy (not . symchar) *> pure () <|> eof)) <* sc)
+symbol txt = void $ (string txt <* (lookAhead (satisfy (not . symchar) *> pure () <|> eof)) <* sc)
 
 lparen :: (MonadParsec e Text m) => m ()  
-lparen = const () <$> char '(' <* sc
+lparen = void $ char '(' <* sc
 
 rparen :: (MonadParsec e Text m) => m ()  
-rparen = const () <$> char ')' <* sc
+rparen = void $ char ')' <* sc
 
 langle :: (MonadParsec e Text m) => m ()  
-langle = const () <$> char '(' <* sc
+langle = void $ char '⟨' <* sc
 
 rangle :: (MonadParsec e Text m) => m ()  
-rangle = const () <$> char ')' <* sc
+rangle = void $ char '⟩' <* sc
 
 subscript_int :: (MonadParsec e Text m) => m Integer
 subscript_int = lexeme $ to_int 1 . reverse <$> many1 sub_numchar
@@ -88,6 +88,8 @@ anyvar = lexeme $ takeWhile1P (Just "symbol-character") symchar
 symchar :: Char -> Bool
 symchar '('  = False
 symchar ')'  = False
+symchar '⟨'  = False
+symchar '⟩'  = False
 symchar '.'  = False
 symchar ','  = False
 symchar '≜'  = False
