@@ -8,6 +8,7 @@ import Prettyprinter
 import Sigil.Abstract.Names
 import Sigil.Abstract.Substitution
 import Sigil.Concrete.Internal
+import Sigil.Concrete.Decorations.Implicit
 
 import TestFramework
 
@@ -67,7 +68,7 @@ fv_tests =
 𝓊 = Uni
 
 (⇒) :: [(Name, InternalCore)] -> InternalCore -> InternalCore
-args ⇒ body = foldr (\var body -> Abs (AnnBind var) body) body args
+args ⇒ body = foldr (\var body -> Abs Regular (AnnBind var) body) body args
 
 idv :: Integer -> Text -> InternalCore
 idv n t = Var $ Name $ Right (n, t)

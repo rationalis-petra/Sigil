@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -XTypeOperators #-}
 module Spec.Sigil.Analysis.NameResolution (resolve_spec) where
 
 import Prelude hiding (putStrLn)
@@ -14,6 +15,8 @@ import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
 import Sigil.Concrete.Parsed
 import Sigil.Concrete.Resolved
+import Sigil.Concrete.Decorations.Range
+import Sigil.Concrete.Decorations.Implicit
 import Sigil.Analysis.NameResolution
 
 
@@ -58,28 +61,28 @@ tests =
   , res_test "prd-bound-ty-var" ([("y", 𝓊 0)] -→ (var "y")) ([(idn 0 "y", 𝓊 0)] -→ (idv 0 "y"))
   ]
   where
-    var :: Forallχ Monoid χ => n -> Core b n χ
+    var :: Monoid (Varχ χ) => n -> Core b n χ
     var = Varχ mempty
 
-    𝓊 :: Forallχ Monoid χ => Integer -> Core b n χ
+    𝓊 :: Monoid (Uniχ χ) => Integer -> Core b n χ
     𝓊 = Uniχ mempty
 
-    (⇒) :: Forallχ Monoid χ => [n] -> Core OptBind n χ -> Core OptBind n χ
-    args ⇒ body = foldr (\var body -> Absχ mempty (OptBind (Just var, Nothing)) body) body args
+    (⇒) :: (Absχ χ ~ (Range, ArgType)) => [n] -> Core OptBind n χ -> Core OptBind n χ
+    args ⇒ body = foldr (\var body -> Absχ (mempty, Regular) (OptBind (Just var, Nothing)) body) body args
 
-    (=⇒) :: Forallχ Monoid χ => [(n, Core OptBind n χ)] -> Core OptBind n χ -> Core OptBind n χ
-    args =⇒ body = foldr (\b body -> Absχ mempty (OptBind $ bimap Just Just b) body) body args
+    (=⇒) :: (Absχ χ ~ (Range, ArgType)) => [(n, Core OptBind n χ)] -> Core OptBind n χ -> Core OptBind n χ
+    args =⇒ body = foldr (\b body -> Absχ (mempty, Regular) (OptBind $ bimap Just Just b) body) body args
 
-    (→) :: Forallχ Monoid χ => [n] -> Core OptBind n χ -> Core OptBind n χ
-    args → body = foldr (\var body -> Prdχ mempty (OptBind (Just var, Nothing)) body) body args
+    (→) :: (Prdχ χ ~ (Range, ArgType)) => [n] -> Core OptBind n χ -> Core OptBind n χ
+    args → body = foldr (\var body -> Prdχ (mempty, Regular) (OptBind (Just var, Nothing)) body) body args
 
-    (-→) :: Forallχ Monoid χ => [(n, Core OptBind n χ)] -> Core OptBind n χ -> Core OptBind n χ
-    args -→ body = foldr (\b body -> Prdχ mempty (OptBind $ bimap Just Just b) body) body args
+    (-→) :: (Prdχ χ ~ (Range, ArgType)) => [(n, Core OptBind n χ)] -> Core OptBind n χ -> Core OptBind n χ
+    args -→ body = foldr (\b body -> Prdχ (mempty, Regular) (OptBind $ bimap Just Just b) body) body args
 
-    (⋅) :: Forallχ Monoid χ => Core b n χ -> Core b n χ -> Core b n χ
+    (⋅) :: Monoid (Appχ χ) => Core b n χ -> Core b n χ -> Core b n χ
     (⋅) = Appχ mempty
 
-    idv :: Forallχ Monoid χ => Integer -> Text -> Core OptBind Name χ
+    idv :: Monoid (Varχ χ) => Integer -> Text -> Core OptBind Name χ
     idv n t = Varχ mempty $ Name $ Right (n, t)
 
     idn :: Integer -> Text -> Name

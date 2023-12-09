@@ -9,6 +9,7 @@ import Prettyprinter.Render.Sigil
 import Sigil.Abstract.Names
 import Sigil.Abstract.Environment
 import Sigil.Concrete.Internal
+import Sigil.Concrete.Decorations.Implicit
 import Sigil.Interpret.Term
 
 import TestFramework
@@ -101,10 +102,10 @@ norm_tests =
 𝓊 = Uni
 
 (⇒) :: [(Name, InternalCore)] -> InternalCore -> InternalCore
-args ⇒ body = foldr (\var body -> Abs (AnnBind var) body) body args
+args ⇒ body = foldr (\var body -> Abs Regular (AnnBind var) body) body args
 
 (→) :: [(Name, InternalCore)] -> InternalCore -> InternalCore
-args → body = foldr (\var body -> Prd (AnnBind var) body) body args
+args → body = foldr (\var body -> Prd Regular (AnnBind var) body) body args
 
 (⋅) :: InternalCore -> InternalCore -> InternalCore
 (⋅) = App

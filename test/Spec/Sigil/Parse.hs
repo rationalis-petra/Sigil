@@ -19,6 +19,7 @@ import Sigil.Parse ()
 import Sigil.Parse.Syntax
 import Sigil.Parse.Outer
 import Sigil.Parse.Mixfix
+import Sigil.Abstract.Names (Path(..))
 import Sigil.Abstract.Syntax
 import Sigil.Abstract.AlphaEq
 import Sigil.Concrete.Parsed
@@ -326,23 +327,23 @@ parse_mod =
   TestGroup "module" $ Right
     [ mod_test "empty"
       "module empty"
-      (smodul ["empty"] [] [] [])
+      (smodul (Path ["empty"]) [] [] [])
 
     , mod_test "importer"
       "module importer\n import\n  var"
-      (smodul ["importer"] [(("var" :| []), ImSingleton)] [] []) 
+      (smodul (Path ["importer"]) [Im (Path ("var" :| []), ImSingleton)] [] []) 
 
     , mod_test "single-def"
       "module single-def \n\
       \x ≜ true"
-      (smodul ["single-def"] [] []
+      (smodul (Path ["single-def"]) [] []
        [sentry "x" (mix [np "true"])])
 
     , mod_test "multi-def"
       "module multi-def \n\
       \x ≜ true\n\
       \y ≜ false"
-      (smodul ["multi-def"] [] []
+      (smodul (Path ["multi-def"]) [] []
        [ sentry "x" (mix [np "true"])
        , sentry "y" (mix [np "false"])])
 
@@ -350,7 +351,7 @@ parse_mod =
       "module complex-modul \n\
       \fn ≜ λ (A ⮜ 𝕌₁) (x ⮜ A) → A\n\
       \val ≜ fn 𝕌"
-      (smodul ["complex-modul"] [] []
+      (smodul (Path ["complex-modul"]) [] []
        [ sentry "fn" (lam [("A", mix [sy (𝓊 1)]), ("x", mix [np "A"])] (mix [np "A"]))
        , sentry "val" (mix [np "fn", sy (𝓊 0)])
        ])
@@ -393,8 +394,8 @@ mix = RMix mempty
 sentry :: Text -> Syntax -> SynEntry
 sentry name val = RSingle mempty name (Nothing) val
 
-smodul :: NonEmpty Text -> [ImportDef] -> [ExportDef] -> [SynEntry] -> SynModule
-smodul = RModule 
+smodul :: Path -> [ImportDef] -> [ExportDef] -> [SynEntry] -> SynModule
+smodul = RModule
 
 np :: Text -> MixToken s
 np = NamePart

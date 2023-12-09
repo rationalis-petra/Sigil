@@ -1,7 +1,6 @@
 module Spec.Sigil.Abstract.AlphaEq (alphaeq_spec) where
 
 import Data.Text (Text)
-import Data.List.NonEmpty (NonEmpty(..))
 
 import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
@@ -49,24 +48,24 @@ alphaeq_tests =
   , eq_test "def-neq" (idn 0 "x" ≜ 𝓊 0) (idn 0 "x" ≜ 𝓊 1) False
 
   , eq_test "mod-empty-eq"
-    (modul ["empty"] [] [] [])
-    (modul ["empty"] [] [] []) True
+    (modul (Path ["empty"]) [] [] [])
+    (modul (Path ["empty"]) [] [] []) True
 
   , eq_test "mod-single-eq"
-    (modul ["empty"] [] [] [idn 0 "x" ≜ 𝓊 0])
-    (modul ["empty"] [] [] [idn 0 "x" ≜ 𝓊 0]) True
+    (modul (Path ["empty"]) [] [] [idn 0 "x" ≜ 𝓊 0])
+    (modul (Path ["empty"]) [] [] [idn 0 "x" ≜ 𝓊 0]) True
 
   , eq_test "mod-length-neq"
-    (modul ["empty"] [] [] [idn 0 "x" ≜ 𝓊 0])
-    (modul ["empty"] [] [] []) False
+    (modul (Path ["empty"]) [] [] [idn 0 "x" ≜ 𝓊 0])
+    (modul (Path ["empty"]) [] [] []) False
 
   , eq_test "mod-length-neq"
-    (modul ["empty"] [] [] [])
-    (modul ["empty"] [] [] [idn 0 "x" ≜ 𝓊 0]) False
+    (modul (Path ["empty"]) [] [] [])
+    (modul (Path ["empty"]) [] [] [idn 0 "x" ≜ 𝓊 0]) False
 
   , eq_test "mod-single-neq"
-    (modul ["empty"] [] [] [idn 0 "x" ≜ 𝓊 0])
-    (modul ["empty"] [] [] [idn 0 "x" ≜ 𝓊 1]) False
+    (modul (Path ["empty"]) [] [] [idn 0 "x" ≜ 𝓊 0])
+    (modul (Path ["empty"]) [] [] [idn 0 "x" ≜ 𝓊 1]) False
   -- Testing Definitions for Alpha Equality
   ]
 
@@ -104,5 +103,5 @@ idn n t = Name $ Right (n, t)
 (≜) :: Name -> CoreUD -> EntryUD
 n ≜ val = Singleχ void (OptBind (Just n, Nothing)) val
 
-modul :: (NonEmpty Text) -> [ImportDef] -> [ExportDef] -> [EntryUD] -> ModuleUD
+modul :: Path -> [ImportDef] -> [ExportDef] -> [EntryUD] -> ModuleUD
 modul = Module
