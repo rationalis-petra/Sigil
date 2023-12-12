@@ -53,8 +53,10 @@ unify_tests =
 
   -- TODO: ambiguous constraint - is this correct?
   -- ∃x:𝕌. ∃y:𝕌 . x ≗ y
-  -- , can_solve_test "ex-var1" (Bind Exists (idn 0 "x") (𝓊 0) $
-  --                             Bind Exists (idn 1 "y") (𝓊 0) $  
+  , can_solve_test "ex-var1"
+    (Bind Exists (idn 0 "x") (𝓊 0) $
+       Bind Exists (idn 1 "y") (𝓊 0) $ Conj [idv 0 "x" :≗: idv 1 "y"])
+    False
 
   -- ∃x:(A:𝕌→𝕌). x ≗ λ [A:𝕌] A
   , can_solve_test "ex-lam" (Bind Exists (idn 0 "x") ([(idn 1 "A", 𝓊 0)] → 𝓊 0) $
@@ -76,7 +78,7 @@ unify_tests =
         Left e  | b == False -> Nothing
                 | otherwise -> Just $ "unify failed - message:" <+> e
 
-    can_solve_test :: Text -> Formula InternalCore -> Bool -> Test
+    can_solve_test :: Text -> Formula Name InternalCore -> Bool -> Test
     can_solve_test name formula b =
       Test name $ case runUnifyM $ solve formula of 
         Right _ | b == True -> Nothing

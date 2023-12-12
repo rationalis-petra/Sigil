@@ -3,6 +3,7 @@ module Sigil.Parse.Outer
   ( syn_core
   , syn_entry
   , syn_mod
+  , syn_formula
   ) where
 
 
@@ -28,10 +29,11 @@ import qualified Text.Megaparsec.Char as C
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Megaparsec hiding (runParser, parse)
 
-import Sigil.Abstract.Names (Path(..))
+import Sigil.Abstract.Names ( Path(..) )
+import Sigil.Abstract.Unify
 import Sigil.Abstract.Syntax
   ( ImportModifier(..), ImportDef(..),
-    ExportModifier(..), ExportDef(..), Pattern(..))
+    ExportModifier(..), ExportDef(..), Pattern(..) )
 import Sigil.Concrete.Decorations.Range
 import Sigil.Concrete.Decorations.Implicit
 import Sigil.Parse.Syntax
@@ -331,3 +333,55 @@ syn_core level = do
       label <- (single ':' *> anyvar)
       tipe <- (Just <$> try (single '﹨' *> sc *> syn_core level)) <|> pure Nothing
       pure $ \r -> RCtr r label tipe
+
+
+{------------------------------- FORMULA PARSER --------------------------------}
+{- The Formula parser parses unification formulas, which have several nodes:   -}
+{- • Forall: ∀ x ⮜ core. formula                                               -}
+{- • Exists: ∃ x ⮜ core. formula                                               -}
+{- • Conjugation: formula ∧ formula'                                           -}
+{- • Equality: core ≃ core'                                                    -}
+{- • Has-type: core ⮜ core'                                                    -}
+{-                                                                             -}
+{-------------------------------------------------------------------------------}
+
+syn_formula :: forall m. Monad m => Pos -> ParserT m (Formula Text Syntax)
+syn_formula level = do
+  next <- lookAhead (satisfy (const True))
+  case next of
+    '∃' -> pbind "∃" Exists
+    '∀' -> pbind "∀" Forall
+    _ -> psingles <||> pconj
+
+  where
+    pbind :: Text -> Quant -> ParserT m (Formula Text Syntax)
+    pbind sym quant = do
+      symbol sym
+      var <- anyvar
+      symbol "⮜"
+      ty <- syn_core level
+      symbol "."
+      formula <- syn_formula level
+      pure $ Bind quant var ty formula
+
+    pconj :: ParserT m (Formula Text Syntax)
+    pconj = do
+      fm₁ <- syn_formula level
+      symbol "∧"
+      fm₂ <- syn_formula level
+      pure $ And fm₁ fm₂
+
+    psingles :: ParserT m (Formula Text Syntax)
+    psingles = do
+      fs <- sepBy psingle (symbol "∧")
+      case fs of 
+        (_:_)  -> pure $ Conj fs
+        _ -> fail "Can't have empty conjgation"
+
+    psingle :: ParserT m (SingleConstraint Syntax)
+    psingle = do
+      core₁ <- syn_core level
+      f <- (const (:≗:) <$> symbol "≃") <|> (const (:∈:) <$> symbol "⮜")
+      core₂ <- syn_core level
+      pure $ f core₁ core₂
+

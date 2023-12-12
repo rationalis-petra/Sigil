@@ -58,6 +58,7 @@ import Control.Monad (forM)
 import Control.Monad.Except (MonadError, throwError)
 -- import Control.Monad.Reader (MonadReader)
 import Control.Lens (_1, _2, makeLenses, (^.), (%~), view)
+import Data.Text (Text)
 import qualified Data.Set as Set
 import Data.Set (Set)
 import qualified Data.List as List
@@ -128,12 +129,13 @@ data FBind a = FBind
   , _elem_type :: a
   }
 
-data Atom = AVar Name | AUni Integer
+data Atom a = AVar Name | AUni Integer | ACtr Text a
   deriving Eq
 
+type Atom'             = Atom InternalCore
 type Binds'            = Binds InternalCore
 type FBind'            = FBind InternalCore
-type Formula'          = Formula InternalCore
+type Formula'          = Formula Name InternalCore
 type UnifyResult'      = UnifyResult InternalCore
 --type FlatFormula'      = Formula (Core AnnBind Name χ)
 type Substitution'     = Substitution Name InternalCore
@@ -171,14 +173,17 @@ instance Semigroup (FlatFormula a) where
 instance Monoid (FlatFormula a) where
   mempty = FlatFormula [] []
 
-instance Pretty Atom where 
+instance Pretty a => Pretty (Atom a) where 
   pretty (AVar v) = pretty v
   pretty (AUni v) = pretty ((Uni v) :: InternalCore)
+  pretty (ACtr label ty) = "(" <> pretty label <+> "﹨" <+> pretty ty <> ")"
 
 {---------------------------- TOP-LEVEL UNIFICATION ----------------------------}
 {- The solve function is the top-level procedure, and the driver is the        -}
 {- uni_while function. This will perform successive transformations until a    -}
 {- formula is in 'solved form'                                                 -}
+{-                                                                             -}
+{-                                                                             -}
 {-------------------------------------------------------------------------------}
 
 
@@ -320,9 +325,7 @@ unify_eq quant_vars a b = case (a, b) of
             case mbind' of 
               Right ty' ->  
                 if all_elements_are_vars fors terms
-                then case atom' of 
-                  AVar n -> gvar_const (var, terms, ty) (n, terms', ty')
-                  _ -> throwError "TODO: gvar-const take an atom!"
+                then gvar_const (var, terms, ty) (atom', terms', ty')
                 else pure Nothing
               Left (FBind { _elem_quant=Forall, _elem_type=ty', _elem_name=var' })
                 | (not $ elem (Var var) terms) && Set.member var' fors ->
@@ -388,19 +391,22 @@ unify_eq quant_vars a b = case (a, b) of
     -- here, we perform an imitation: let 
     --   L = λ [u₁:A₁ … uₙ:Aₙ] (c (x₁ u₁ … uₙ) … (xₘ u₁ … uₙ))
     -- Then, we transition to
+    --   ∃x₁: (u₁:A₁) → (uₙ:Aₙ) → B₁ ...
+    --     ∃xₘ: (u₁:A₁) → (uₙ:Aₙ) → [(xₘ₋₁ u₁ … uₙ/v₁) … (x₁ u₁ … uₙ/vₘ)] Bₘ ...
+    --       [L/x]F
     -- 
     -- Imitations are performed by the gvar_fixed helper function, meaning
     -- gvar_const doesn't have to do much work!
     -- TODO: change arg type to (Atom, [InternalCore], InternalCore)
-    gvar_const :: (Name, [InternalCore], InternalCore) -> (Name, [InternalCore], InternalCore) -> m (UnifyResult')
-    gvar_const a@(_, _, _) b@(var', _, _) =
-      gvar_fixed a b $ Var . const var'
+    gvar_const :: (Name, [InternalCore], InternalCore) -> (Atom', [InternalCore], InternalCore) -> m (UnifyResult')
+    gvar_const a@(_, _, _) b@(atom, _, _) =
+      gvar_fixed a b $ const (unatom atom)
 
     -- GVar-Uvar Onside
     -------------------
     --
     gvar_uvar_outside :: (Name, [InternalCore], InternalCore) -> (Name, [InternalCore], InternalCore) -> m UnifyResult'
-    gvar_uvar_outside = gvar_const
+    gvar_uvar_outside l r = gvar_const l ((_1 %~ AVar) r)
 
     -- GVar-Uvar Inside
     -------------------
@@ -410,7 +416,7 @@ unify_eq quant_vars a b = case (a, b) of
     gvar_uvar_inside a@(_, terms, _) b@(var', _, _) = 
       case elem_index (Var var') $ reverse terms of
         Nothing -> pure Nothing
-        Just i -> gvar_fixed a b $ Var . (!! i) 
+        Just i -> gvar_fixed a ((_1 %~ AVar) b) $ Var . (!! i) 
 
     -- GVar-Gvar Same
     -----------------
@@ -437,7 +443,7 @@ unify_eq quant_vars a b = case (a, b) of
           
           -- construct the term L
           l = untelescope (perm, lbody) where
-            lbody = wind (var, (map (Var . fst . unann) perm))
+            lbody = wind (AVar var, (map (Var . fst . unann) perm))
 
           -- The type of x' : nty = u₁:Aρ(1) → ... → uₙ:Aρ(n) → A 
           nty = untelescope_type (perm, get_base n ty)
@@ -495,7 +501,7 @@ unify_eq quant_vars a b = case (a, b) of
 
           newx_args = map (Var . view elem_name) hl 
 
-          sub = (binder^.elem_name) ↦ wind (x', newx_args)
+          sub = (binder^.elem_name) ↦ wind (AVar x', newx_args)
 
           ty' = untelescope_type (map (\fb -> AnnBind (fb^.elem_name, fb^.elem_type)) hl, binder^.elem_type)
 
@@ -531,8 +537,8 @@ unify_eq quant_vars a b = case (a, b) of
             (i',_) <- filter (\(_,y') -> y == y') $ zip (fmap aname bbindings) terms' 
             pure (iyt,i')
 
-          l = untelescope (abindings, wind (new_var, fmap (Var . aname . fst) perm))
-          l' = untelescope (bbindings, wind (new_var, fmap (Var . snd) perm))
+          l = untelescope (abindings, wind (AVar new_var, fmap (Var . aname . fst) perm))
+          l' = untelescope (bbindings, wind (AVar new_var, fmap (Var . snd) perm))
 
           newty = untelescope_type (map fst perm, get_base n ty) 
 
@@ -557,8 +563,8 @@ unify_eq quant_vars a b = case (a, b) of
     --     ∃xₘ: (u₁:A₁) → (uₙ:Aₙ) → [(xₘ₋₁ u₁ … uₙ/v₁) … (x₁ u₁ … uₙ/vₘ)] Bₘ ...
     --       [L/x]F
     -- 
-    gvar_fixed :: (Name, [InternalCore], InternalCore) -> (Name, [InternalCore], InternalCore) -> ([Name] -> InternalCore) -> m UnifyResult'
-    gvar_fixed (var, terms, ty) (var', terms', ty') action = do
+    gvar_fixed :: (Name, [InternalCore], InternalCore) -> (Atom', [InternalCore], InternalCore) -> ([Name] -> InternalCore) -> m UnifyResult'
+    gvar_fixed (var, terms, ty) (atom, terms', ty') action = do
       let get_tybinds = fst . telescope_type
 
           aₙₛ = get_tybinds ty  -- The bindings u₁:A₁ … uₙ:Aₙ 
@@ -569,7 +575,7 @@ unify_eq quant_vars a b = case (a, b) of
       --   xₘ (∪_1:A₁) → … (uₙ:Aₙ) → [(xₘ₋₁ u₁ … uₙ/v₁) … (x₁ u₁ … uₙ/vₘ)]B
       xₘₛ <- forM bₘₛ $ \_ -> do
         x <- fresh_var "@xm"
-        pure $ (x, wind (x, map (Var . aname) aₙₛ))
+        pure $ (x, wind (AVar x, map (Var . aname) aₙₛ))
 
       let to_l_term term = case term of
               Prd Regular bind body -> Abs Regular bind $ to_l_term body
@@ -603,7 +609,7 @@ unify_eq quant_vars a b = case (a, b) of
                   , sub
                   -- application of sub to wind (var, terms) seems to be related
                   -- to a bug in HOU.hs (Caledon)
-                  , [subst sub (wind (var, terms)) :≗: wind (var', terms')])
+                  , [subst sub (wind (AVar var, terms)) :≗: wind (atom, terms')])
 
 
     -------------------------------- Predicates ---------------------------------
@@ -808,21 +814,28 @@ elem_index = List.elemIndex
 {- care has to be taken to avoid capturing variables.                          -}
 {-------------------------------------------------------------------------------}
 
+unatom :: Atom' -> InternalCore
+unatom atom = case atom of
+  AVar n -> Var n
+  AUni n -> Uni n
+  ACtr label ty -> Ctr label ty
 
-get_elem :: (MonadError (Doc ann) m) => Atom -> Binds' -> m (Either FBind' InternalCore)
+get_elem :: (MonadError (Doc ann) m) => Atom' -> Binds' -> m (Either FBind' InternalCore)
 get_elem atom qvars = case atom of
   AVar n -> Left <$> n ! qvars 
   AUni n -> pure $ Right (Uni n) 
+  ACtr label ty -> pure $ Right (Ctr label ty)
 
-unwind :: InternalCore -> Maybe (Atom, [InternalCore])        
+unwind :: InternalCore -> Maybe (Atom', [InternalCore])        
 unwind core = case core of 
   App l r -> (_2 %~ (r :)) <$> (unwind l)
   Var n -> Just (AVar n, [])
   Uni n -> Just (AUni n, [])
+  Ctr label ty -> Just (ACtr label ty, [])
   _ -> Nothing
 
-wind :: (Name, [InternalCore]) -> InternalCore
-wind (n, vars) = foldr App (Var n) vars  
+wind :: (Atom', [InternalCore]) -> InternalCore
+wind (a, vars) = foldr App (unatom a) vars  
     
 -- telescope :: Core b n χ -> ([b n (Core b n χ)], Core b n χ)
 -- telescope term = case term of
@@ -840,7 +853,7 @@ telescope_type term = case term of
 untelescope_type :: ([AnnBind Name InternalCore], InternalCore) -> InternalCore
 untelescope_type (bindings, ty) = foldr (Prd Regular) ty bindings
   
-flatten :: Formula a -> FlatFormula a
+flatten :: Formula Name a -> FlatFormula a
 flatten formula = case formula of
   Conj cs -> FlatFormula [] cs
   And l r -> flatten l <> flatten r
