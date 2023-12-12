@@ -21,6 +21,7 @@ import Sigil.Parse.Outer
 import Sigil.Parse.Mixfix
 import Sigil.Abstract.Names (Path(..))
 import Sigil.Abstract.Syntax
+import Sigil.Abstract.Unify
 import Sigil.Abstract.AlphaEq
 import Sigil.Concrete.Parsed
 import Sigil.Concrete.Decorations.Implicit
@@ -307,138 +308,25 @@ parse_expr =
 parse_formula :: TestGroup
 parse_formula =
   TestGroup "formula" $ Right
-    [ expr_test "universe-in-expr" "𝕌 + 𝕌" (mix [sy (𝓊 0), np "+", sy (𝓊 0)])
-    , expr_test "univar-lamb" "λ x → true" (abs ["x"] (mix [np "true"]))
-    , expr_test "bivar-lamb" "λ x y → false" (abs ["x", "y"] (mix [np "false"]))
+    [ form_test "universe-eq" "𝕌 ≃ 𝕌" (ueq (mix [sy (𝓊 0)]) (mix [sy (𝓊 0)]))
+    , form_test "universe-elem" "𝕌 ∈ 𝕌" (uin (mix [sy (𝓊 0)]) (mix [sy (𝓊 0)]))
 
-    , expr_test "closed-lamb"
-      "λ x → x"
-      (abs ["x"] (mix [np "x"]))
-    , expr_test "closed-lamb-newline"
-      "λ x → x\n"
-      (abs ["x"] (mix [np "x"]))
-    , expr_test "infix-lamb"
-      "λ _x_ → true x true"
-      (abs ["_x_"] (mix [np "true", np "x", np "true"]))
-    , expr_test "infix-closed-lamb"
-      "λ _x_ th fo → th x fo"
-      (abs ["_x_", "th", "fo"] (mix [np "th", np "x", np "fo"]))
-    , expr_test "prefix-lamb-1"
-      "λ x_ → x true"
-      (abs ["x_"] (mix [np "x", np "true"]))
-    , expr_test "prefix-lamb-2"
-      "λ x → x true"
-      (abs ["x"] (mix [np "x", np "true"]))
-    , expr_test "postfix-lamb"
-      "λ _x → true x"
-      (abs ["_x"] (mix [np "true", np "x"]))
+    , form_test "formula-conj" "(𝕌 ≃ 𝕌) ∧ (𝕌 ∈ 𝕌)"
+      (ueq (mix [sy (𝓊 0)]) (mix [sy (𝓊 0)]) ∧ uin (mix [sy (𝓊 0)]) (mix [sy (𝓊 0)]))
 
-    , expr_test "uni-uni-app"
-      "𝕌 𝕌"
-      (mix [sy (𝓊 0), sy (𝓊 0)])
-    -- slow
-    , expr_test "lamb-in-expr"
-      "(λ x_ → x true) + ( λ x_ → x true )"
-      (mix [sy (abs ["x_"] (mix [np "x", np "true"])), np "+", sy (abs ["x_"] (mix [np "x", np "true"]))])
-    , expr_test "uni-uni-paren-app"
-      "(𝕌 𝕌)"
-      (mix [sy (mix [sy (𝓊 0), sy (𝓊 0)])])
-    , expr_test "lam-var-app"
-      "(λ x_ → x true) true"
-      (mix [sy (abs ["x_"] (mix [np "x", np "true"])),  np "true"])
-    , expr_test "lam-uni-app"
-      "(λ x_ → x true) 𝕌"
-      (mix [sy (abs ["x_"] (mix [np "x", np "true"])), sy (𝓊 0)])
-    , expr_test "lam-lam-app"
-      "(λ x → x true) (λ x → x true)"
-      (mix [sy (abs ["x"] (mix [np "x", np "true"])), sy (abs ["x"] (mix [np "x", np "true"]))])
-    , expr_test "lam-parens-app"
-      "(λ x → x true) 𝕌"
-      (mix [sy (abs ["x"] (mix [np "x", np "true"])), sy (𝓊 0)])
-    -- With Mixfix
-    , expr_test "lam-binop" -- TODO: remove annotation
-      "λ (A ⮜ 𝕌) → A + A"
-      (lam [("A", mix [sy (𝓊 0)])] (mix [np "A", np "+", np "A"]))
-    , expr_test "lam-parens"
-      "λ (A ⮜ 𝕌) → (A + A)"
-      (lam [("A", mix [sy (𝓊 0)])] (mix [sy (mix [np "A", np "+", np "A"])]))
-    , expr_test "lam-parens-2"
-      "λ (A ⮜ 𝕌) → A (A A)"
-      (lam [("A", mix [sy (𝓊 0)])] (mix [np "A", sy (mix [np "A", np "A"])]))
-    , expr_test "lam-parens-2"
-      "λ (A ⮜ 𝕌) → A (A A) A"
-      (lam [("A", mix [sy (𝓊 0)])] (mix [np "A", sy (mix [np "A", np "A"]), np "A"]))
-
-    , expr_test "lam-parens-3"
-      "λ m n → m n ( m n ) m"
-      (abs ["m", "n"] (mix [np "m", np "n", sy (mix [np "m", np "n"]), np "m"]))
-
-
-    -- Lambda: Annotations, multiple arguments etc.
-    , expr_test "lam-ann"
-      "λ (A ⮜ 𝕌) → A"
-      (lam [("A", mix [sy (𝓊 0)])] (mix [np "A"]))
-    , expr_test "lam-many"
-      "λ (A ⮜ 𝕌) (B ⮜ 𝕌) → A"
-      (lam [("A", mix [sy (𝓊 0)]), ("B", mix [sy (𝓊 0)])] (mix [np "A"]))
-    , expr_test "lam-dep"
-      "λ (A ⮜ 𝕌) (x ⮜ A) → x"
-      (lam [("A", mix [sy (𝓊 0)]), ("x", mix [np "A"])] (mix [np "x"]))
-
-    -- Lambda: Implicit Arguments
-    , expr_test "lam-ann"
-      "λ ⟨A ⮜ 𝕌⟩ → A"
-      (ilam [("A", mix [sy (𝓊 0)])] (mix [np "A"]))
-
-    -- Product: Annotations, multiple arguments etc.
-    , expr_test "prd-ann"
-      "(A ⮜ 𝕌) → A"
-      (pi [("A", mix [sy (𝓊 0)])] (mix [np "A"]))
-    , expr_test "prd-noann"
-      "𝕌 → 𝕌"
-      ([mix [sy (𝓊 0)]] → mix [sy (𝓊 0)])
-
-    -- Products: Implicit Arguments
-    , expr_test "lam-ann"
-      "⟨A ⮜ 𝕌⟩ → A"
-      (ipi [("A", mix [sy (𝓊 0)])] (mix [np "A"]))
-
-    -- Inductive Types: 
-    , expr_test "ind-empty"
-    "μ N ⮜ 𝕌." (μ "N" (mix [sy (𝓊 0)]) [])
-
-    , expr_test "ind-nat"
-    "μ N ⮜ 𝕌.\n  zero ⮜ N\n  succ ⮜ N → N"
-     (μ "N" (mix [sy (𝓊 0)])
-      [ ("zero", mix [np "N"])
-      , ("succ", [mix [np "N"]] → mix [np "N"])])
-
-    , expr_test "ind-nat-extra-line"
-    "μ N ⮜ 𝕌.\n  zero ⮜ N\n  succ ⮜ N → N\n  "
-     (μ "N" (mix [sy (𝓊 0)])
-      [ ("zero", mix [np "N"])
-      , ("succ", [mix [np "N"]] → mix [np "N"])])
-
-
-    -- Recursive definitions
-    , expr_test "rec-nat"
-    "φ rec ⮜ N → N, m.\n  :zero → n\n  :succ n → succ (rec i)"
-    (φ (Just "rec") (Just ([mix [np "N"]] → mix [np "N"])) (mix [np "m"])
-     [ (pl "zero", mix [np "n"])
-     , (pc "succ" [pv "n"], mix [np "succ", sy (mix [np "rec", np "i"])])])
-
-    , expr_test "rec-nat-extra-line"
-    "φ rec ⮜ N → N, m.\n  :zero → n\n  :succ n → succ (rec i)\n"
-    (φ (Just "rec") (Just ([mix [np "N"]] → mix [np "N"])) (mix [np "m"])
-     [ (pl "zero", mix [np "n"])
-     , (pc "succ" [pv "n"], mix [np "succ", sy (mix [np "rec", np "i"])])])
+    , form_test "formula-forall" "∀ x ⮜ 𝕌. (𝕌 ≃ 𝕌) ∧ (𝕌 ∈ 𝕌)"
+      (fa "x" (mix [sy (𝓊 0)])
+       (ueq (mix [sy (𝓊 0)]) (mix [sy (𝓊 0)]) ∧ uin (mix [sy (𝓊 0)]) (mix [sy (𝓊 0)])))
+    , form_test "formula-exists" "∃ x ⮜ 𝕌. (𝕌 ≃ 𝕌) ∧ (𝕌 ∈ 𝕌)"
+      (ex "x" (mix [sy (𝓊 0)])
+       (ueq (mix [sy (𝓊 0)]) (mix [sy (𝓊 0)]) ∧ uin (mix [sy (𝓊 0)]) (mix [sy (𝓊 0)])))
     ]
   where
-    form_test :: Text -> Text -> Syntax -> Test
+    form_test :: Text -> Text -> Formula Text Syntax -> Test
     form_test name text out =  
       case runReader (runParserT (syn_formula pos1) (unpack name) text) pos1 of  
         Right val ->
-          if liftEq (==) syn_eq val out then
+          if liftEq2 (==) syn_eq val out then
             Test name Nothing
           else
             Test name $ Just $ vsep ["got:" <+> "(" <> pretty val <>")", "expected:" <+> "(" <> pretty out <> ")"]
@@ -590,6 +478,20 @@ pv = PatVar
 var :: Text -> ParsedCore  
 var = Varχ mempty
 
+ueq :: Syntax -> Syntax -> Formula Text Syntax  
+ueq l r = Conj [l :≗: r]
+
+uin :: Syntax -> Syntax -> Formula Text Syntax  
+uin l r = Conj [l :∈: r]
+
+(∧) :: Formula n a -> Formula n a -> Formula n a  
+(∧) = And
+
+fa :: Text -> Syntax -> Formula Text Syntax -> Formula Text Syntax  
+fa nm ty f = Bind Forall nm ty f
+
+ex :: Text -> Syntax -> Formula Text Syntax  -> Formula Text Syntax  
+ex nm ty f = Bind Exists nm ty f
 
 
 -- equality

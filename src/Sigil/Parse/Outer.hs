@@ -341,7 +341,7 @@ syn_core level = do
 {- • Exists: ∃ x ⮜ core. formula                                               -}
 {- • Conjugation: formula ∧ formula'                                           -}
 {- • Equality: core ≃ core'                                                    -}
-{- • Has-type: core ⮜ core'                                                    -}
+{- • Has-type: core ∈ core'                                                    -}
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
@@ -351,7 +351,8 @@ syn_formula level = do
   case next of
     '∃' -> pbind "∃" Exists
     '∀' -> pbind "∀" Forall
-    _ -> psingles <||> pconj
+    '(' -> pconj
+    _ -> psingles
 
   where
     pbind :: Text -> Quant -> ParserT m (Formula Text Syntax)
@@ -366,9 +367,9 @@ syn_formula level = do
 
     pconj :: ParserT m (Formula Text Syntax)
     pconj = do
-      fm₁ <- syn_formula level
+      fm₁ <- between lparen rparen $ syn_formula level
       symbol "∧"
-      fm₂ <- syn_formula level
+      fm₂ <- between lparen rparen $ syn_formula level
       pure $ And fm₁ fm₂
 
     psingles :: ParserT m (Formula Text Syntax)
@@ -381,7 +382,7 @@ syn_formula level = do
     psingle :: ParserT m (SingleConstraint Syntax)
     psingle = do
       core₁ <- syn_core level
-      f <- (const (:≗:) <$> symbol "≃") <|> (const (:∈:) <$> symbol "⮜")
+      f <- (const (:≗:) <$> symbol "≃") <|> (const (:∈:) <$> symbol "∈")
       core₂ <- syn_core level
       pure $ f core₁ core₂
 

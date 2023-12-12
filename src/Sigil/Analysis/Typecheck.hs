@@ -49,7 +49,9 @@ data CheckInterp m err e a = CheckInterp
   }
 
 {-------------------------------------------------------------------------------}
-{- The checkable type is used to implement the bidirectional typechecking      -}
+{- The checkable type is used to implement the bidirectional typechecking.     -}
+{- Because we try and implement 'proper' type inference, infer/check also      -}
+{- return a list of variables that are existentially qualified for unification -}
 {- • For infer, the argument is a term, and the return value if is a           -}
 {-   (type, term) pair.                                                        -}
 {- • for check, the argument is a term and it's asserted type, and the return  -}
@@ -60,8 +62,8 @@ data CheckInterp m err e a = CheckInterp
   
 
 class Checkable n a t | a -> n t where 
-  infer :: (Environment n e, MonadError err m, MonadGen m) => CheckInterp m err e t -> e (Maybe t,t) -> a -> m (t, t)
-  check :: (Environment n e, MonadError err m, MonadGen m) => CheckInterp m err e t -> e (Maybe t,t) -> a -> t -> m t
+  infer :: (Environment n e, MonadError err m, MonadGen m) => CheckInterp m err e t -> e (Maybe t,t) -> a -> m (t, t) -- ,[n]
+  check :: (Environment n e, MonadError err m, MonadGen m) => CheckInterp m err e t -> e (Maybe t,t) -> a -> t -> m t -- ,[n]
 
 instance Checkable Name InternalCore InternalCore where 
   infer interp@(CheckInterp {..}) env term =
@@ -181,15 +183,22 @@ instance Checkable Name InternalCore InternalCore where
               let ret_ty' = if (n == n') then ret_ty else subst (n' ↦ Var n) ret_ty
               body' <- check'(insert n (Nothing, a) env) body ret_ty'
               pure $ Abs at₁ (AnnBind (n, a')) body'
-          | at₁ == Regular -> do
-              -- therefore at₂ == Implicit
-              (_, kind) <- infer interp env a
-              check_eq (range term) interp env kind a a'
-              let ret_ty' = if (n == n') then ret_ty else subst (n' ↦ Var n) ret_ty
-              body' <- check'(insert n (Nothing, a) env) body ret_ty'
-              -- TODO: is this safe?! we are adding n' to the scope of function..
-              pure $ Abs at₂ (AnnBind (n', a')) (Abs at₁ (AnnBind (n, a')) body')
+
+          -- Note: do we want to do this?
+          -- | at₁ == Regular -> do
+          --     -- therefore at₂ == Implicit
+          --     (_, kind) <- infer interp env a
+          --     check_eq (range term) interp env kind a a'
+          --     let ret_ty' = if (n == n') then ret_ty else subst (n' ↦ Var n) ret_ty
+          --     body' <- check'(insert n (Nothing, a) env) body ret_ty'
+          --     -- TODO: is this safe?! we are adding n' to the scope of function..
+          --     pure $ Abs at₂ (AnnBind (n', a')) (Abs at₁ (AnnBind (n, a')) body')
           | otherwise -> throwError' $ "Implicit-Regular argument type mismatch" 
+
+        -- Note: do we want to do this?
+        -- Note: any type can have 'implicit product' type by extending it! 
+        -- (val, Prd Implicit (AnnBind (n',a')) ret_ty)
+  
         (Abs _ _ _, _) -> throwError' $ "expected λ-term to have Π-type, got" <+> pretty ty
         
         (Prd at (AnnBind (n, a)) b, _) -> do -- TODO: universe check???
@@ -239,15 +248,30 @@ instance Checkable Name ResolvedCore InternalCore where
           rnorm <- normalize' env arg_ty r'
           pure (App l' r', subst (n ↦ rnorm) ret_ty)
         
-        Absχ (_,at) (OptBind (Just n, Just a)) body -> do
+        Absχ (_,at) (OptBind (mn, Just a)) body -> do
           (a', asort) <- infer' env a
           a_norm <- normalize' env asort a'
         
-          let env' = insert n (Nothing, a_norm) env
+          let env' = maybe env (\n -> insert n (Nothing, a_norm) env) mn
           (body', ret_ty) <- infer' env' body
-          n' <- if n `Set.member` free_vars ret_ty then pure n else fresh_var "_"
+          (n,n') <- case mn of
+            Just n -> if n `Set.member` free_vars ret_ty then pure (n, n) else (n,) <$> fresh_var "_"
+            Nothing -> (\v -> (v,v)) <$> fresh_var "_"
         
           pure (Abs at (AnnBind (n, a')) body', Prd at (AnnBind (n', a')) ret_ty)
+
+        -- Absχ (_,at) (OptBind (Just n, Nothing)) body -> do
+        --   -- Infer type of n
+        --   mvar <- fresh_var (name_text n <> "-ty")
+        --   -- Do we need to inform the process how/that it is bound?
+        
+        --   let env' = insert n (Nothing, Var mvar) env
+        --   (body', ret_ty, subs) <- infer' env' body
+        --   nty <- case lookup mvar subs of
+        --     Just ty -> ty
+        --     Nothing -> throwError' "couldn't infer type of argument"
+
+        --   pure (Abs at (AnnBind (n, nty)) body', Prd at (AnnBind (n, nty)) ret_ty)
         
         Prdχ (_,at) (OptBind (maybe_n, Just a)) b -> do
           (a', aty) <- infer' env a
@@ -392,14 +416,16 @@ instance Checkable Name ResolvedCore InternalCore where
               let ret_ty' = if (n₁ == n₂) then ret_ty else subst (n₂ ↦ Var n₁) ret_ty
               body' <- check' (insert n₁ (Nothing, a_normal) env) body ret_ty'
               pure $ Abs at₁ (AnnBind (n₁, a_typd)) body'
-          | at₁ == Regular -> do
-              (a_typd, a_kind) <- infer' env a₁
-              a_normal <- normalize' env a_kind a_typd
-              n'₂ <- freshen n₂
-              let fnc_ty = subst (n₂ ↦ Var n'₂) ret_ty
-              fnc' <- check' (insert n'₂ (Nothing, a_normal) env) term fnc_ty
+
+          -- Do we want to do this??
+          -- | at₁ == Regular -> do
+          --     (a_typd, a_kind) <- infer' env a₁
+          --     a_normal <- normalize' env a_kind a_typd
+          --     n'₂ <- freshen n₂
+          --     let fnc_ty = subst (n₂ ↦ Var n'₂) ret_ty
+          --     fnc' <- check' (insert n'₂ (Nothing, a_normal) env) term fnc_ty
               
-              pure $ Abs at₂ (AnnBind (n'₂, a₂)) fnc'
+          --     pure $ Abs at₂ (AnnBind (n'₂, a₂)) fnc'
           | otherwise -> throwError' "Implicit/Regular argument type mismatch in inference"
         
 
@@ -408,12 +434,12 @@ instance Checkable Name ResolvedCore InternalCore where
               let ret_ty' = if (n₁ == n₂) then ret_ty else subst (n₂ ↦ Var n₁) ret_ty
               body' <- check' (insert n₁ (Nothing, a) env) body ret_ty'
               pure $ Abs at₁ (AnnBind (n₁, a)) body'
-          | at₁ == Regular -> do
-              n'₂ <- freshen n₂
-              let fnc_ty = subst (n₂ ↦ Var n'₂) ret_ty
-              fnc' <- check' (insert n'₂ (Nothing, a) env) term fnc_ty
+          -- | at₁ == Regular -> do
+          --     n'₂ <- freshen n₂
+          --     let fnc_ty = subst (n₂ ↦ Var n'₂) ret_ty
+          --     fnc' <- check' (insert n'₂ (Nothing, a) env) term fnc_ty
               
-              pure $ Abs at₂ (AnnBind (n'₂, a)) fnc'
+          --     pure $ Abs at₂ (AnnBind (n'₂, a)) fnc'
           | otherwise -> throwError' "Implicit/Regular argument type mismatch in inference"
 
         (Absχ {}, _) -> throwError' $ "expected λ-term to have Π-type, got" <+> pretty ty
