@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, InstanceSigs #-}
+{-# LANGUAGE ScopedTypeVariables, InstanceSigs, ImplicitParams #-}
 --{-# OPTIONS_GHC -Wno-orphans #-}
 module Sigil.Interpret.Unify
   -- Exports: Unify instnace for InternalCore
@@ -186,9 +186,11 @@ instance Pretty a => Pretty (Atom a) where
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
+solve :: forall err ann m. (MonadError err m, MonadGen m) => (Doc ann -> err) -> Formula' -> m Substitution'
+solve liftErr = let ?lift_err = liftErr in solve'
 
-solve :: forall ann m. (MonadError (Doc ann) m, MonadGen m) => Formula' -> m Substitution'
-solve = fmap fst . (\v -> uni_while (v^.binds) mempty (v^.constraints)) . flatten where
+solve' :: forall err ann m. (MonadError err m, MonadGen m, ?lift_err :: (Doc ann -> err)) => Formula' -> m Substitution'
+solve' = fmap fst . (\v -> uni_while (v^.binds) mempty (v^.constraints)) . flatten where
 
   uni_while :: Binds' -> Substitution' -> [SingleConstraint'] -> m (Substitution', [SingleConstraint'])
   uni_while quant_vars sub cs = 
@@ -222,7 +224,7 @@ solve = fmap fst . (\v -> uni_while (v^.binds) mempty (v^.constraints)) . flatte
 
 
   check_finished [] = pure ()
-  check_finished cs = throwError ("ambiguous constraints: " <> pretty cs)
+  check_finished cs = throw ("ambiguous constraints: " <> pretty cs)
 
   unify_one :: Binds' -> SingleConstraint' -> ContT r m UnifyResult'
   unify_one binds constraint cont = case constraint of 
@@ -268,7 +270,7 @@ solve = fmap fst . (\v -> uni_while (v^.binds) mempty (v^.constraints)) . flatte
 {-------------------------------------------------------------------------------}
 
 
-unify_eq :: forall m ann. (MonadError (Doc ann) m, MonadGen m) =>
+unify_eq :: forall m ann err. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) =>
   Binds' -> InternalCore -> InternalCore -> m UnifyResult'
 unify_eq quant_vars a b = case (a, b) of 
   -- (Coreχ χ, Coreχ χ') ->
@@ -279,11 +281,10 @@ unify_eq quant_vars a b = case (a, b) of
   (Uni n, Uni n') ->
     if n == n' then
       pure $ Just (quant_vars, mempty, [])
-    else
-      throwError ("unequal universes:"
-                  <+> "(𝕌 " <> pretty n <> ")"
-                  <+> "and"
-                  <+> "(𝕌 " <> pretty n' <> ")")
+    else throw ("unequal universes:"
+                <+> "(𝕌 " <> pretty n <> ")"
+                <+> "and"
+                <+> "(𝕌 " <> pretty n' <> ")")
 
   (s, s') | αeq s s' -> pure $ Just (quant_vars, mempty, [])
 
@@ -311,7 +312,7 @@ unify_eq quant_vars a b = case (a, b) of
   (s, s') -> do
     (atom, terms) <- case (unwind s) of
       Just v -> pure v
-      _ -> throwError $ "unwinding failed for term:" <+> pretty s
+      _ -> throw $ "unwinding failed for term:" <+> pretty s
     mbind <- get_elem atom quant_vars
     case mbind of
       Left bind | bind^.elem_quant == Exists -> do
@@ -331,26 +332,26 @@ unify_eq quant_vars a b = case (a, b) of
                 | (not $ elem (Var var) terms) && Set.member var' fors ->
                   if not $ is_partial_perm fors terms
                   then pure Nothing
-                  else throwError "gvar-uvar depends"
+                  else throw "gvar-uvar depends"
                 | Set.member var (free_vars terms') ->
                   if not $ is_partial_perm fors terms
                   then pure Nothing
-                  else throwError "occurs check failed"
+                  else throw "occurs check failed"
                 | Set.member var' fors ->
                   if is_partial_perm fors terms
                   then gvar_uvar_inside (var, terms, ty) (var', terms', ty')
-                  else throwError "occurs check failed"
+                  else throw "occurs check failed"
                 | otherwise ->
                   if all_elements_are_vars fors terms
                   then gvar_uvar_outside (var, terms, ty) (var', terms', ty')
-                  else throwError "occurs check failed"
+                  else throw "occurs check failed"
               Left bind'@(FBind { _elem_quant=Exists, _elem_type=ty', _elem_name=var'}) ->
                 if not $ is_partial_perm fors terms && is_partial_perm fors terms' && Set.member var' exists
                 then pure Nothing
                 else if var == var'
                   then gvar_gvar_same (var, terms, ty) (var', terms', ty')
                   else if Set.member var (free_vars terms')
-                    then throwError "occurs check failed"
+                    then throw "occurs check failed"
                     else gvar_gvar_diff bind (var, terms, ty) (var', terms', ty') bind'
           _ -> pure Nothing -- gvar-gvar same?? 
     
@@ -361,16 +362,17 @@ unify_eq quant_vars a b = case (a, b) of
           mbind' <- get_elem atom' quant_vars
           case mbind' of 
             Left bind' | bind'^.elem_quant == Exists -> pure $ Nothing
-            _ -> throwError ("can't unify two different universal equalities:" <+> pretty atom <+> "and" <+> pretty atom')
+            _ -> throw ("can't unify two different universal equalities:"
+                        <+> pretty atom <+> "and" <+> pretty atom')
       
         -- uvar-uvar!
         Just (atom', _) | atom == atom' -> do
-          throwError "not sure what a type constraint is...?"
+          throw "not sure what a type constraint is...?"
           --let match _ _ = throwError "not sure what a type constraint is...?"
       
           --sctors <- match terms terms'
           --pure $ Just (quant_vars, mempty, [])
-        _ -> throwError "can't unify a ∀-var against a term"
+        _ -> throw "can't unify a ∀-var against a term"
 
   where
 
@@ -594,7 +596,7 @@ unify_eq quant_vars a b = case (a, b) of
               (:) (x, vbuild $ subst sub (snd $ unann b))
                 <$> (subst_bty (Sub.insert (aname b) xi sub) ty xmr)
             (_, []) -> pure []
-            _ -> throwError "_ is not well typed for _ on _"
+            _ -> throw "_ is not well typed for _ on _"
 
           sub = var ↦ l
 
@@ -712,11 +714,11 @@ left_search (m, goal) (x, target) = left_cont x target
 {- add : Add a binding at the lowest level                                     -}
 {-------------------------------------------------------------------------------}
 
-(!) :: (MonadError (Doc ann) m) => Name -> Binds a -> m (FBind a)
+(!) :: (MonadError err m, ?lift_err :: Doc ann -> err) => Name -> Binds a -> m (FBind a)
 name ! (b:bs) 
   | b^.elem_name == name = pure $ b
   | otherwise = name ! bs
-name ! [] = throwError $ "couldn't find binding: " <+> pretty name
+name ! [] = throw $ "couldn't find binding: " <+> pretty name
 
 get_exists_after :: Name -> (Binds a) -> [Name]
 get_exists_after name binds =
@@ -820,7 +822,8 @@ unatom atom = case atom of
   AUni n -> Uni n
   ACtr label ty -> Ctr label ty
 
-get_elem :: (MonadError (Doc ann) m) => Atom' -> Binds' -> m (Either FBind' InternalCore)
+get_elem :: (MonadError err m, ?lift_err :: Doc ann -> err) =>
+  Atom' -> Binds' -> m (Either FBind' InternalCore)
 get_elem atom qvars = case atom of
   AVar n -> Left <$> n ! qvars 
   AUni n -> pure $ Right (Uni n) 
@@ -868,6 +871,8 @@ get_base _ a = a
 
 {------------------------------- MISC. INSTANCES -------------------------------}
 
+throw :: (MonadError err m, ?lift_err :: Doc ann -> err) => Doc ann -> m a
+throw doc = throwError $ ?lift_err doc
 
 
 -- Helper functions that maybe can be moved to another file??  
@@ -879,3 +884,4 @@ app val arg = case val of
 
 aname :: AnnBind n b -> n
 aname (AnnBind (n, _)) = n
+

@@ -28,8 +28,10 @@ import Data.Map (Map)
 import Prettyprinter.Render.Sigil
 
 import Sigil.Abstract.Names
-import Sigil.Analysis.Typecheck
+import Sigil.Abstract.Unify
+import Sigil.Abstract.Substitution
 import Sigil.Abstract.Syntax (ImportDef, MTree)
+import Sigil.Analysis.Typecheck
 import Sigil.Parse.Mixfix (Precedences)
 import Sigil.Concrete.Internal
 
@@ -56,7 +58,7 @@ data Interpreter m err env s t = Interpreter
   -- Return true if two terms are canonically equal, false otherwise 
   , norm_eq :: (err -> err) -> env -> t -> t -> t -> m Bool
   -- Higher Order Unification algorithm implementation
-  -- , solve_formula :: e -> Formula t -> m (Substitution t)
+  , solve_formula :: (err -> err) -> env -> Formula Name t -> m (Substitution Name t)
 
   {------------------------- Environment Manipulation --------------------------}
   -- Load a module into the interpreter's state

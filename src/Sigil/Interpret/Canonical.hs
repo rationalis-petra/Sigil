@@ -36,6 +36,7 @@ import Sigil.Abstract.Environment
 import Sigil.Parse.Mixfix
 import Sigil.Concrete.Internal
 import Sigil.Interpret.Interpreter
+import Sigil.Interpret.Unify
 import Sigil.Interpret.Term
 
 instance Show InternalCore where    
@@ -67,11 +68,18 @@ canonical_interpreter liftErr = Interpreter
   { reify = pure
   , reflect = pure
 
-  , eval = \f env ty term -> do
+  -- eval :: (err -> err) -> env -> t -> t -> m t
+  , eval = \f env ty term ->
       normalize (f . liftErr . EvalErr) env ty term
 
-  , norm_eq = \f env ty a b -> do
+  -- norm_eq :: (err -> err) -> env -> t -> t -> t -> m Bool
+  , norm_eq = \f env ty a b ->
       equiv (f . liftErr . EvalErr) env ty a b
+
+  -- TODO: add environment to unification!!
+  -- solve_formula :: (err -> err) -> env -> Formula t -> m (Substitution t)
+  , solve_formula = \f _ formula ->
+      solve (f . liftErr . EvalErr) formula
 
   , intern_package = \package_name package -> do
       (world.at package_name) .= Just package 

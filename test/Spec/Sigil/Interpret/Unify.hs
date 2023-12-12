@@ -72,7 +72,7 @@ unify_tests =
   where 
     eq_test :: Text -> InternalCore -> InternalCore -> Bool -> Test
     eq_test name l r b = 
-      Test name $ case runUnifyM $ solve (Conj [l :≗: r]) of 
+      Test name $ case runUnifyM $ solve id (Conj [l :≗: r]) of 
         Right _ | b == True -> Nothing
                 | otherwise -> Just "unify-eq succeded when expecting fail"
         Left e  | b == False -> Nothing
@@ -80,7 +80,7 @@ unify_tests =
 
     can_solve_test :: Text -> Formula Name InternalCore -> Bool -> Test
     can_solve_test name formula b =
-      Test name $ case runUnifyM $ solve formula of 
+      Test name $ case runUnifyM $ solve id formula of 
         Right _ | b == True -> Nothing
                 | otherwise -> Just "unify-eq succeded when expecting fail"
         Left e  | b == False -> Nothing
