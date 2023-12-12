@@ -16,6 +16,7 @@ import Data.List.NonEmpty (NonEmpty(..))
 
 import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
+import Sigil.Abstract.Unify
 
 import Sigil.Concrete.Parsed
 import Sigil.Concrete.Resolved
@@ -111,6 +112,23 @@ instance ResolveTo ParsedCore ResolvedCore where
         (vars'', tel') <- resolve_tel vars' tel
         pure $ (vars'', ((OptBind (n, a'), val') : tel'))
 
+instance ResolveTo (SingleConstraint ParsedCore) (SingleConstraint ResolvedCore) where
+  resolve lift_err vars cons = case cons of 
+    (l :≗: r) -> (:≗:) <$> resolve lift_err vars l <*> resolve lift_err vars r
+    (l :∈: r) -> (:∈:) <$> resolve lift_err vars l <*> resolve lift_err vars r
+
+instance ResolveTo (Formula Text ParsedCore) (Formula Name ResolvedCore) where
+  resolve lift_err vars formula = case formula of 
+    Conj cons -> Conj <$> mapM (resolve lift_err vars) cons
+    And l r -> And <$> resolve lift_err vars l <*> resolve lift_err vars r
+    Bind q text ty f -> do
+      id <- fresh_id 
+      let n = Name $ Right (id, text)
+          vars' = insert text (Left id) vars
+      ty' <- resolve lift_err vars ty
+      f' <- resolve lift_err vars' f
+      pure $ Bind q n ty' f'
+
 
 resolve_entry :: (MonadGen m, MonadError err m) => (Text -> err) -> Path -> Map Text (Either Integer QualName) -> ParsedEntry -> m ResolvedEntry
 resolve_entry lift_err path vars entry = case entry of
@@ -123,6 +141,7 @@ resolve_entry lift_err path vars entry = case entry of
     a' <- mapM (resolve lift_err vars) a
     val' <- resolve lift_err vars' val
     pure $ Singleχ rn (OptBind (n, a')) val'
+
 
 -- TODO: interface with environment somehow? (based on imports/exports)
 resolve_module :: (MonadGen m, MonadError err m) => (Text -> err) -> Path -> Map Text (Either Integer QualName) -> ParsedModule -> m ResolvedModule
