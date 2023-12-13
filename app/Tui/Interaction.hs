@@ -1,5 +1,6 @@
 module Tui.Interaction
   ( eval_text
+  , query_text
   , load_file
   , add_import
   ) where
@@ -34,8 +35,8 @@ import Sigil.Concrete.Internal (InternalCore)
 import InterpretUtils
 import Tui.Types
 
-eval_text :: forall m e s t id. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-                    Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t
+eval_text :: forall m e s t f id. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
+                    Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
           -> (InteractiveState s -> Text) -> T.EventM id (InteractiveState s) ()
 eval_text interpreter getText = do
   istate <- use interpreterState
@@ -49,8 +50,22 @@ eval_text interpreter getText = do
                                  , "type:" <+> nest 2 (pretty ty) ])
     Left err -> outputState .= show err
 
-load_file :: forall m e s t id. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-                    Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t
+query_text :: forall m e s t f id. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
+                    Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
+          -> (InteractiveState s -> Text) -> T.EventM id (InteractiveState s) ()
+query_text interpreter getText = do
+  istate <- use interpreterState
+  this <- get
+  (pname, _, imports) <- use location
+  (result, state') <- liftIO $ (run interpreter) istate (eval_formula interpreter pname imports (getText this))
+  interpreterState .= state'
+  case result of
+    Right subst -> do
+      outputState .= (show $ vsep ["solved", pretty subst])
+    Left err -> outputState .= show err
+
+load_file :: forall m e s t f id. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
+                    Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
           -> T.EventM id (InteractiveState s) ()
 load_file interpreter = do
   focus .= Palette

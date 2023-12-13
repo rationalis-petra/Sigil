@@ -48,8 +48,8 @@ data Command
   | Quit
   | Malformed SigilDoc
 
-interactive_cli :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e)
-  => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> InteractiveCliOpts -> IO ()
+interactive_cli :: forall m e s t f. (MonadError SigilDoc m, MonadGen m, Environment Name e)
+  => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f -> InteractiveCliOpts -> IO ()
 interactive_cli interp@(Interpreter {..}) opts = do
     s <- if not (null (ifile opts)) then eval_file "sigil-user" (ifile opts) start_state else pure start_state
     loop s (InteractiveState ("sigil-user", []))

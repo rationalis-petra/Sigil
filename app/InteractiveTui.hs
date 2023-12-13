@@ -41,8 +41,8 @@ data InteractiveTuiOpts = InteractiveTuiOpts
   deriving (Show, Read, Eq)
 
 
-interactive_tui :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> InteractiveTuiOpts -> IO ()
+interactive_tui :: forall m e s t f. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
+  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f -> InteractiveTuiOpts -> IO ()
 interactive_tui interpreter _ = do
   let app = App { appDraw = draw
                 , appChooseCursor  = choose_cursor
@@ -182,7 +182,7 @@ change_focus _ v = v
 choose_cursor :: InteractiveState s -> [T.CursorLocation ID] -> Maybe (T.CursorLocation ID)
 choose_cursor st locs = find (liftEq (==) (Just $ st^.focus) . T.cursorLocationName) locs
 
-app_handle_event :: forall m e s t ev. Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t
+app_handle_event :: forall m e s t f ev. Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
   -> T.BrickEvent ID ev -> T.EventM ID (InteractiveState s) ()
 app_handle_event _ = \case
   (T.VtyEvent (V.EvKey V.KUp    [V.MCtrl])) -> focus %= change_focus DUp

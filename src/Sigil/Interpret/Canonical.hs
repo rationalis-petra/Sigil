@@ -32,6 +32,7 @@ import Prettyprinter
 
 import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
+import Sigil.Abstract.Unify
 import Sigil.Abstract.Environment
 import Sigil.Parse.Mixfix
 import Sigil.Concrete.Internal
@@ -63,10 +64,12 @@ default_precs = Precedences
 
 
 canonical_interpreter :: forall err. (InterpreterErr -> err)
-  -> Interpreter (CanonM err) err (Env (Maybe InternalCore, InternalCore)) Context InternalCore
+  -> Interpreter (CanonM err) err (Env (Maybe InternalCore, InternalCore)) Context InternalCore (Formula Name InternalCore)
 canonical_interpreter liftErr = Interpreter
   { reify = pure
   , reflect = pure
+  , reify_formula = pure
+  , reflect_formula = pure
 
   -- eval :: (err -> err) -> env -> t -> t -> m t
   , eval = \f env ty term ->

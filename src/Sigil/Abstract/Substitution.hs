@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -XDeriveTraversable #-}
 module Sigil.Abstract.Substitution
   ( Substitution
   , Subst(..)
@@ -26,12 +27,17 @@ import Data.Set (Set)
 import qualified Data.Map as Map
 import Data.Map (Map)
 
+import Prettyprinter
+
 import Sigil.Abstract.Syntax
 import Sigil.Abstract.Names
 
 
 newtype Substitution n a = Substitution (Map n a)
-  deriving (Functor, Foldable)
+  deriving (Functor, Foldable, Traversable)
+
+instance (Pretty n, Pretty a) => Pretty (Substitution n a) where
+  pretty (Substitution subst) = vsep $ fmap (\(n,a) -> pretty n <+> "↦" <+> pretty a) $ Map.toList subst
 
 class Subst n s a | a -> s n where
   substitute :: Set n -> Substitution n s -> a -> a

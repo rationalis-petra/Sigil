@@ -47,10 +47,13 @@ type Restarts a = [IO a]
 -- env = environment
 -- s = state
 -- t = term representation
-data Interpreter m err env s t = Interpreter
+data Interpreter m err env s t f = Interpreter
   -- Converting to/from the term representation, 't'
   { reify :: InternalCore -> m t
   , reflect :: t -> m InternalCore
+
+  , reify_formula :: Formula Name InternalCore -> m f
+  , reflect_formula :: f -> m (Formula Name InternalCore)
 
   {--------------------- Term Queries and Transformations ----------------------}
   -- Evaluate a term t in the environment e
@@ -58,7 +61,7 @@ data Interpreter m err env s t = Interpreter
   -- Return true if two terms are canonically equal, false otherwise 
   , norm_eq :: (err -> err) -> env -> t -> t -> t -> m Bool
   -- Higher Order Unification algorithm implementation
-  , solve_formula :: (err -> err) -> env -> Formula Name t -> m (Substitution Name t)
+  , solve_formula :: (err -> err) -> env -> f -> m (Substitution Name t)
 
   {------------------------- Environment Manipulation --------------------------}
   -- Load a module into the interpreter's state

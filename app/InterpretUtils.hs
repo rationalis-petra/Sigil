@@ -1,5 +1,6 @@
 module InterpretUtils
   ( eval_expr
+  , eval_formula
   , eval_mod ) where
 
 import Prelude hiding (mod)
@@ -13,15 +14,18 @@ import Prettyprinter.Render.Sigil
 
 import Sigil.Parse
 import Sigil.Abstract.Names
+import Sigil.Abstract.Unify
 import Sigil.Abstract.Syntax
+import Sigil.Abstract.Substitution
 import Sigil.Abstract.Environment
 import Sigil.Interpret.Interpreter
 import Sigil.Analysis.Typecheck
+import Sigil.Analysis.FormulaCheck
 import Sigil.Analysis.NameResolution
 import Sigil.Concrete.Internal (InternalCore, InternalModule)
 
-eval_expr :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> Text -> [ImportDef] -> Text -> m (InternalCore, InternalCore)
+eval_expr :: forall m e s t f. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
+  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f -> Text -> [ImportDef] -> Text -> m (InternalCore, InternalCore)
 eval_expr i@(Interpreter {..}) package_name imports line = do
   env <- get_env package_name imports
   precs <- get_precs package_name imports
@@ -35,8 +39,8 @@ eval_expr i@(Interpreter {..}) package_name imports line = do
     `catchError` (throwError . (<+>) "Normalization:")
   pure (norm, ty)
 
-eval_mod :: forall m e s t. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t -> Text -> Text -> Text -> m InternalModule
+eval_mod :: forall m e s t f. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
+  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f -> Text -> Text -> Text -> m InternalModule
 eval_mod i@(Interpreter {..}) package_name modulename modul = do
   parsed <- mod (get_precs package_name) modulename modul -- TODO: eof??
     `catchError` (throwError . (<+>) "Parse:")
@@ -52,9 +56,25 @@ eval_mod i@(Interpreter {..}) package_name modulename modul = do
   check_module (CheckInterp (interp_eval i) (interp_eq i) spretty) env resolved
     `catchError` (throwError . (<+>) "Inference:")
 
+  
+eval_formula :: forall m e s t f. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
+  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f -> Text -> [ImportDef] -> Text -> m (Substitution Name InternalCore)
+eval_formula i@(Interpreter {..}) package_name imports line = do
+  env <- get_env package_name imports
+  precs <- get_precs package_name imports
+  resolution <- get_resolve package_name imports
+  parsed <- formula precs "playground" line  -- TODO: eof??
+  resolved <- resolve_closed (("unbound name" <+>) . pretty) resolution parsed
+    `catchError` (throwError . (<+>) "Resolution:")
+  checked <- check_formula (CheckInterp (interp_eval i) (interp_eq i) spretty) env resolved
+    `catchError` (throwError . (<+>) "Inference:")
+  solution <- (interp_solve i) id env checked
+    `catchError` (throwError . (<+>) "Unification:")
+  pure solution
+
 -- Internal Use only 
-interp_eval :: forall m e s t. (MonadError SigilDoc m) =>
-          Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t
+interp_eval :: forall m e s t f. (MonadError SigilDoc m) =>
+          Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
             -> (SigilDoc -> SigilDoc) -> e (Maybe InternalCore, InternalCore) -> InternalCore -> InternalCore -> m InternalCore
 interp_eval (Interpreter {..}) f env ty val = do
     ty' <- reify ty
@@ -62,8 +82,16 @@ interp_eval (Interpreter {..}) f env ty val = do
     result <- eval f env ty' val'
     reflect result
 
-interp_eq :: forall m e s t. (MonadError SigilDoc m) =>
-          Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t
+interp_solve :: forall m e s t f. (MonadError SigilDoc m) =>
+          Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
+            -> (SigilDoc -> SigilDoc) -> e (Maybe InternalCore, InternalCore) -> Formula Name InternalCore -> m (Substitution Name InternalCore)
+interp_solve (Interpreter {..}) f env formula = do
+    formula' <- reify_formula formula
+    subst <- solve_formula f env formula'
+    mapM reflect subst 
+
+interp_eq :: forall m e s t f. (MonadError SigilDoc m) =>
+          Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
             -> (SigilDoc -> SigilDoc) -> e (Maybe InternalCore, InternalCore) -> InternalCore -> InternalCore -> InternalCore -> m Bool
 interp_eq (Interpreter {..}) f env ty l r = do
     ty' <- reify ty

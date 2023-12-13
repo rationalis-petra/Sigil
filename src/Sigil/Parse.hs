@@ -5,6 +5,7 @@ module Sigil.Parse
   , core
   , entry
   , mod
+  , formula
   ) where
 
 
@@ -33,6 +34,7 @@ import Prettyprinter.Render.Sigil (SigilDoc)
 import Prettyprinter hiding (lparen, rparen)
 
 import Sigil.Abstract.Syntax
+import Sigil.Abstract.Unify
 import Sigil.Abstract.Names (OptBind(..), name)
 import Sigil.Concrete.Decorations.Range
 import Sigil.Concrete.Parsed
@@ -52,13 +54,19 @@ mod get_precs filename input = do
 
 entry :: MonadError SigilDoc m => Precedences -> Text -> Text -> m ParsedEntry
 entry precs filename input = do
-  raw_entry <- parse syn_entry filename input 
+  raw_entry <- parse syn_entry filename input
   mix_entry precs raw_entry
 
 core :: MonadError SigilDoc m => Precedences -> Text -> Text -> m ParsedCore
 core precs filename input = do
   raw_core <- parse (scn *> syn_core pos1 <* scn <* eof) filename input
   mix_core precs raw_core
+
+formula :: MonadError SigilDoc m => Precedences -> Text -> Text -> m (Formula Text ParsedCore)
+formula precs filename input = do
+  raw_core <- parse (scn *> syn_formula pos1 <* scn <* eof) filename input
+  mix_formula precs raw_core
+ 
 
 update_precs_def :: Precedences -> ParsedEntry -> Precedences
 update_precs_def precs def =
@@ -156,7 +164,17 @@ mix_core precs = \case
                          <*> mix_core precs a') mid
           pf' <- mix_core precs pf
           mix_tel (update_precs (maybeToList mt) precs) ps ((OptBind (mt, mid'), pf') : out) 
-           
+
+mix_scons :: forall m. MonadError SigilDoc m => Precedences -> SingleConstraint Syntax -> m (SingleConstraint ParsedCore)
+mix_scons precs = \case
+  (l :≗: r) -> (:≗:) <$> mix_core precs l <*> mix_core precs r
+  (l :∈: r) -> (:∈:) <$> mix_core precs l <*> mix_core precs r
+
+mix_formula :: forall m. MonadError SigilDoc m => Precedences -> Formula Text Syntax -> m (Formula Text ParsedCore)
+mix_formula precs = \case
+  Conj cons -> Conj <$> mapM (mix_scons precs) cons
+  And l r -> And <$> mix_formula precs l <*> mix_formula precs r
+  Bind q n ty f -> Bind q n <$> mix_core precs ty <*> mix_formula (update_precs [n] precs) f
 
 {------------------------------ RUNNING A PARSER -------------------------------}
 

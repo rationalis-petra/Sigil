@@ -78,8 +78,8 @@ default_keymap self = \case
   Structural -> []
 
 
-module_keymap :: forall m e s t id. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-                    Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t
+module_keymap :: forall m e s t f id. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
+                    Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
               -> Lens' (InteractiveState s) (Editor (InteractiveState s) id) -> EditMode -> Keymap (T.EventM id (InteractiveState s) ())
 module_keymap interpreter self = \case 
             -- Movement
@@ -125,9 +125,10 @@ module_keymap interpreter self = \case
             , ([(V.KChar 'O', [])], self.mode .= Insert >> self %= applyEdit (Z.moveUp . Z.breakLine . Z.gotoBOL))
 
             -- Evaluate
-            , ([(V.KChar ' ', []), (V.KChar 'e', [])], eval_text interpreter (getText . view self))
-            , ([(V.KChar ' ', []), (V.KChar 'm', []), (V.KChar 'f', [])], load_file interpreter)
-            , ([(V.KChar ' ', []), (V.KChar 'm', []), (V.KChar 'i', [])], add_import)
+            , ([(V.KChar ';', []), (V.KChar 'e', []), (V.KChar 'e', [])], eval_text interpreter (getText . view self))
+            , ([(V.KChar ';', []), (V.KChar 'e', []), (V.KChar 'q', [])], query_text interpreter (getText . view self))
+            , ([(V.KChar ';', []), (V.KChar 'm', []), (V.KChar 'f', [])], load_file interpreter)
+            , ([(V.KChar ';', []), (V.KChar 'm', []), (V.KChar 'i', [])], add_import)
 
             -- Quit
             , ([(V.KChar ' ', []), (V.KChar 'q', []), (V.KChar 'q', [])], halt)
