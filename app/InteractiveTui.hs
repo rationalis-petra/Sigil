@@ -65,22 +65,22 @@ interactive_tui interpreter _ = do
                       Left err -> outputState .= show ("error in initialization:" <+> err)
                     interpreterState .= state'
                 , appAttrMap =
-                  const (A.attrMap V.defAttr
+                  const (A.attrMap (V.withForeColor (V.withBackColor V.defAttr (V.linearColor 29 31 33)) (V.linearColor 197 200 198))
                          [ (A.attrName "title", V.withStyle V.defAttr V.bold)
                          , (A.attrName "emphasis", V.withStyle V.defAttr V.italic)
                          , (A.attrName "selected",
                             V.withForeColor
-                             (V.withBackColor V.defAttr (V.rgbColor 197 200 198))
-                             (V.rgbColor 29 31 33))
+                             (V.withBackColor V.defAttr (V.linearColor 197 200 198))
+                             (V.linearColor 29 31 33))
                          , (A.attrName "green",
                             V.withForeColor V.defAttr
-                             (V.rgbColor 181 189 104))
+                             (V.linearColor 181 189 104))
                          , (A.attrName "yellow",
                             V.withForeColor V.defAttr
-                             (V.rgbColor 240 198 116))
+                             (V.linearColor 240 198 116))
                          , (A.attrName "red",
                             V.withForeColor V.defAttr
-                             (V.rgbColor 204 102 102))])
+                             (V.linearColor 204 102 102))])
                 }
             
       initial_state = InteractiveState

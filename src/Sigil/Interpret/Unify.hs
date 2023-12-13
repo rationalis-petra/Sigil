@@ -57,8 +57,9 @@ module Sigil.Interpret.Unify
 import Control.Monad (forM)
 import Control.Monad.Except (MonadError, throwError)
 -- import Control.Monad.Reader (MonadReader)
-import Control.Lens (_1, _2, makeLenses, (^.), (%~), view)
+import Control.Lens (_1, _2, makeLenses, (^.), (%~), view, bimap)
 import Data.Text (Text)
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Set (Set)
 import qualified Data.List as List
@@ -175,8 +176,19 @@ instance Monoid (FlatFormula a) where
 
 instance Pretty a => Pretty (Atom a) where 
   pretty (AVar v) = pretty v
-  pretty (AUni v) = pretty ((Uni v) :: InternalCore)
+  pretty (AUni i) = pretty ((Uni i) :: InternalCore)
   pretty (ACtr label ty) = "(" <> pretty label <+> "﹨" <+> pretty ty <> ")"
+
+instance AlphaEq Name a => AlphaEq Name (Atom a) where
+  αequal rename l r = case (l,r) of 
+    (AVar n, AVar n') -> 
+      case bimap (Map.lookup n) (Map.lookup n') rename of
+        (Just (Just r), Just (Just r')) -> r == n' && r' == n
+        (Nothing, Nothing) -> n == n'
+        _ -> False
+    (AUni i, AUni i') -> i == i'
+    (ACtr label ty, ACtr label' ty') -> label == label' && αequal rename ty ty'
+    _ -> False
 
 {---------------------------- TOP-LEVEL UNIFICATION ----------------------------}
 {- The solve function is the top-level procedure, and the driver is the        -}
@@ -355,10 +367,11 @@ unify_eq quant_vars a b = case (a, b) of
                     else gvar_gvar_diff bind (var, terms, ty) (var', terms', ty') bind'
           _ -> pure Nothing -- gvar-gvar same?? 
     
+      -- In this case, mbind is either
+      -- A universally bound variable
+      -- A type constant (universe/inductive type)
       _ -> case unwind s' of
-        -- Note: HOU.hs matches with Spine, which can also include variables & constants 
-        -- what to do...
-        Just (atom', _) | atom /= atom' -> do
+        Just (atom', _) | not (αeq atom atom') -> do
           mbind' <- get_elem atom' quant_vars
           case mbind' of 
             Left bind' | bind'^.elem_quant == Exists -> pure $ Nothing
@@ -366,13 +379,15 @@ unify_eq quant_vars a b = case (a, b) of
                         <+> pretty atom <+> "and" <+> pretty atom')
       
         -- uvar-uvar!
-        Just (atom', _) | atom == atom' -> do
-          throw "not sure what a type constraint is...?"
-          --let match _ _ = throwError "not sure what a type constraint is...?"
+        Just (atom', terms') | αeq atom atom' -> do
+          let -- TODO: add type constraint case
+            match (a:al) (b:bl) = ((a :≗: b) :) <$> match al bl 
+            match [] [] = return []
+            match _ _ = throw "different numbers of arguments"
       
-          --sctors <- match terms terms'
-          --pure $ Just (quant_vars, mempty, [])
-        _ -> throw "can't unify a ∀-var against a term"
+          constraints <- match terms terms'
+          pure $ Just (quant_vars, mempty, constraints)
+        _ -> throw ("can't unify a ∀-var against a term")
 
   where
 
