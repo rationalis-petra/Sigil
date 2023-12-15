@@ -63,7 +63,7 @@ default_precs = Precedences
   "sum" "ppd" "ppd" "close"
 
 
-canonical_interpreter :: forall err. (InterpreterErr -> err)
+canonical_interpreter :: forall err. (Monoid err) => (InterpreterErr -> err)
   -> Interpreter (CanonM err) err (Env (Maybe InternalCore, InternalCore)) Context InternalCore (Formula Name InternalCore)
 canonical_interpreter liftErr = Interpreter
   { reify = pure

@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2023-12-09 Sat 22:08 -->
+<!-- 2023-12-15 Fri 13:14 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Sigil Overview</title>
@@ -204,24 +204,27 @@
 </p>
 </div>
 
-<div id="outline-container-orgde871ba" class="outline-2">
-<h2 id="orgde871ba">Introduction</h2>
-<div class="outline-text-2" id="text-orgde871ba">
+<div id="outline-container-org8ab2cf6" class="outline-2">
+<h2 id="org8ab2cf6">Introduction</h2>
+<div class="outline-text-2" id="text-org8ab2cf6">
 <p>
 Sigil is for the most part a Dependently-Typed lambda calclus plus inductive
 types. Specifically, it is based on Observational Homotopy Type Theory (O.H.T.T)
 (see the <a href="https://ncatlab.org/nlab/show/higher+observational+type+theory">nlab</a> or the excellent talks (<a href="https://www.youtube.com/watch?v=FrxkVzItMzA">Part 1</a>, <a href="https://www.youtube.com/watch?v=5ciDNfmvMdU">Part 2</a>, <a href="https://www.youtube.com/watch?v=9pDddxB7LbE">Part 3</a>)).
 </p>
-</div>
-</div>
 
-<div id="outline-container-org6110c21" class="outline-2">
-<h2 id="org6110c21">Expressions</h2>
-<div class="outline-text-2" id="text-org6110c21">
+<p>
+<br />
+</p>
 </div>
-<div id="outline-container-org69cedf6" class="outline-3">
-<h3 id="org69cedf6">Comments</h3>
-<div class="outline-text-3" id="text-org69cedf6">
+</div>
+<div id="outline-container-org792422a" class="outline-2">
+<h2 id="org792422a">Expressions</h2>
+<div class="outline-text-2" id="text-org792422a">
+</div>
+<div id="outline-container-orgd2ff589" class="outline-3">
+<h3 id="orgd2ff589">Comments</h3>
+<div class="outline-text-3" id="text-orgd2ff589">
 <p>
 Comments are denoted with either the '⍝' symbol (for single line comments) or
 the '⋳' and '⋻' symbols for multi-line comments. 
@@ -238,9 +241,9 @@ the '⋳' and '⋻' symbols for multi-line comments.
 </div>
 </div>
 
-<div id="outline-container-orgc85c8ad" class="outline-3">
-<h3 id="orgc85c8ad">Universes</h3>
-<div class="outline-text-3" id="text-orgc85c8ad">
+<div id="outline-container-orgb401759" class="outline-3">
+<h3 id="orgb401759">Universes</h3>
+<div class="outline-text-3" id="text-orgb401759">
 <p>
 The sigil langauges feature a series of hierarchical universes, typed
 <code>𝕌 = 𝕌₀, 𝕌₁, 𝕌₂, …</code>.
@@ -248,9 +251,9 @@ The sigil langauges feature a series of hierarchical universes, typed
 </div>
 </div>
 
-<div id="outline-container-org3f19eb8" class="outline-3">
-<h3 id="org3f19eb8">Functions and Variables</h3>
-<div class="outline-text-3" id="text-org3f19eb8">
+<div id="outline-container-orgdf4473a" class="outline-3">
+<h3 id="orgdf4473a">Functions and Variables</h3>
+<div class="outline-text-3" id="text-orgdf4473a">
 <p>
 As a dependently-typed lambda calculus, Sigil has functions and the
 dependent product type. Use λ to start a function, followd by one or more
@@ -263,7 +266,7 @@ simple identity function would look like:
 <span style="color: #b5bd68;">&#955;</span> <span style="color: #81a2be;">A</span> <span style="color: #c5c8c6;">(</span>x <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">A</span><span style="color: #c5c8c6;">)</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">A</span>
 
 <span style="color: #969896; font-style: italic;">&#9053; </span><span style="color: #969896; font-style: italic;">The identity function's type</span>
-<span style="color: #c5c8c6;">(</span><span style="color: #81a2be;">A</span> <span style="color: #de935f;">&#11164;</span> <span style="color: #b5bd68;">&#120140;</span><span style="color: #c5c8c6;">)</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">A</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">A</span>
+<span style="color: #c5c8c6;">(</span><span style="color: #81a2be;">A</span> <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">&#120140;</span><span style="color: #c5c8c6;">)</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">A</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">A</span>
 </pre>
 </div>
 
@@ -292,9 +295,9 @@ particular fixity. There is currently no way of declaring precedence.
 </div>
 </div>
 
-<div id="outline-container-org8b8221a" class="outline-3">
-<h3 id="org8b8221a">Inductive Types</h3>
-<div class="outline-text-3" id="text-org8b8221a">
+<div id="outline-container-org07f45da" class="outline-3">
+<h3 id="org07f45da">Inductive Types</h3>
+<div class="outline-text-3" id="text-org07f45da">
 <p>
 Inductive types are probably the most distinct from what you might expect.
 Inductive types are declared with the <code>μ</code> keyword. This is followed by the name
@@ -305,7 +308,7 @@ type declaration.
 </p>
 
 <div class="org-src-container">
-<pre class="src src-sigil"><span style="color: #b5bd68;">&#956;</span> <span style="color: #81a2be;">N</span> <span style="color: #de935f;">&#11164;</span> <span style="color: #b5bd68;">&#120140;</span>.
+<pre class="src src-sigil"><span style="color: #b5bd68;">&#956;</span> <span style="color: #81a2be;">N</span> <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">&#120140;</span>.
   zero <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">N</span>
   succ <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">N</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">N</span>
 </pre>
@@ -338,17 +341,21 @@ function would be defined as follows:
   <span style="color: #81a2be;">:succ</span> <span style="color: #de935f;">&#8594;</span> succ <span style="color: #c5c8c6;">(</span>rec i<span style="color: #c5c8c6;">)</span>
 </pre>
 </div>
+
+<p>
+<br />
+</p>
 </div>
 </div>
 </div>
 
-<div id="outline-container-orga9fb309" class="outline-2">
-<h2 id="orga9fb309">Modules</h2>
-<div class="outline-text-2" id="text-orga9fb309">
+<div id="outline-container-orgae76bc9" class="outline-2">
+<h2 id="orgae76bc9">Modules</h2>
+<div class="outline-text-2" id="text-orgae76bc9">
 </div>
-<div id="outline-container-orga17ab5b" class="outline-3">
-<h3 id="orga17ab5b">Module Header</h3>
-<div class="outline-text-3" id="text-orga17ab5b">
+<div id="outline-container-org3f76ffd" class="outline-3">
+<h3 id="org3f76ffd">Module Header</h3>
+<div class="outline-text-3" id="text-org3f76ffd">
 <div class="org-src-container">
 <pre class="src src-sigil"><span style="color: #b5bd68;">module</span> test.vals
   <span style="color: #b5bd68;">import</span> 
@@ -358,9 +365,9 @@ function would be defined as follows:
 </div>
 </div>
 
-<div id="outline-container-orgb314257" class="outline-3">
-<h3 id="orgb314257">Definitions</h3>
-<div class="outline-text-3" id="text-orgb314257">
+<div id="outline-container-org42baf06" class="outline-3">
+<h3 id="org42baf06">Definitions</h3>
+<div class="outline-text-3" id="text-org42baf06">
 <p>
 Definitions are given as a name followed by the '≜' keyword, and then the
 expression (value) which you want to define. For example, the below assigns the
@@ -368,7 +375,7 @@ Natural number type (used earlier) to the symbol 'ℕ'.
 </p>
 
 <div class="org-src-container">
-<pre class="src src-sigil"><span style="color: #81a2be;">&#8469;</span> <span style="color: #de935f;">&#8796;</span> <span style="color: #b5bd68;">&#956;</span> <span style="color: #81a2be;">M</span> <span style="color: #de935f;">&#11164;</span> <span style="color: #b5bd68;">&#120140;</span>.
+<pre class="src src-sigil"><span style="color: #81a2be;">&#8469;</span> <span style="color: #de935f;">&#8796;</span> <span style="color: #b5bd68;">&#956;</span> <span style="color: #81a2be;">M</span> <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">&#120140;</span>.
   zero <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">M</span>
   succ <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">M</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">M</span>
 </pre>
@@ -379,7 +386,7 @@ Definitions can also come with annotations beforehand, allowing annotations to
 be omitted from function arguments:
 </p>
 <div class="org-src-container">
-<pre class="src src-sigil">id <span style="color: #de935f;">&#11164;</span> <span style="color: #c5c8c6;">(</span><span style="color: #81a2be;">A</span> <span style="color: #de935f;">&#11164;</span> <span style="color: #b5bd68;">&#120140;</span><span style="color: #c5c8c6;">)</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">A</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">A</span>
+<pre class="src src-sigil">id <span style="color: #de935f;">&#11164;</span> <span style="color: #c5c8c6;">(</span><span style="color: #81a2be;">A</span> <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">&#120140;</span><span style="color: #c5c8c6;">)</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">A</span> <span style="color: #de935f;">&#8594;</span> <span style="color: #81a2be;">A</span>
 id <span style="color: #de935f;">&#8796;</span> <span style="color: #b5bd68;">&#955;</span> <span style="color: #81a2be;">A</span> x <span style="color: #de935f;">&#8594;</span> x
 </pre>
 </div>
@@ -404,6 +411,107 @@ defining inductive values more convenient.
 <div class="org-src-container">
 <pre class="src src-sigil">zero <span style="color: #de935f;">&#8796;</span> <span style="color: #81a2be;">:zero</span> &#65128; <span style="color: #81a2be;">&#8469;</span>
 succ <span style="color: #de935f;">&#8796;</span> <span style="color: #81a2be;">:succ</span> &#65128; <span style="color: #81a2be;">&#8469;</span>
+</pre>
+</div>
+
+<p>
+<br />
+</p>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org6ed9ee3" class="outline-2">
+<h2 id="org6ed9ee3">Queries</h2>
+<div class="outline-text-2" id="text-org6ed9ee3">
+<p>
+Queries are currently an ad-hoc interface to the unification engine, which
+(will) be used for type inference and type classes. They are largely for
+debugging the unifier, but you might find it fun to play with them.
+</p>
+
+<p>
+Queries are (in essence) their own language, with the following grammar,
+assumign E represents a (normal) sigil expression:
+</p>
+<p>
+Each type of query has the following meaning:
+</p>
+</div>
+
+<div id="outline-container-orga08ee7f" class="outline-3">
+<h3 id="orga08ee7f">Equality</h3>
+<div class="outline-text-3" id="text-orga08ee7f">
+<p>
+An equality query will succeed if the two expressions are equal. For example,
+the below query succeeds.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sigil"><span style="color: #81a2be;">&#120140;</span> &#8773; <span style="color: #81a2be;">&#120140;</span>
+</pre>
+</div>
+</div>
+</div>
+
+<div id="outline-container-orgaf5f205" class="outline-3">
+<h3 id="orgaf5f205">Habitation</h3>
+<div class="outline-text-3" id="text-orgaf5f205">
+<p>
+A habitation query will succeed if the two left hand expression is a value whose
+type is the right hand expression. For example, the below query succeeds.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sigil"><span style="color: #81a2be;">&#120140;</span> &#8712; <span style="color: #81a2be;">&#120140;&#8321;</span>
+</pre>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org7f44659" class="outline-3">
+<h3 id="org7f44659">Conjunction</h3>
+<div class="outline-text-3" id="text-org7f44659">
+<p>
+A conjoined qieru will succeed if both sub-queries succeed, and fail otherwise.
+For example, the below query succeeds. 
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sigil"><span style="color: #c5c8c6;">(</span><span style="color: #81a2be;">&#120140;</span> &#8712; <span style="color: #81a2be;">&#120140;&#8321;</span><span style="color: #c5c8c6;">)</span> <span style="color: #b5bd68;">&#8743;</span> <span style="color: #c5c8c6;">(</span><span style="color: #81a2be;">&#120140;</span> &#8773; <span style="color: #81a2be;">&#120140;</span><span style="color: #c5c8c6;">)</span>
+</pre>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org19c8550" class="outline-3">
+<h3 id="org19c8550">Existence</h3>
+<div class="outline-text-3" id="text-org19c8550">
+<p>
+An existential query <code>∃ x ⮜ E. Q</code> will succeed if there is some value of <code>x</code>
+which will make Q succeed. If it does suceed, then the value of <code>x</code> that it
+derives will be returned. As an example, the below query will succeed "solved with n ↦ :succ :zero". 
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sigil"><span style="color: #b5bd68;">&#8707;</span> n <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">&#8469;</span>. n + one &#8773; two
+</pre>
+</div>
+</div>
+</div>
+
+
+<div id="outline-container-org68f3d1a" class="outline-3">
+<h3 id="org68f3d1a">Universal Quantification</h3>
+<div class="outline-text-3" id="text-org68f3d1a">
+<p>
+A universal query <code>∀ x ⮜ E. Q</code> will succeed if all values <code>x</code> of type <code>E</code> will
+make Q succeed. They can be combined with existential queries. As an example,
+the below query will succeed "solved with m ↦ n".  
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sigil"><span style="color: #b5bd68;">&#8704;</span> n <span style="color: #de935f;">&#11164;</span> <span style="color: #81a2be;">&#8469;</span>. <span style="color: #b5bd68;">&#8707;</span> m <span style="color: #de935f;">&#11164;</span> n &#8773; m
 </pre>
 </div>
 </div>

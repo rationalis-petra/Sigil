@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2023-12-09 Sat 22:13 -->
+<!-- 2023-12-15 Fri 13:19 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Sigil Tooling</title>
@@ -204,9 +204,9 @@
 </p>
 </div>
 
-<div id="outline-container-org6f8e626" class="outline-2">
-<h2 id="org6f8e626">Executable</h2>
-<div class="outline-text-2" id="text-org6f8e626">
+<div id="outline-container-org8be9cf4" class="outline-2">
+<h2 id="org8be9cf4">Executable</h2>
+<div class="outline-text-2" id="text-org8be9cf4">
 <p>
 The sigil executable can be launched in 4 modes - when starting the program,
 you MUST choose a mode (provided as a command-line argument). The invocation for
@@ -221,9 +221,9 @@ each mode is as follows:
 </div>
 </div>
 
-<div id="outline-container-org201b324" class="outline-2">
-<h2 id="org201b324">Interactive Mode</h2>
-<div class="outline-text-2" id="text-org201b324">
+<div id="outline-container-org5c74193" class="outline-2">
+<h2 id="org5c74193">Interactive Mode</h2>
+<div class="outline-text-2" id="text-org5c74193">
 <p>
 When launching in interactive mode, a TUI much like the one below will open.
 This interface is divided into 5 panes: These panes can be navigated between
@@ -232,7 +232,7 @@ with the Ctrl + up/down/left/right arrows.
 
 <div>
 
-<div id="org24f257a" class="figure">
+<div id="org3397d77" class="figure">
 <p><img src="assets/screenshot-interactive.png" alt="screenshot-interactive.png" />
 </p>
 </div>
@@ -245,9 +245,10 @@ don't like vim). Further, the following commands will also be available in
 <b>Normal</b> mode:
 </p>
 <ul class="org-ul">
-<li><code>Spc + e</code> → Evaluate</li>
-<li><code>Spc + m f</code> → Load module from file (will prompt for filename)</li>
-<li><code>Spc + m i</code> → Add module import (will prompt for import statement)</li>
+<li><code>; e e</code> → Evaluate an expression</li>
+<li><code>; e q</code> → Run a query</li>
+<li><code>; m f</code> → Load module from file (will prompt for filename)</li>
+<li><code>; m i</code> → Add module import (will prompt for import statement)</li>
 <li><code>Spc + q q</code> → Quit</li>
 </ul>
 
@@ -258,9 +259,9 @@ up/down arrows can be used to select a package/module/import statement), and the
 </p>
 </div>
 
-<div id="outline-container-orgd208634" class="outline-3">
-<h3 id="orgd208634">Unicode Character Input</h3>
-<div class="outline-text-3" id="text-orgd208634">
+<div id="outline-container-org47ce3c5" class="outline-3">
+<h3 id="org47ce3c5">Unicode Character Input</h3>
+<div class="outline-text-3" id="text-org47ce3c5">
 <p>
 The syntax of Sigil makes heavy use of unicode characters. The text input area
 allows these to be implemented in through special 'codes'. To use a code type
@@ -304,6 +305,18 @@ a semicolon ';' followed by a sequence of keys corresponding to the glyph.
 </tr>
 
 <tr>
+<td class="org-left">ι</td>
+<td class="org-left">gi</td>
+<td class="org-left">greek i</td>
+</tr>
+
+<tr>
+<td class="org-left">ρ</td>
+<td class="org-left">gr</td>
+<td class="org-left">greek r</td>
+</tr>
+
+<tr>
 <td class="org-left">𝕌</td>
 <td class="org-left">sU</td>
 <td class="org-left">struck U</td>
@@ -344,6 +357,36 @@ a semicolon ';' followed by a sequence of keys corresponding to the glyph.
 <td class="org-left">&gt;</td>
 <td class="org-left">&#xa0;</td>
 </tr>
+
+<tr>
+<td class="org-left">∃</td>
+<td class="org-left">ex</td>
+<td class="org-left">exists</td>
+</tr>
+
+<tr>
+<td class="org-left">∀</td>
+<td class="org-left">fa</td>
+<td class="org-left">for all</td>
+</tr>
+
+<tr>
+<td class="org-left">≅</td>
+<td class="org-left">~==</td>
+<td class="org-left">&#xa0;</td>
+</tr>
+
+<tr>
+<td class="org-left">∈</td>
+<td class="org-left">in</td>
+<td class="org-left">inhabits</td>
+</tr>
+
+<tr>
+<td class="org-left">…</td>
+<td class="org-left">&#x2026;</td>
+<td class="org-left">&#xa0;</td>
+</tr>
 </tbody>
 </table>
 
@@ -355,27 +398,27 @@ caret, e.g. <code>^2</code> → ².
 </div>
 </div>
 
-<div id="outline-container-org657e5f3" class="outline-2">
-<h2 id="org657e5f3">Interactive Line Mode</h2>
-<div class="outline-text-2" id="text-org657e5f3">
+<div id="outline-container-orgc0dc94d" class="outline-2">
+<h2 id="orgc0dc94d">Interactive Line Mode</h2>
+<div class="outline-text-2" id="text-orgc0dc94d">
 <p>
 WIP
 </p>
 </div>
 </div>
 
-<div id="outline-container-org8ebe6fe" class="outline-2">
-<h2 id="org8ebe6fe">Server Mode</h2>
-<div class="outline-text-2" id="text-org8ebe6fe">
+<div id="outline-container-org0868670" class="outline-2">
+<h2 id="org0868670">Server Mode</h2>
+<div class="outline-text-2" id="text-org0868670">
 <p>
 WIP
 </p>
 </div>
 </div>
 
-<div id="outline-container-org19fc7bf" class="outline-2">
-<h2 id="org19fc7bf">Compile Mode</h2>
-<div class="outline-text-2" id="text-org19fc7bf">
+<div id="outline-container-org1a949cb" class="outline-2">
+<h2 id="org1a949cb">Compile Mode</h2>
+<div class="outline-text-2" id="text-org1a949cb">
 <p>
 Not implemented
 </p>

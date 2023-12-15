@@ -8,6 +8,8 @@ import Control.Monad.Except (MonadError, throwError, catchError)
 import Control.Lens ((^.))
 
 import Data.Text (Text)
+import qualified Data.Set as Set
+import qualified Data.Map as Map
   
 import Prettyprinter
 import Prettyprinter.Render.Sigil
@@ -68,9 +70,14 @@ eval_formula i@(Interpreter {..}) package_name imports line = do
     `catchError` (throwError . (<+>) "Resolution:")
   checked <- check_formula (CheckInterp (interp_eval i) (interp_eq i) spretty) env resolved
     `catchError` (throwError . (<+>) "Inference:")
-  solution <- (interp_solve i) id env checked
+  (Substitution solution) <- (interp_solve i) id env checked
     `catchError` (throwError . (<+>) "Unification:")
-  pure solution
+  let exs = go checked
+      go (Bind Exists n _ f) = Set.singleton n <> go f
+      go (Bind Forall _ _ f) = go f
+      go (And l r) = go l <> go r
+      go (Conj _) = Set.empty
+  pure $ Substitution $ Map.filterWithKey (\k _ -> Set.member k exs) solution
 
 -- Internal Use only 
 interp_eval :: forall m e s t f. (MonadError SigilDoc m) =>

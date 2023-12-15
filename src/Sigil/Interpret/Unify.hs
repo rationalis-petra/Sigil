@@ -6,7 +6,7 @@ module Sigil.Interpret.Unify
 
 
 {--------------------------------- UNIFICATION ---------------------------------}
-{- This file contains a Higher Order Unification Algorithm for the Sigil.       -}
+{- This file contains a Higher Order Unification Algorithm for the Sigil.      -}
 {- language. As this procedure is quite complex, it may be hard to navigate    -}
 {- this file. This comment contains a high-level Overview of unification, as   -}
 {- well as a 'table of contents' indicating where some subcomponents are       -}
@@ -56,13 +56,14 @@ module Sigil.Interpret.Unify
 
 import Control.Monad (forM)
 import Control.Monad.Except (MonadError, throwError)
--- import Control.Monad.Reader (MonadReader)
+import Control.Applicative (Alternative)
 import Control.Lens (_1, _2, makeLenses, (^.), (%~), view, bimap)
 import Data.Text (Text)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Set (Set)
 import qualified Data.List as List
+import Data.Foldable (asum)
 
 import Prettyprinter
 
@@ -130,10 +131,10 @@ data FBind a = FBind
   , _elem_type :: a
   }
 
-data Atom a = AVar Name | AUni Integer | ACtr Text a
+data Atom n a = AVar Name | AUni Integer | ACtr Text a | AInd n a [(Text, a)]
   deriving Eq
 
-type Atom'             = Atom InternalCore
+type Atom'             = Atom Name InternalCore
 type Binds'            = Binds InternalCore
 type FBind'            = FBind InternalCore
 type Formula'          = Formula Name InternalCore
@@ -154,6 +155,9 @@ instance (Subst Name s a) => Subst Name s (FBind a) where
 
   free_vars (FBind _ nm et) = Set.delete nm $ free_vars et 
     
+instance Pretty a => Pretty (FBind a) where
+  pretty (FBind q n ty) = pretty q <+> pretty n <+> "⮜" <+> pretty ty
+
 instance (Subst Name s a) => Subst Name s (FlatFormula a) where
   substitute shadow sub (FlatFormula binds constraints) = 
     let (shadow', binds') = foldr (\ b (s, bs) ->
@@ -174,12 +178,15 @@ instance Semigroup (FlatFormula a) where
 instance Monoid (FlatFormula a) where
   mempty = FlatFormula [] []
 
-instance Pretty a => Pretty (Atom a) where 
+instance (Pretty a, Pretty n) => Pretty (Atom n a) where 
   pretty (AVar v) = pretty v
   pretty (AUni i) = pretty ((Uni i) :: InternalCore)
   pretty (ACtr label ty) = "(" <> pretty label <+> "﹨" <+> pretty ty <> ")"
+  pretty (AInd name kind ctors) =
+    vsep [ "μ" <+> pretty name <+> "⮜" <+> pretty kind <+> "."
+         , indent 2 (align (vsep $ map (\(text, ty) -> pretty text <+> pretty ty) ctors)) ]
 
-instance AlphaEq Name a => AlphaEq Name (Atom a) where
+instance AlphaEq Name a => AlphaEq Name (Atom Name a) where
   αequal rename l r = case (l,r) of 
     (AVar n, AVar n') -> 
       case bimap (Map.lookup n) (Map.lookup n') rename of
@@ -190,18 +197,23 @@ instance AlphaEq Name a => AlphaEq Name (Atom a) where
     (ACtr label ty, ACtr label' ty') -> label == label' && αequal rename ty ty'
     _ -> False
 
+
 {---------------------------- TOP-LEVEL UNIFICATION ----------------------------}
 {- The solve function is the top-level procedure, and the driver is the        -}
 {- uni_while function. This will perform successive transformations until a    -}
-{- formula is in 'solved form'                                                 -}
+{- formula is in 'solved form'.                                                -}
 {-                                                                             -}
+{- This unification algorithm only works for those formulas which are in a     -}
+{- known to be decidable. All other forms will return an ambiguous constraint  -}
+{- error.                                                                      -}
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
-solve :: forall err ann m. (MonadError err m, MonadGen m) => (Doc ann -> err) -> Formula' -> m Substitution'
+
+solve :: forall err ann m. (MonadError err m, MonadGen m, Alternative m) => (Doc ann -> err) -> Formula' -> m Substitution'
 solve liftErr = let ?lift_err = liftErr in solve'
 
-solve' :: forall err ann m. (MonadError err m, MonadGen m, ?lift_err :: (Doc ann -> err)) => Formula' -> m Substitution'
+solve' :: forall err ann m. (MonadError err m, MonadGen m, Alternative m, ?lift_err :: (Doc ann -> err)) => Formula' -> m Substitution'
 solve' = fmap fst . (\v -> uni_while (v^.binds) mempty (v^.constraints)) . flatten where
 
   uni_while :: Binds' -> Substitution' -> [SingleConstraint'] -> m (Substitution', [SingleConstraint'])
@@ -248,21 +260,20 @@ solve' = fmap fst . (\v -> uni_while (v^.binds) mempty (v^.constraints)) . flatt
     _ -> cont Nothing
   
   unify_search :: Binds' -> SingleConstraint' -> ContT r m UnifyResult'
-  --unify_search binds constraint cont = case constraint of
-  unify_search _ constraint cont = case constraint of
-    --a :∈: b | not_higher_universe b -> right_search binds a b $ new_cont cont
+  unify_search binds constraint cont = case constraint of
+    a :∈: b | not_universe b -> right_search binds a b cont
     _ -> cont Nothing
-    -- where 
-    --   not_higher_universe (Uni _ k) = k < 1
-    --   not_higher_universe _ = True
+    where 
+      not_universe (Uni _) = False
+      not_universe _ = True
   
   unify_search_atom :: Binds' ->  SingleConstraint' -> ContT r m UnifyResult'
-  --unify_search_atom binds constraint cont = case constraint of
-  unify_search_atom _ constraint cont = case constraint of
-    --a :∈: b -> right_search binds a b $ new_cont cont
+  unify_search_atom binds constraint cont = case constraint of
+    a :∈: b -> right_search binds a b cont
     _ -> cont Nothing
   
-  --new_cont cont constraint = cont $ fmap (\v -> (mempty, v, False)) constraint
+  -- new_cont cont out = case out of
+  --   Just (quant_vars', cons') -> Just (quant_vars', mempty, cons')
       
 
 {---------------------------- UNIFYING FOR EQUALITY ----------------------------}
@@ -324,7 +335,7 @@ unify_eq quant_vars a b = case (a, b) of
   (s, s') -> do
     (atom, terms) <- case (unwind s) of
       Just v -> pure v
-      _ -> throw $ "unwinding failed for term:" <+> pretty s
+      _ -> throw $ vsep ["unwinding failed for term:" <+> pretty s, "unifying for equality to:" <+> pretty s']
     mbind <- get_elem atom quant_vars
     case mbind of
       Left bind | bind^.elem_quant == Exists -> do
@@ -336,9 +347,9 @@ unify_eq quant_vars a b = case (a, b) of
           Just (atom', terms') -> do
             mbind' <- get_elem atom' quant_vars
             case mbind' of 
-              Right ty' ->  
-                if all_elements_are_vars fors terms
-                then gvar_const (var, terms, ty) (atom', terms', ty')
+              Right ty' ->
+                if all_elements_are_consts fors terms
+                then gvar_const (var, terms, ty) (atom', terms', ty') -- TODO: what if length terms /= length terms'
                 else pure Nothing
               Left (FBind { _elem_quant=Forall, _elem_type=ty', _elem_name=var' })
                 | (not $ elem (Var var) terms) && Set.member var' fors ->
@@ -354,7 +365,7 @@ unify_eq quant_vars a b = case (a, b) of
                   then gvar_uvar_inside (var, terms, ty) (var', terms', ty')
                   else throw "occurs check failed"
                 | otherwise ->
-                  if all_elements_are_vars fors terms
+                  if all_elements_are_consts fors terms
                   then gvar_uvar_outside (var, terms, ty) (var', terms', ty')
                   else throw "occurs check failed"
               Left bind'@(FBind { _elem_quant=Exists, _elem_type=ty', _elem_name=var'}) ->
@@ -365,7 +376,7 @@ unify_eq quant_vars a b = case (a, b) of
                   else if Set.member var (free_vars terms')
                     then throw "occurs check failed"
                     else gvar_gvar_diff bind (var, terms, ty) (var', terms', ty') bind'
-          _ -> pure Nothing -- gvar-gvar same?? 
+          _ -> pure Nothing -- gvar-gvar same
     
       -- In this case, mbind is either
       -- A universally bound variable
@@ -404,7 +415,8 @@ unify_eq quant_vars a b = case (a, b) of
 
     -- GVar-Const
     -----------------
-    -- M has the form c M₁ … Mₙ for a constant c: (v₁:B₁) → … (vₙ:Bₙ) → B.
+    -- This case matches with the GVar-Uvar Outside case from the paper
+    -- M has the form c M₁ … Mₘ for a constant c: (v₁:B₁) → … (vₙ:Bₙ) → B.
     -- here, we perform an imitation: let 
     --   L = λ [u₁:A₁ … uₙ:Aₙ] (c (x₁ u₁ … uₙ) … (xₘ u₁ … uₙ))
     -- Then, we transition to
@@ -421,7 +433,7 @@ unify_eq quant_vars a b = case (a, b) of
 
     -- GVar-Uvar Onside
     -------------------
-    --
+    -- Same as GVar-Const (see above)
     gvar_uvar_outside :: (Name, [InternalCore], InternalCore) -> (Name, [InternalCore], InternalCore) -> m UnifyResult'
     gvar_uvar_outside l r = gvar_const l ((_1 %~ AVar) r)
 
@@ -621,7 +633,6 @@ unify_eq quant_vars a b = case (a, b) of
         <$> fmap (\(n, ty) -> add_after var Exists n ty)
         <$> (subst_bty mempty ty' xₘₛ)
 
-      -- TODO: quant_vars'
       pure $ Just ( quant_vars'
                   , sub
                   -- application of sub to wind (var, terms) seems to be related
@@ -632,6 +643,7 @@ unify_eq quant_vars a b = case (a, b) of
     -------------------------------- Predicates ---------------------------------
     -- These functions correspond to particular properties of an object(s)
 
+    -- TODO: account for inductive values
     -- Returns true if the second argument is a partial permutation of the first
     is_partial_perm :: Set Name -> [InternalCore] -> Bool
     is_partial_perm fors = go mempty where
@@ -640,12 +652,16 @@ unify_eq quant_vars a b = case (a, b) of
          Set.member n fors && not (Set.member n s) && go s rest
       go _ _ = False
 
-    -- Returns true if the second argument consists solely of variables found in
-    -- the first
-    all_elements_are_vars :: Set Name -> [InternalCore] -> Bool
-    all_elements_are_vars fors = go where
+    -- Returns true if the second argument consists solely of 'constant' unchanging
+    -- values (i.e. ∀-bound vars, type universes or inductive values).
+    -- The set is assumed to contain universally quantified variables.  
+    -- TODO: there /might/ be a bug if an inductive value uses an inner ∃-bound var??
+    all_elements_are_consts :: Set Name -> [InternalCore] -> Bool
+    all_elements_are_consts fors = go where
       go [] = True
       go (Var n : vars) = Set.member n fors && go vars
+      go (Uni _ : vars) = go vars
+      go (Ctr _ _ : vars) = go vars
       go _ = False
 
 
@@ -666,63 +682,93 @@ unify_eq quant_vars a b = case (a, b) of
 -- this is because we do not have any notion of /constants/ which can be
 -- assigned types / type families
   
-{-
-right_search :: InternalCore -> InternalCore -> ContT a UnifyM (Mabye [SingleConstraint' χ])
-right_search env m goal cont = 
+right_search :: forall m ann err r. (MonadError err m, MonadGen m, Alternative m, ?lift_err :: Doc ann -> err) =>
+  Binds' -> InternalCore -> InternalCore -> ContT r m UnifyResult'
+right_search quant_vars val goal cont = 
   case goal of 
-
     -- Rule G Π: M ∈ (x:A) → B ⇒ ∀x: A.∃y: B.(y ≗ M x) ∧ y ∈ B
-
-    Prd _ _ a b -> 
-      let m' = shift 2 0 m
-          b' = shift 1 0 b
-          b'' = shift 2 0 b
-
-          x = var 1 "x"
-          y = var 0 "y"
-      in cont $ Just (\env -> (bind Forall "x" a) (bind Exists "y" a),
-                      [y :≗: m' `app` x, y :∈: b'']) 
+    Prd Regular (AnnBind(n,a)) b -> do
+      x <- fresh_var "@sx"
+      y <- fresh_var "@sy"
+      let b' = subst (n ↦ Var x) b
+      -- TODO: make sure order is correct!
+      let quant_vars' = add_bind Forall x a $ add_bind Exists y b' quant_vars
+      cont $ Just (quant_vars', mempty, [Var y :≗: (val `app` Var x), Var y :∈: b'])
 
     _ -> case unwind goal of
       -- G Atom 1 / G Atom 2
       -- ∀x:A. F[M ∈ C] ⇒ ∀x:A. F[x ∈ A >> M ∈ C]
-      --         M ∈ C  ⇒ c₀ ∈ C >> M ∈ C 
-      -- for c₀ a constant
+      --       F[M ∈ C] ⇒ ∀x:A. F[c₀ ∈ A >> M ∈ C]
+      -- For C an atomic type (i.e. inductive/universe, not product!)
+      -- for c₀ a constant of that type.
+      Just (atom, _) ->  do
+        -- Step 1: get the fixed type of the atom. This means return nothing if
+        -- the atom is an existentially bound variable.
+        atom_elem <- get_elem atom quant_vars
+        let atom_ty = case atom_elem of 
+              Left (FBind { _elem_quant=Forall, _elem_type=ty }) -> Just ty
+              Right ty -> Just ty
+              _ -> Nothing
 
-      
-      Just (var, terms) -> 
+            -- TODO: not 100% sure this is what the search wanted
+            -- The targets are formed by the list of value-constructors for the
+            -- type?
+            -- targets take the form (ctor, ctorty)
+            -- possibly also other forms??
+            targets = case atom_ty of
+              Just ty@(Ind nm _ ctors) -> flip map ctors $ \(label, ctorty) -> 
+                (Ctr label ty, subst (nm ↦ ty) ctorty)
+              Just t -> [(unatom atom, t)]
+              Nothing -> [] -- TODO: this is WRONG BIG WRONG!
 
-        -- if there are no existentials in m or the goal, then we cannot do anything 
-        if all is_fixed (free_vars m <> free_vars goal) then
-          cont $ Just []
-
-        -- otherwise
+            is_fixed nm =
+              case List.find (\v -> ((nm ==) . _elem_name) v
+                          && ((Exists ==) ._elem_quant) v) quant_vars of 
+                Just _ -> True
+                Nothing -> False
+        if all is_fixed (free_vars val <> free_vars goal)
+        -- If there are no existentials in the value or the goal, then we are
+        -- done!
+        then cont $ Just (quant_vars, mempty, [])
+        -- Otherwise
         else case targets of 
           [] -> cont $ Nothing
-
-          
-
+          _ -> inter quant_vars [] targets
+            where
+              inter _ [] [] = throw "No More Options"
+              inter _ cg [] = asum (reverse cg)
+              inter qvs cg (t : ts) = do
+                -- TODO: it's very important we get the threading of quant_vars
+                -- correct here. It may be that we are supposed to 'reset' each time
+                -- we left-search (as we explore different branches...)
+                (qvs',cs) <- left_search qvs (val, goal) t
+                -- TODO: ensure that we assumed correctly the value sequ=False
+                -- (for HOU.hs)
+                inter qvs (cont (Just (qvs', mempty, cs)) : cg) ts
         
-      Nothing -> throwError ("can't: right-search with goal :" <> pretty goal)
+      Nothing -> throw ("can't: right-search with goal (empty unwind):" <> pretty goal)
 
     
-
-left_search (m, goal) (x, target) = left_cont x target
+-- left search solves constraints of the form A ∈ T >> B ∈ T', roughly meaning
+-- "If A inhabits T then B inhabits T'"
+-- these constraints are generated as part of the right_search, but are not
+-- directly available in formulas.
+left_search :: forall m ann err. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) =>
+  Binds' -> (InternalCore, InternalCore) -> (InternalCore, InternalCore) -> m (Binds', [SingleConstraint'])
+left_search quant_vars (m, goal) (x, target) = left_cont quant_vars x target
   where
-    left_cont n target = case target of
+    left_cont quant_vars val target = case target of
       -- Rule D Π:
       --   F[N ∈ (x:A) → B >> M ∈ C] → F[∃x:A . (N x ∈ B >> M ∈ C) ∧ x ∈ A]
-
-      Prd _ _ a b -> 
-        let x' = var 0 "x"
-            a' = shift 1 0 a
-         in left_cont (shift 1 0 (n `app` x')) (shift 1 0 (b `app` x')) <> [x' :∈: a']
-      Abs _ _ _ _ -> throwError ("λ does not have type atom" <> pretty target)
-
+      Prd Regular (AnnBind (nm, a)) b -> do
+        x' <- fresh_var "@sla"
+        let quant_vars' = add_bind Exists x' a quant_vars
+        (quant_vars'', cons) <- left_cont quant_vars' (val `app` Var x') (subst (nm ↦ Var x') b)
+        pure $ (quant_vars'', cons <> [Var x' :∈: a])
+      Abs Regular _ _ -> throw ("λ does not represent a type" <> pretty target)
       -- Rule D Atom:
-      --   ????
-      _ -> pure $ [goal :≗: target, m :≗: n]
--}
+      --   F[N ∈ A N₁ … Nₙ >> a M₁ … M] → F[N₁ ≗ M₁ ∧ … ∧ Nₙ ≗ Mₙ ∧ N ≗ M]
+      _ -> pure $ (quant_vars, [goal :≗: target, m :≗: val])
 
 {------------------------------ BINDING FUNCTIONS ------------------------------}
 {- These are functions to adjust bindings in flat formulas.                    -}
@@ -790,6 +836,8 @@ remove_var var = filter $ (/= var) . view elem_name
 remove_bind :: FBind a -> Binds a -> Binds a
 remove_bind bind = filter (/= bind)
 
+-- TODO This is being used in place of add_to_tail. Might be bad/wrong!!
+-- possibly should be adding bind at end!
 add_bind :: Quant -> Name -> a -> Binds a -> Binds a
 add_bind quant name ty = (:) (FBind quant name ty)
 
@@ -836,13 +884,20 @@ unatom atom = case atom of
   AVar n -> Var n
   AUni n -> Uni n
   ACtr label ty -> Ctr label ty
+  AInd nm kind ctors -> Ind nm kind ctors
+
 
 get_elem :: (MonadError err m, ?lift_err :: Doc ann -> err) =>
   Atom' -> Binds' -> m (Either FBind' InternalCore)
 get_elem atom qvars = case atom of
   AVar n -> Left <$> n ! qvars 
-  AUni n -> pure $ Right (Uni n) 
-  ACtr label ty -> pure $ Right (Ctr label ty)
+  AUni n -> pure $ Right (Uni (n+1))  -- TODO: possibly no + 1?
+  AInd _ k _ -> pure $ Right k
+  ACtr label ty -> case ty of
+    Ind nm _ ctors -> case List.find ((== label) . view _1) ctors of 
+      Just (_, ctorty) -> pure $ Right (subst (nm ↦ ty) ctorty) -- TODO: possibly ACtr label ty
+      Nothing -> throw "badly formed constructor"
+    _ -> throw "constructor should have inductive type"
 
 unwind :: InternalCore -> Maybe (Atom', [InternalCore])        
 unwind core = case core of 
@@ -850,6 +905,7 @@ unwind core = case core of
   Var n -> Just (AVar n, [])
   Uni n -> Just (AUni n, [])
   Ctr label ty -> Just (ACtr label ty, [])
+  Ind nm kind ctors -> Just (AInd nm kind ctors, [])
   _ -> Nothing
 
 wind :: (Atom', [InternalCore]) -> InternalCore

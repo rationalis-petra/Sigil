@@ -342,7 +342,7 @@ pretty_core_builder pretty_name pretty_coreχ c =
 
   
     Indχ _ name _ terms ->
-      vsep [ "μ" <+> pretty_name name <+> "??fty" <> "."
+      vsep [ "μ" <+> pretty_name name <+> "⮜" <+> "??fty" <+> "."
            , indent 2 (align (vsep $ map (\(text, ty) -> pretty text <+> pretty_core ty) terms))]
     Ctrχ _  label _ -> ":" <> pretty label
     Recχ _ recur val cases ->

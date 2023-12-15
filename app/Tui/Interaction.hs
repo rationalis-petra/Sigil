@@ -61,7 +61,7 @@ query_text interpreter getText = do
   interpreterState .= state'
   case result of
     Right subst -> do
-      outputState .= (show $ vsep ["solved", pretty subst])
+      outputState .= (show $ vsep ["Solved with:", indent 2 (pretty subst)])
     Left err -> outputState .= show err
 
 load_file :: forall m e s t f id. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>

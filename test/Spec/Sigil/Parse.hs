@@ -308,16 +308,16 @@ parse_expr =
 parse_formula :: TestGroup
 parse_formula =
   TestGroup "formula" $ Right
-    [ form_test "universe-eq" "𝕌 ≃ 𝕌" (ueq (mix [sy (𝓊 0)]) (mix [sy (𝓊 0)]))
+    [ form_test "universe-eq" "𝕌 ≅ 𝕌" (ueq (mix [sy (𝓊 0)]) (mix [sy (𝓊 0)]))
     , form_test "universe-elem" "𝕌 ∈ 𝕌" (uin (mix [sy (𝓊 0)]) (mix [sy (𝓊 0)]))
 
-    , form_test "formula-conj" "(𝕌 ≃ 𝕌) ∧ (𝕌 ∈ 𝕌)"
+    , form_test "formula-conj" "(𝕌 ≅ 𝕌) ∧ (𝕌 ∈ 𝕌)"
       (ueq (mix [sy (𝓊 0)]) (mix [sy (𝓊 0)]) ∧ uin (mix [sy (𝓊 0)]) (mix [sy (𝓊 0)]))
 
-    , form_test "formula-forall" "∀ x ⮜ 𝕌. (𝕌 ≃ 𝕌) ∧ (𝕌 ∈ 𝕌)"
+    , form_test "formula-forall" "∀ x ⮜ 𝕌. (𝕌 ≅ 𝕌) ∧ (𝕌 ∈ 𝕌)"
       (fa "x" (mix [sy (𝓊 0)])
        (ueq (mix [sy (𝓊 0)]) (mix [sy (𝓊 0)]) ∧ uin (mix [sy (𝓊 0)]) (mix [sy (𝓊 0)])))
-    , form_test "formula-exists" "∃ x ⮜ 𝕌. (𝕌 ≃ 𝕌) ∧ (𝕌 ∈ 𝕌)"
+    , form_test "formula-exists" "∃ x ⮜ 𝕌. (𝕌 ≅ 𝕌) ∧ (𝕌 ∈ 𝕌)"
       (ex "x" (mix [sy (𝓊 0)])
        (ueq (mix [sy (𝓊 0)]) (mix [sy (𝓊 0)]) ∧ uin (mix [sy (𝓊 0)]) (mix [sy (𝓊 0)])))
     ]

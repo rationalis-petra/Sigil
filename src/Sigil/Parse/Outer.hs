@@ -339,11 +339,12 @@ syn_core level = do
 {- The Formula parser parses unification formulas, which have several nodes:   -}
 {- • Forall: ∀ x ⮜ core. formula                                               -}
 {- • Exists: ∃ x ⮜ core. formula                                               -}
-{- • Conjugation: formula ∧ formula'                                           -}
-{- • Equality: core ≃ core'                                                    -}
+{- • Conjugation: (formula) ∧ (formula')                                       -}
+{- • Equality: core ≅ core'                                                    -}
 {- • Has-type: core ∈ core'                                                    -}
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
+
 
 syn_formula :: forall m. Monad m => Pos -> ParserT m (Formula Text Syntax)
 syn_formula level = do
@@ -382,7 +383,7 @@ syn_formula level = do
     psingle :: ParserT m (SingleConstraint Syntax)
     psingle = do
       core₁ <- syn_core level
-      f <- (const (:≗:) <$> symbol "≃") <|> (const (:∈:) <$> symbol "∈")
+      f <- (const (:≗:) <$> symbol "≅") <|> (const (:∈:) <$> symbol "∈")
       core₂ <- syn_core level
       pure $ f core₁ core₂
 

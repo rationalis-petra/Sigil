@@ -15,14 +15,12 @@ installed with `stack install` then run with `sigil <options>`, or, if you don't
 want to install, run directly with `stack run -- <options>`. 
 
 At the moment, only the 'interactive' mode is implemented, so for `<options>`
-you'll need to substitute "interactive". This will drop you into a REPL, where
-the following actions are available: 
-+ Typing in a sigil expression will evaluate that expression, returning its'
-  value and type (or an error)
-+ `;q` will exit the REPL
-+ `;load <filename>` will load the specified file, expecting it to be a module.
-+ `;import <import-declaration>` will import symbols into the REPLs' namespace.
-
+you'll need to substitute "interactive". This will drop you into a Terminal
+Interface, from which you can evaluate expressions, run unification queries and
+load modules.
++ To exit the program, make sure you are in normal mode `Esc` and hit `Space q q`
++ To learn more, look at the [tooling section](https://rationalis-petra.github.io/Sigil/tooling/index.html)  of the
+  webpage. 
 ## Syntax
 
 For an example of the syntax, see the
@@ -30,12 +28,14 @@ For an example of the syntax, see the
 for this project, which has proper syntax highlighting. 
 
 ## Status
-+ The runtime can evaluate and check both expressions in a REPL and files/modules.
++ Can evaluate expressions, load files (modules) and run unification queries
+  from the interactive interface.
 + Inductive datatypes are defined, but (propositional) equality is not
   impemented for them.
-+ Propositional equality is partially implemented: reduction is implemented for
-  the function-type, but the symmetry reduction rule/term is not (and, as above,
-  not implemented for inductive datatypes).
++ Univalent Propositional equality is partially implemented: reduction is
+  implemented for the function-type, but the symmetry reduction rule/term is not.
++ Unification is partially implemented (not for propositional equality or
+  recursion). The unification engine can be invoked directly via 'queries'.
 
 ## Known Issues
 + The universe system is a mess in general; level checks are often outright wrong and

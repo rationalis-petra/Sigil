@@ -58,14 +58,36 @@ unify_tests =
        Bind Exists (idn 1 "y") (𝓊 0) $ Conj [idv 0 "x" :≗: idv 1 "y"])
     False
 
+  -- ∀x:𝕌. ∃y:𝕌 . x ≗ y
+  , can_solve_test "ex-var1"
+    (Bind Forall (idn 0 "x") (𝓊 0) $
+       Bind Exists (idn 1 "y") (𝓊 0) $ Conj [idv 0 "x" :≗: idv 1 "y"])
+    True
+
+  -- ∃x:𝕌. ∀y:𝕌 . x ≗ y 
+  , can_solve_test "ex-var1"
+    (Bind Forall (idn 0 "x") (𝓊 0) $
+       Bind Exists (idn 1 "y") (𝓊 0) $ Conj [idv 0 "x" :≗: idv 1 "y"])
+    False -- THIS SHOULD FAIL!!!
+
   -- ∃x:(A:𝕌→𝕌). x ≗ λ [A:𝕌] A
   , can_solve_test "ex-lam" (Bind Exists (idn 0 "x") ([(idn 1 "A", 𝓊 0)] → 𝓊 0) $
                             Conj [idv 0 "x" :≗: ([(idn 1 "A", 𝓊 0)] ⇒ idv 1 "A")]) True
 
-  -- TODO: this returns an abiguity error: is this correct? 
-  -- ∃x:(𝕌₁→𝕌₁). x 𝕌 ≗ 𝕌
-  -- , can_solve_test "ex-lam-app" (Bind Exists (idn 0 "x") ([(idn 1 "A", 𝓊 1)] → 𝓊 1) $
-  --                           Conj [(idv 0 "x" ⋅ 𝓊 0) :≗: 𝓊 0]) True
+
+  -- This test fails!
+  -- Trace
+  -- does it fail for 
+  -- [(n ≃ :succ :zero)]
+  -- [(:succ ≃ :succ :zero)]
+  , let nat = Ind (idn 1 "N") (𝓊 0) [("zero", idv 1 "N"), ("succ", [(idn 2 "_", idv 1 "N")] → idv 1 "N")]
+    in can_solve_test "ex-one"
+        (Bind Exists (idn 0 "x") nat $ Conj [idv 0 "x" :≗: (Ctr "succ" nat ⋅ Ctr "zero" nat)])
+        True
+
+  -- TODO: add test testing this:
+  -- ∃ x ⮜ ℕ. two + x ≃ four
+
 
   ]
 
@@ -107,8 +129,8 @@ args ⇒ body = foldr (\var body -> Abs Regular (AnnBind var) body) body args
 (→) :: [(Name, InternalCore)] -> InternalCore -> InternalCore
 args → body = foldr (\var body -> Prd Regular (AnnBind var) body) body args
 
--- (⋅) :: InternalCore -> InternalCore -> InternalCore
--- (⋅) = App ()
+(⋅) :: InternalCore -> InternalCore -> InternalCore
+(⋅) = App
 
 idv :: Integer -> Text -> InternalCore
 idv n t = Var $ Name $ Right (n, t)

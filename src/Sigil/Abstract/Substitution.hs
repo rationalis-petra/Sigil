@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -XDeriveTraversable #-}
 module Sigil.Abstract.Substitution
-  ( Substitution
+  ( Substitution(..)
   , Subst(..)
   , subst
   , insert
