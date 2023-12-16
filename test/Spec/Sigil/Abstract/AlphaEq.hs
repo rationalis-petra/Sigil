@@ -32,6 +32,11 @@ alphaeq_tests =
   , eq_test "prd-renamed-eq" ([idn 0 "x"] → idv 0 "x") ([idn 1 "y"] → idv 1 "y") True
   , eq_test "prd-free-neq" ([idn 0 "x"] → idv 1 "y") ([idn 1 "y"] → idv 1 "y") False
 
+
+  , eq_test "ctr-eq" (ctr "zero" (𝓊 0)) (ctr "zero" (𝓊 0)) True
+  --, eq_test "multi-ctr-eq" ([idn 0 "x"] → idv 0 "x") ([idn 1 "y"] → idv 1 "y") True
+  --, eq_test "prd-free-neq" ([idn 0 "x"] → idv 1 "y") ([idn 1 "y"] → idv 1 "y") False
+
   , eq_test "eql-eq" (ι [] (𝓊 1) (𝓊 0) (𝓊 0)) (ι [] (𝓊 1) (𝓊 0) (𝓊 0)) True
   , eq_test "eql-neq" (ι [] (𝓊 1) (𝓊 0) (𝓊 0)) (ι [] (𝓊 1) (𝓊 0) (𝓊 1)) False
   , eq_test "eql-bnd-eq"
@@ -90,6 +95,9 @@ args → body = foldr (\var body -> Prdχ void (OptBind (Just var, Nothing)) bod
 
 ρ :: CoreUD -> CoreUD
 ρ = Dapχ void []
+
+ctr :: Text -> CoreUD -> CoreUD
+ctr label core = Ctrχ void label (Just core)
 
 -- (⋅) :: Core b n UD -> Core b n UD -> Core b n UD
 -- (⋅) = App void

@@ -13,6 +13,7 @@ module Sigil.Abstract.AlphaEq
 import Control.Lens
 import qualified Data.Map as Map
 import Data.Map (Map)
+import Data.Functor.Classes (Eq1(..))
 import Data.Foldable (foldl')
 
 import Sigil.Abstract.Syntax
@@ -54,7 +55,7 @@ instance (Ord n, Binding b, AlphaEq n (Core b n χ), AlphaEq n (b n (Core b n χ
         rename' = ( maybe (fst rename) (\n -> Map.insert n (name b') (fst rename)) (name b)
                   , maybe (snd rename) (\n -> Map.insert n (name b) (snd rename)) (name b'))
 
-instance (Ord n, Binding b, Traversable (Functorχ χ), Applicative (Functorχ χ), AlphaEq n (b n (Core b n χ)), AlphaEq n (Coreχ b n χ)) => AlphaEq n (Core b n χ) where
+instance (Ord n, Binding b, Eq1 (Functorχ χ), Applicative (Functorχ χ), AlphaEq n (b n (Core b n χ)), AlphaEq n (Coreχ b n χ)) => AlphaEq n (Core b n χ) where
   αequal rename v v' = case (v, v') of 
     (Coreχ r, Coreχ r') ->
       αequal rename r r'
@@ -82,8 +83,10 @@ instance (Ord n, Binding b, Traversable (Functorχ χ), Applicative (Functorχ �
     (Dapχ _ tel val, Dapχ _ tel' val') ->
       let (tel_eq, rename') = αequal_tel rename tel tel'
       in tel_eq && αequal rename' val val'
+    (Ctrχ _ label ty, Ctrχ _ label' ty') -> label == label' && liftEq (αequal rename) ty ty'
     (Indχ _ name fsort ctors, Indχ _ name' fsort' ctors') ->
-      foldl' (&&) True ((αequal rename) <$> fsort <*> fsort') && foldl' (&&) True (zipWith (\(_, v) (_, v') -> αequal rename' v v') ctors ctors')
+      liftEq (αequal rename) fsort fsort'
+      && foldl' (&&) True (zipWith (\(_, v) (_, v') -> αequal rename' v v') ctors ctors')
       where 
         rename' = ( Map.insert name (Just name') (fst rename)
                   , Map.insert name' (Just name) (snd rename))
@@ -119,7 +122,7 @@ instance (Ord n, Binding b, AlphaEq n (Core b n χ)) => AlphaEq n (b n (Core b n
     (Nothing, Nothing) -> True
     _ -> False
 
-instance (Ord n, Binding b, Traversable (Functorχ χ), Applicative (Functorχ χ),
+instance (Ord n, Binding b, Eq1 (Functorχ χ), Applicative (Functorχ χ),
           AlphaEq n (b n (Core b n χ)), AlphaEq n (Coreχ b n χ))
     => AlphaEq n (Module b n χ) where
   αequal rename m m' = 

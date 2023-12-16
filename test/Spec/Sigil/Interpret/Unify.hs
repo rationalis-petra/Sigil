@@ -1,5 +1,6 @@
 module Spec.Sigil.Interpret.Unify (unify_spec) where
 
+import Debug.Trace
 import Prelude hiding (lookup)
 import Control.Monad.Except
 import Data.Text (Text)
@@ -78,11 +79,19 @@ unify_tests =
                             Conj [idv 0 "x" :≗: ([(idn 1 "A", 𝓊 0)] ⇒ idv 1 "A")]) True
 
 
-  -- ∃ x ⮜ ℕ. x ≃ one
+  -- ∃ x ⮜ ℕ. x ≃ two
+  -- x ↦ two
   , let nat = Ind (idn 1 "N") (𝓊 0) [("zero", idv 1 "N"), ("succ", [(idn 2 "_", idv 1 "N")] → idv 1 "N")]
-    in solve_test "ex-one"
+    in solve_test "ex-two"
         (Bind Exists (idn 0 "x") nat $ Conj [idv 0 "x" :≗: (Ctr "succ" nat ⋅ (Ctr "succ" nat ⋅ Ctr "zero" nat))])
         [(idn 0 "x", (Ctr "succ" nat ⋅ (Ctr "succ" nat ⋅ Ctr "zero" nat)))]
+
+  -- ∃ x ⮜ ℕ. x ∈ ℕ
+  -- x ↦ zero
+  , let nat = Ind (idn 1 "N") (𝓊 0) [("zero", idv 1 "N"), ("succ", [(idn 2 "_", idv 1 "N")] → idv 1 "N")]
+    in solve_test "inhabit-nat"
+        (Bind Exists (idn 0 "x") nat $ Conj [idv 0 "x" :∈: nat])
+        [(idn 0 "x", Ctr "zero" nat)]
 
   -- ∃ x ⮜ ℕ. two + x ≅ four
   -- , let nat = Ind (idn 1 "N") (𝓊 0) [("zero", idv 1 "N"), ("succ", [(idn 2 "_", idv 1 "N")] → idv 1 "N")]
@@ -121,7 +130,7 @@ unify_tests =
         Left e -> Just $ "solve failed - message:" <+> e
 
     has :: Substitution Name InternalCore -> [(Name, InternalCore)] -> Bool 
-    has s sub = foldr (\(k, v) t -> t && maybe True (αeq v) (lookup k s)) True sub 
+    has s sub = foldr (\(k, v) t -> t && maybe False (\x -> trace (show $ "checking α=:" <+> pretty v <+> "," <+> pretty x) (αeq v x)) (lookup k s)) True sub 
 
 
 -- var :: n -> Core b n UD

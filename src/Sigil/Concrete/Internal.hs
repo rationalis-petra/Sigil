@@ -141,7 +141,7 @@ instance Pretty InternalCore where
       , indent 2 (align (vsep (map (\(l,ty) -> pretty l <+> "⮜" <+> pretty ty) ctors)))
       ]
 
-    Ctr label _  -> ":" <> pretty label 
+    Ctr label _  -> ":" <> pretty label
 
     Rec recur val cases -> vsep
       [ "φ" <+> pretty_annbind Regular True recur <> "," <+> pretty val <> "."

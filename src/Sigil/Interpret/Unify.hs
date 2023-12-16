@@ -108,9 +108,6 @@ import Sigil.Concrete.Decorations.Implicit
 {-------------------------------------------------------------------------------}
 
 
--- type Unify ann v = ReaderT (Env v) (Except (Doc ann))
-
--- Bindings: a value is either bound within a formula (and hence quantified)
 type Binds a = [(FBind a)]
 
 type ContT a m c = ((c -> m a) -> m a)

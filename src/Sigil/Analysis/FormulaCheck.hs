@@ -44,7 +44,7 @@ check_scons interp@(CheckInterp {..}) env cons = case cons of
     ty_norm <- normalize (lift_err . flip NormErr mempty) env kind ty'
     val' <- check interp env val ty_norm
     val_norm <- normalize (lift_err . flip NormErr mempty) env ty_norm val'
-    pure $ (val_norm :≗: ty_norm)
+    pure $ (val_norm :∈: ty_norm)
 
 
 check_eq :: (MonadError err m, Pretty a) => Range -> (CheckInterp m err e a) -> e (Maybe a, a) -> a -> a -> a -> m ()
