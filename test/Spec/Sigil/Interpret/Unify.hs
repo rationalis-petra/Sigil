@@ -1,5 +1,6 @@
 module Spec.Sigil.Interpret.Unify (unify_spec) where
 
+import Prelude hiding (lookup)
 import Control.Monad.Except
 import Data.Text (Text)
 
@@ -8,6 +9,8 @@ import Prettyprinter.Render.Sigil
 
 import Sigil.Abstract.Unify
 import Sigil.Abstract.Names
+import Sigil.Abstract.AlphaEq
+import Sigil.Abstract.Substitution
 import Sigil.Concrete.Internal
 import Sigil.Concrete.Decorations.Implicit
 import Sigil.Interpret.Unify
@@ -20,8 +23,8 @@ unify_spec = TestGroup "unify" $ Right unify_tests
 
 type UnifyM a = ExceptT (Doc SigilStyle) Gen a
 
-runUnifyM :: UnifyM a -> Either (Doc SigilStyle) a
-runUnifyM = run_gen . runExceptT
+runUnifyM :: Integer -> UnifyM a -> Either (Doc SigilStyle) a
+runUnifyM n = run_gen_from n . runExceptT
 
 unify_tests :: [Test]     
 unify_tests = 
@@ -75,18 +78,19 @@ unify_tests =
                             Conj [idv 0 "x" :≗: ([(idn 1 "A", 𝓊 0)] ⇒ idv 1 "A")]) True
 
 
-  -- This test fails!
-  -- Trace
-  -- does it fail for 
-  -- [(n ≃ :succ :zero)]
-  -- [(:succ ≃ :succ :zero)]
+  -- ∃ x ⮜ ℕ. x ≃ one
   , let nat = Ind (idn 1 "N") (𝓊 0) [("zero", idv 1 "N"), ("succ", [(idn 2 "_", idv 1 "N")] → idv 1 "N")]
-    in can_solve_test "ex-one"
-        (Bind Exists (idn 0 "x") nat $ Conj [idv 0 "x" :≗: (Ctr "succ" nat ⋅ Ctr "zero" nat)])
-        True
+    in solve_test "ex-one"
+        (Bind Exists (idn 0 "x") nat $ Conj [idv 0 "x" :≗: (Ctr "succ" nat ⋅ (Ctr "succ" nat ⋅ Ctr "zero" nat))])
+        [(idn 0 "x", (Ctr "succ" nat ⋅ (Ctr "succ" nat ⋅ Ctr "zero" nat)))]
 
+  -- ∃ x ⮜ ℕ. two + x ≅ four
+  -- , let nat = Ind (idn 1 "N") (𝓊 0) [("zero", idv 1 "N"), ("succ", [(idn 2 "_", idv 1 "N")] → idv 1 "N")]
+  --   in solve_test "ex-add"
+  --       (Bind Exists (idn 0 "n") nat $ Conj [idv 0 "n" :∈: nat])
+  --       (idn 0 "n" ↦ Ctr "zero" nat)
   -- TODO: add test testing this:
-  -- ∃ x ⮜ ℕ. two + x ≃ four
+  -- ∃ x ⮜ ℕ. two + x ≅ four
 
 
   ]
@@ -94,7 +98,7 @@ unify_tests =
   where 
     eq_test :: Text -> InternalCore -> InternalCore -> Bool -> Test
     eq_test name l r b = 
-      Test name $ case runUnifyM $ solve id (Conj [l :≗: r]) of 
+      Test name $ case runUnifyM 10 $ solve id (Conj [l :≗: r]) of 
         Right _ | b == True -> Nothing
                 | otherwise -> Just "unify-eq succeded when expecting fail"
         Left e  | b == False -> Nothing
@@ -102,19 +106,22 @@ unify_tests =
 
     can_solve_test :: Text -> Formula Name InternalCore -> Bool -> Test
     can_solve_test name formula b =
-      Test name $ case runUnifyM $ solve id formula of 
+      Test name $ case runUnifyM 10 $ solve id formula of 
         Right _ | b == True -> Nothing
                 | otherwise -> Just "unify-eq succeded when expecting fail"
         Left e  | b == False -> Nothing
                 | otherwise -> Just $ "unify failed - message:" <+> e
 
-    -- solve_test :: Text -> Formula (Core AnnBind Name UD) -> Substitution (Core AnnBind Name UD) -> Test
-    -- solve_test name formula sub =
-    --   Test name $ case runUnifyM $ solve formula of 
-    --     Right s
-    --       | s == sub  -> Nothing
-    --       | otherwise -> Just $ "incorrect substitution produced:" <+> pretty s <+> "expecting" <+> pretty sub
-    --     Left e -> Just $ "solve failed - message:" <+> e
+    solve_test :: Text -> Formula Name InternalCore -> [(Name, InternalCore)] -> Test
+    solve_test name formula sub =
+      Test name $ case runUnifyM 10 $ solve id formula of 
+        Right s
+          | s `has` sub -> Nothing
+          | otherwise -> Just $ vsep ["Incorrect substitution.", "Got:" <+> pretty s, "Expecting it to have:" <+> pretty sub]
+        Left e -> Just $ "solve failed - message:" <+> e
+
+    has :: Substitution Name InternalCore -> [(Name, InternalCore)] -> Bool 
+    has s sub = foldr (\(k, v) t -> t && maybe True (αeq v) (lookup k s)) True sub 
 
 
 -- var :: n -> Core b n UD

@@ -582,11 +582,15 @@ unify_eq quant_vars a b = case (a, b) of
 
     -- GVar-Fixed
     -----------------
+    -- Recall, formula has form:
+    --     … ∃x: (u₁:A₁ → … → uₙ:Aₙ → A) … ∀y₁:B₁…yₙ:Bₙ .
+    --         x yϕ(1) … yϕ(n) ≗ M
+    --
     -- While not a specific rule in itself, Gvar-fixed is useful as helper when
     -- M has the form c M₁ … Mₙ for a fixed c, (constant/universally quantified)
     -- c : (v₁:B₁) → … (vₘ:Bₘ) → B.
     -- here, we perform an imitation: let 
-    --   L = λ [u₁:A₁ … uₙ:Aₙ] (c (x₁ u₁ … uₙ) … (xₘ u₁ … uₙ))
+    --   L = λ [u₁:A₁ … uₙ:Aₙ] (c (x₁ u₁ … uₙ) … (xₘ u₁ … uₙ))   x ↦ :succ @xm  :succ :zero
     -- Then, we transition to
     --   ∃x₁: (u₁:A₁) → (uₙ:Aₙ) → B₁ ...
     --     ∃xₘ: (u₁:A₁) → (uₙ:Aₙ) → [(xₘ₋₁ u₁ … uₙ/v₁) … (x₁ u₁ … uₙ/vₘ)] Bₘ ...
@@ -603,12 +607,12 @@ unify_eq quant_vars a b = case (a, b) of
       -- the vector of bindings x₁: (∪_1:A₁) → … (uₙ:Aₙ) → B, …,
       --   xₘ (∪_1:A₁) → … (uₙ:Aₙ) → [(xₘ₋₁ u₁ … uₙ/v₁) … (x₁ u₁ … uₙ/vₘ)]B
       xₘₛ <- forM bₘₛ $ \_ -> do
-        x <- fresh_var "@xm"
+        x <- fresh_varn "@xm-"
         pure $ (x, wind (AVar x, map (Var . aname) aₙₛ))
 
       let to_l_term term = case term of
               Prd Regular bind body -> Abs Regular bind $ to_l_term body
-              _ -> foldr app (action $ fmap aname aₙₛ) $ map snd xₘₛ
+              _ -> foldl app (action $ fmap aname aₙₛ) $ map snd xₘₛ
           -- The term L, which we will substitute for x
           l = to_l_term ty
 
@@ -891,7 +895,7 @@ get_elem :: (MonadError err m, ?lift_err :: Doc ann -> err) =>
   Atom' -> Binds' -> m (Either FBind' InternalCore)
 get_elem atom qvars = case atom of
   AVar n -> Left <$> n ! qvars 
-  AUni n -> pure $ Right (Uni (n+1))  -- TODO: possibly no + 1?
+  AUni n -> pure $ Right (Uni (n+1))
   AInd _ k _ -> pure $ Right k
   ACtr label ty -> case ty of
     Ind nm _ ctors -> case List.find ((== label) . view _1) ctors of 
@@ -900,16 +904,18 @@ get_elem atom qvars = case atom of
     _ -> throw "constructor should have inductive type"
 
 unwind :: InternalCore -> Maybe (Atom', [InternalCore])        
-unwind core = case core of 
-  App l r -> (_2 %~ (r :)) <$> (unwind l)
-  Var n -> Just (AVar n, [])
-  Uni n -> Just (AUni n, [])
-  Ctr label ty -> Just (ACtr label ty, [])
-  Ind nm kind ctors -> Just (AInd nm kind ctors, [])
-  _ -> Nothing
+unwind core = fmap (_2 %~ reverse) (go core)
+  where 
+    go = \case
+      App l r -> (_2 %~ (r :)) <$> (unwind l)
+      Var n -> Just (AVar n, [])
+      Uni n -> Just (AUni n, [])
+      Ctr label ty -> Just (ACtr label ty, [])
+      Ind nm kind ctors -> Just (AInd nm kind ctors, [])
+      _ -> Nothing
 
 wind :: (Atom', [InternalCore]) -> InternalCore
-wind (a, vars) = foldr App (unatom a) vars  
+wind (a, vars) = foldl App (unatom a) vars
     
 -- telescope :: Core b n χ -> ([b n (Core b n χ)], Core b n χ)
 -- telescope term = case term of

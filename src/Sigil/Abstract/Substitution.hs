@@ -16,6 +16,7 @@ module Sigil.Abstract.Substitution
 {- 1. Regular, unnormalizing substitution.                                     -}
 {- 2. Typed, hereditary substitution.                                          -}
 {-                                                                             -}
+{- TODO: add foldrWithKey, remove Substition ctor export                       -}
 {-------------------------------------------------------------------------------}
 
 
@@ -31,6 +32,7 @@ import Prettyprinter
 
 import Sigil.Abstract.Syntax
 import Sigil.Abstract.Names
+import Sigil.Abstract.AlphaEq
 
 
 newtype Substitution n a = Substitution (Map n a)
@@ -39,6 +41,12 @@ newtype Substitution n a = Substitution (Map n a)
 instance (Pretty n, Pretty a) => Pretty (Substitution n a) where
   pretty (Substitution subst) = vsep $ fmap (\(n,a) -> pretty n <+> "↦" <+> pretty a) $ Map.toList subst
 
+instance (AlphaEq n a, Ord n) => AlphaEq n (Substitution n a) where
+  αequal rename (Substitution l) (Substitution r) =
+    (length l == length r) &&
+    Map.foldrWithKey (\k v t -> t && maybe False (αequal rename v) (Map.lookup k r)) True l
+
+    
 class Subst n s a | a -> s n where
   substitute :: Set n -> Substitution n s -> a -> a
   free_vars :: a -> Set n

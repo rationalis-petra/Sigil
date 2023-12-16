@@ -120,4 +120,4 @@ pImport = do
 
 pModifier :: TParser ImportModifier
 pModifier = 
-  const ImWildcard <$> (lexeme (C.char '.') *> symbol "(..)")
+  const ImWildcard <$> (lexeme (C.char '.') *> symbol "(…)")

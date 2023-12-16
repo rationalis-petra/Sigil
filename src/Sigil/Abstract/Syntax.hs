@@ -407,7 +407,7 @@ pretty_mod_builder pretty_entry m =
 
 instance Pretty ImportDef where
   pretty (Im (path, mod)) = pretty path <> case mod of
-    ImWildcard -> ".(..)"
+    ImWildcard -> ".(…)"
     ImSingleton -> ""
     ImAlias fm to -> "" <+> pretty fm <+> "→" <+> pretty to
     ImExcept set -> " \\" <+> (sep . fmap pretty . toList $ set)

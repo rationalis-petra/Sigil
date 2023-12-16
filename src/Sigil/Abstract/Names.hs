@@ -17,6 +17,7 @@ module Sigil.Abstract.Names
   , freshen
   , Gen
   , run_gen
+  , run_gen_from
   ) where
 
 
@@ -142,6 +143,9 @@ instance MonadGen m => MonadGen (ReaderT e m) where
 
 run_gen :: Gen a -> a
 run_gen = fst . flip runState 0 . ungen
+
+run_gen_from :: Integer -> Gen a -> a
+run_gen_from n = fst . flip runState n . ungen
 
 fresh_var :: MonadGen m => Text -> m Name
 fresh_var s = fresh_id >>= pure . Name . Right . (, s)
