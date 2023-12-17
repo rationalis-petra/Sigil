@@ -1,6 +1,5 @@
 module Spec.Sigil.Interpret.Unify (unify_spec) where
 
-import Debug.Trace
 import Prelude hiding (lookup)
 import Control.Monad.Except
 import Data.Text (Text)
@@ -130,7 +129,7 @@ unify_tests =
         Left e -> Just $ "solve failed - message:" <+> e
 
     has :: Substitution Name InternalCore -> [(Name, InternalCore)] -> Bool 
-    has s sub = foldr (\(k, v) t -> t && maybe False (\x -> trace (show $ "checking α=:" <+> pretty v <+> "," <+> pretty x) (αeq v x)) (lookup k s)) True sub 
+    has s sub = foldr (\(k, v) t -> t && maybe False (αeq v) (lookup k s)) True sub 
 
 
 -- var :: n -> Core b n UD

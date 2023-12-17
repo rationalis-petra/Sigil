@@ -705,26 +705,36 @@ right_search quant_vars val goal cont =
       Just (atom, _) ->  do
         -- Step 1: get the fixed type of the atom. This means return nothing if
         -- the atom is an existentially bound variable.
-        atom_elem <- get_elem atom quant_vars
-        let atom_ty = case atom_elem of 
-              Left (FBind { _elem_quant=Forall, _elem_type=ty }) -> Just ty
-              Right ty -> Just ty
-              _ -> Nothing
+        --atom_elem <- get_elem atom quant_vars
+        targets <- case atom of
+          (AInd nm sort ctors) -> pure $ flip map ctors $ \(label, ctorty) ->
+            let ty = Ind nm sort ctors
+            in (Ctr label ty, subst (nm ↦ ty) ctorty)
+          (AVar nm) -> (nm ! quant_vars) >>= \case
+            (FBind { _elem_quant=Forall, _elem_type=ty }) -> pure [(Var nm, ty)]
+            _ -> pure []
+          _ -> throw "couldn't get targets..."
+
+            -- atom_ty = case atom_elem of 
+            --     Left (FBind { _elem_quant=Forall, _elem_type=ty }) -> Just ty
+            --     Right ty -> Just ty
+            --     _ -> Nothing
 
             -- TODO: not 100% sure this is what the search wanted
             -- The targets are formed by the list of value-constructors for the
             -- type?
             -- targets take the form (ctor, ctorty)
             -- possibly also other forms??
-            targets = case atom_ty of
-              Just ty@(Ind nm _ ctors) -> flip map ctors $ \(label, ctorty) -> 
-                (Ctr label ty, subst (nm ↦ ty) ctorty)
-              Just t -> [(unatom atom, t)]
-              Nothing -> [] -- TODO: this is WRONG BIG WRONG!
+            -- targets = case atom_ty of
+            --   Just ty@(Ind nm _ ctors) -> flip map ctors $ \(label, ctorty) -> 
+            --     (Ctr label ty, subst (nm ↦ ty) ctorty)
+            --   Just t -> [(unatom atom, t)]
+            --   Nothing -> [] -- TODO: this is WRONG BIG WRONG!
 
-            is_fixed nm =
+        
+        let is_fixed nm =
               case List.find (\v -> ((nm ==) . _elem_name) v
-                          && ((Exists ==) ._elem_quant) v) quant_vars of 
+                          && ((Forall ==) ._elem_quant) v) quant_vars of 
                 Just _ -> True
                 Nothing -> False
         if all is_fixed (free_vars val <> free_vars goal)
@@ -742,7 +752,7 @@ right_search quant_vars val goal cont =
                 -- TODO: it's very important we get the threading of quant_vars
                 -- correct here. It may be that we are supposed to 'reset' each time
                 -- we left-search (as we explore different branches...)
-                (qvs',cs) <- left_search qvs (val, goal) t
+                (qvs',cs) <- left_search qvs t (val, goal)
                 -- TODO: ensure that we assumed correctly the value sequ=False
                 -- (for HOU.hs)
                 inter qvs (cont (Just (qvs', mempty, cs)) : cg) ts
@@ -756,7 +766,7 @@ right_search quant_vars val goal cont =
 -- directly available in formulas.
 left_search :: forall m ann err. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) =>
   Binds' -> (InternalCore, InternalCore) -> (InternalCore, InternalCore) -> m (Binds', [SingleConstraint'])
-left_search quant_vars (m, goal) (x, target) = left_cont quant_vars x target
+left_search quant_vars (x, target) (m, goal) = left_cont quant_vars x target
   where
     left_cont quant_vars val target = case target of
       -- Rule D Π:

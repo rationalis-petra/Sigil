@@ -27,10 +27,6 @@ import Sigil.Abstract.Substitution
 {-------------------------------------------------------------------------------}
 
 
--- class Unifiable m a | a -> m where
---   solve :: Formula a -> m (Substitution a)
-  -- solve_isolated :: Env a -> Formula a -> Either (Doc ann) (Substitution a)
-
 data SingleConstraint a
   = a :≗: a -- Claim of Unifiability of two terms
   | a :∈: a -- Claim of type occupation 
