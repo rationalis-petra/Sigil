@@ -313,11 +313,11 @@ unify_eq quant_vars a b = case (a, b) of
   --   pure $ Just (add_bind Forall a, [(a :≗: a'), (b :≗: b')], id)
 
   -- TODO: this is not in Caledon!!! do we have a case prd-prd or prd-any or any-prd??? 
-  (Prd Regular (AnnBind (n, ty)) body, Prd Regular (AnnBind (n', ty')) body') -> 
+  (Prd i (AnnBind (n, ty)) body, Prd i' (AnnBind (n', ty')) body') | i == i' -> 
     pure $ Just (add_bind Forall n ty quant_vars, mempty, [(ty :≗: ty'), (body :≗: subst (n' ↦ Var n) body')])
 
   -- Case Lam-Lam
-  (Abs Regular (AnnBind (n, ty)) body, Abs Regular (AnnBind (n', ty')) body') -> 
+  (Abs i (AnnBind (n, ty)) body, Abs i' (AnnBind (n', ty')) body') | i == i' -> 
     pure $ Just (add_bind Forall n ty quant_vars, mempty, [(ty :≗: ty'), (body :≗: subst (n' ↦ Var n) body')])
 
   -- Case Lam-Any (both left and right variants)
@@ -689,11 +689,11 @@ right_search quant_vars val goal cont =
   case goal of 
     -- Rule G Π: M ∈ (x:A) → B ⇒ ∀x: A.∃y: B.(y ≗ M x) ∧ y ∈ B
     Prd Regular (AnnBind(n,a)) b -> do
-      x <- fresh_var "@sx"
-      y <- fresh_var "@sy"
+      x <- fresh_varn "@sx-"
+      y <- fresh_varn "@sy-"
       let b' = subst (n ↦ Var x) b
       -- TODO: make sure order is correct!
-      let quant_vars' = add_bind Forall x a $ add_bind Exists y b' quant_vars
+      let quant_vars' = add_bind Exists y b' $ add_bind Forall x a quant_vars
       cont $ Just (quant_vars', mempty, [Var y :≗: (val `app` Var x), Var y :∈: b'])
 
     _ -> case unwind goal of
@@ -706,19 +706,45 @@ right_search quant_vars val goal cont =
         -- Step 1: get the fixed type of the atom. This means return nothing if
         -- the atom is an existentially bound variable.
         --atom_elem <- get_elem atom quant_vars
-        targets <- case atom of
-          (AInd nm sort ctors) -> pure $ flip map ctors $ \(label, ctorty) ->
-            let ty = Ind nm sort ctors
-            in (Ctr label ty, subst (nm ↦ ty) ctorty)
-          (AVar nm) -> (nm ! quant_vars) >>= \case
-            (FBind { _elem_quant=Forall, _elem_type=ty }) -> pure [(Var nm, ty)]
-            _ -> pure []
-          _ -> throw "couldn't get targets..."
+        val_target <- case unwind val of 
+              Just (v, _) -> do
+                elem <- get_elem v quant_vars
+                case elem of 
+                  Left (FBind { _elem_quant=Forall, _elem_type=ty }) -> pure $ Just (unatom v, ty)
+                  Right ty -> pure $ Just (unatom v, ty)
+                  _ -> pure Nothing
+              Nothing -> pure Nothing
+        
 
-            -- atom_ty = case atom_elem of 
-            --     Left (FBind { _elem_quant=Forall, _elem_type=ty }) -> Just ty
-            --     Right ty -> Just ty
-            --     _ -> Nothing
+        let ind_targets :: Atom' -> [(InternalCore, InternalCore)]
+            ind_targets = \case
+              (AInd nm sort ctors) -> flip map ctors $ \(label, ctorty) ->
+                let ty = Ind nm sort ctors
+                in (Ctr label ty, subst (nm ↦ ty) ctorty)
+              _ -> []
+
+        let same_family (FBind {_elem_type = ty}) = 
+              case unwind ty of 
+                Just (atom', _) -> αeq atom atom'
+                Nothing -> False
+      
+              
+        targets <- case val_target of
+          Just t -> pure [t]
+          Nothing -> 
+            let foralls = filter ((== Forall) . view elem_quant) quant_vars
+            in pure $ ind_targets atom
+               <> fmap (\v -> (Var (view elem_name v), view elem_type v))
+                    (filter same_family foralls)
+
+        -- targets <- case atom of
+        --   (AInd nm sort ctors) -> pure $ flip map ctors $ \(label, ctorty) ->
+        --     let ty = Ind nm sort ctors
+        --     in (Ctr label ty, subst (nm ↦ ty) ctorty)
+        --   (AVar nm) -> (nm ! quant_vars) >>= \case
+        --     (FBind { _elem_quant=Forall, _elem_type=ty }) -> pure [(Var nm, ty)]
+        --     _ -> pure []
+        --   _ -> throw "couldn't get targets..."
 
             -- TODO: not 100% sure this is what the search wanted
             -- The targets are formed by the list of value-constructors for the

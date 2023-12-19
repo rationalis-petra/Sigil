@@ -100,7 +100,15 @@ unify_tests =
   -- TODO: add test testing this:
   -- ∃ x ⮜ ℕ. two + x ≅ four
 
-
+  -- Currently, this fails with an occurs check
+  -- this is technically 'correct' behaviour (as per the caledon operational semantics) (I think)
+  -- however, it might be nice if we could fix that
+  -- for id ≜ (A ⮜ 𝕌) → (v ⮜ A) → A, ∃ x ⮜ id. x ∈ id
+  -- x ↦ λ (A ⮜ 𝕌) (v ⮜ A) → v
+  -- , let id = [(idn 0 "A", 𝓊 0), (idn 1 "v", idv 0 "A")] → idv 0 "A"
+  --   in solve_test "inhabit-id"
+  --       (Bind Exists (idn 2 "x") id $ Conj [idv 2 "x" :∈: id])
+  --       [(idn 2 "x", ([(idn 0 "A", 𝓊 0), (idn 1 "v", idv 0 "A")] ⇒ idv 1 "v"))]
   ]
 
   where 

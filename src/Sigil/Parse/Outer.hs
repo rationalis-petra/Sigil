@@ -158,8 +158,8 @@ syn_entry = mutual
 {- • Lambda λ x (y ⮜ A) → e                                                    -}
 {- • Product (A ⮜ 𝕌) → A → A                                                   -}
 {- • Universe 𝕌 | 𝕌ₙ                                                           -}
-{- • Identity Id (x ⮜ A = e) (y ⮜ B = e'). A e e                               -}
-{- • Id-App   Ap (x ⮜ A = e) (y ⮜ B = e'). e                                   -}
+{- • Identity Id (x ⮜ A ≜ e) (y ⮜ B ≜ e'). A e e                               -}
+{- • Id-App   Ap (x ⮜ A ≜ e) (y ⮜ B ≜ e'). e                                   -}
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
@@ -256,15 +256,22 @@ syn_core level = do
       (do
         entry <- between lparen rparen $ do
           arg <- fmap Just anyvar
-          ty <- syn_core level
-          (v1, v2) <- between lparen rparen $ do
-            v1 <- syn_core level
-            symbol "="
-            v2 <- syn_core level
-            pure (v1, v2)
-          symbol "≜"
-          id <- syn_core level
-          pure (arg, (Just (ty, v1, v2)), id)
+          next <- lookAhead (satisfy (const True))
+          case next of
+            '⮜' -> do
+              symbol "⮜"
+              RMix _ [ty, a, a'] <- syn_core level
+              symbol "≜"
+              val <- syn_core level
+              let syn = \case
+                    NamePart txt -> RMix mempty [NamePart txt]
+                    Syn core -> core
+              pure (arg, Just (syn ty, syn a, syn a'), val)
+            '≜' -> do
+              symbol "≜"
+              val <- syn_core level
+              pure (arg, Nothing, val)
+            _ -> fail "expecting telescope ⮜ or ≜"
         tel' <- ptel
         pure $ entry : tel')
       <||> pure []
@@ -368,10 +375,10 @@ syn_formula level = do
 
     pconj :: ParserT m (Formula Text Syntax)
     pconj = do
-      fm₁ <- between lparen rparen $ syn_formula level
-      symbol "∧"
-      fm₂ <- between lparen rparen $ syn_formula level
-      pure $ And fm₁ fm₂
+      forms <- sepBy (between lparen rparen $ syn_formula level) (symbol "∧" )
+      case reverse forms of 
+        (f : fs) -> pure $ foldr And f fs
+        _ -> fail "empty formula conjugation"
 
     psingles :: ParserT m (Formula Text Syntax)
     psingles = do
