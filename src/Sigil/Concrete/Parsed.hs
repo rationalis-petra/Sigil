@@ -10,11 +10,17 @@ module Sigil.Concrete.Parsed
   , pattern Prd
   , pattern Abs
   , pattern App
-  , pattern Eql
-  , pattern Dap
   , pattern Ind
   , pattern Ctr
   , pattern Rec
+  , pattern Eql
+  , pattern ETC
+  , pattern CTE
+  , pattern Dap
+  , pattern TrL
+  , pattern TrR
+  , pattern LfL
+  , pattern LfR
   ) where
 
 {----------------------------------- PARSED ------------------------------------}
@@ -54,11 +60,17 @@ type instance Uniχ Parsed = Range
 type instance Prdχ Parsed = (Range, ArgType)
 type instance Absχ Parsed = (Range, ArgType)
 type instance Appχ Parsed = Range
-type instance Eqlχ Parsed = Range
-type instance Dapχ Parsed = Range
 type instance Indχ Parsed = Range
 type instance Ctrχ Parsed = Range
 type instance Recχ Parsed = Range
+type instance Eqlχ Parsed = Range
+type instance ETCχ Parsed = Range
+type instance CTEχ Parsed = Range
+type instance Dapχ Parsed = Range
+type instance TrLχ Parsed = Range
+type instance TrRχ Parsed = Range
+type instance LfLχ Parsed = Range
+type instance LfRχ Parsed = Range
 
 type ParsedCore = Core OptBind Text Parsed
 
@@ -68,7 +80,8 @@ type ParsedEntry = Entry OptBind Text Parsed
 
 type ParsedModule = Module OptBind Text Parsed
 
-{-# COMPLETE Core, Uni, Var, Prd, Abs, App, Eql, Dap, Ind, Ctr, Rec #-}
+{-# COMPLETE Core, Uni, Var, Prd, Abs, App, Ind, Ctr, Rec
+ , Eql, ETC, CTE, Dap, TrL, TrR, LfL, LfR #-}
 pattern Core :: ParsedCore
 pattern Core <- Coreχ _
   where Core = Coreχ PUnit
@@ -93,14 +106,6 @@ pattern App :: Range -> ParsedCore -> ParsedCore -> ParsedCore
 pattern App r a b <- Appχ r a b
   where App r a b = Appχ r a b
 
-pattern Eql :: Range -> (Tel OptBind Text ParsedCore) -> ParsedCore -> ParsedCore -> ParsedCore -> ParsedCore
-pattern Eql r tel ty a a' <- Eqlχ r tel ty a a'
-  where Eql r tel ty a a' = Eqlχ r tel ty a a'
-
-pattern Dap :: Range -> (Tel OptBind Text ParsedCore) -> ParsedCore -> ParsedCore
-pattern Dap r tel val <- Dapχ r tel val
-  where Dap r tel val = Dapχ r tel val
-
 pattern Ind :: Range -> Text -> Maybe ParsedCore -> [(Text, ParsedCore)] -> ParsedCore
 pattern Ind r name msort ctors <- Indχ r name msort ctors
   where Ind r name msort ctors = Indχ r name msort ctors
@@ -113,6 +118,38 @@ pattern Rec :: Range -> (OptBind Text ParsedCore) -> ParsedCore -> [(Case OptBin
 pattern Rec r rec val cases <- Recχ r rec val cases
   where Rec r rec val cases = Recχ r rec val cases
 
+pattern Eql :: Range -> (Tel OptBind Text ParsedCore) -> ParsedCore -> ParsedCore -> ParsedCore -> ParsedCore
+pattern Eql r tel ty a a' <- Eqlχ r tel ty a a'
+  where Eql r tel ty a a' = Eqlχ r tel ty a a'
+
+pattern ETC :: Range -> ParsedCore -> ParsedCore
+pattern ETC r val <- ETCχ r val
+  where ETC r val = ETCχ r val
+
+pattern CTE :: Range -> ParsedCore -> ParsedCore
+pattern CTE r val <- CTEχ r val
+  where CTE r val = CTEχ r val
+
+pattern Dap :: Range -> (Tel OptBind Text ParsedCore) -> ParsedCore -> ParsedCore
+pattern Dap r tel val <- Dapχ r tel val
+  where Dap r tel val = Dapχ r tel val
+
+pattern TrL :: Range -> (Tel OptBind Text ParsedCore) -> ParsedCore -> ParsedCore -> ParsedCore
+pattern TrL r tel ty val <- TrLχ r tel ty val
+  where TrL r tel ty val = TrLχ r tel ty val
+
+pattern TrR :: Range -> (Tel OptBind Text ParsedCore) -> ParsedCore -> ParsedCore -> ParsedCore
+pattern TrR r tel ty val <- TrRχ r tel ty val
+  where TrR r tel ty val = TrRχ r tel ty val
+
+pattern LfL :: Range -> (Tel OptBind Text ParsedCore) -> ParsedCore -> ParsedCore -> ParsedCore
+pattern LfL r tel ty val <- LfLχ r tel ty val
+  where LfL r tel ty val = LfLχ r tel ty val
+
+pattern LfR :: Range -> (Tel OptBind Text ParsedCore) -> ParsedCore -> ParsedCore -> ParsedCore
+pattern LfR r tel ty val <- LfRχ r tel ty val
+  where LfR r tel ty val = LfRχ r tel ty val
+
 instance HasRange ParsedCore where
   range core = case core of
     Core -> mempty
@@ -121,11 +158,17 @@ instance HasRange ParsedCore where
     Prd r _ _ _ -> r
     Abs r _ _ _ -> r
     App r _ _ -> r
-    Eql r _ _ _ _ -> r
-    Dap r _ _ -> r
     Ind r _ _ _ -> r
     Ctr r _ _ -> r
     Rec r _ _ _ -> r
+    Eql r _ _ _ _ -> r
+    ETC r _ -> r
+    CTE r _ -> r
+    Dap r _ _ -> r
+    TrL r _ _ _ -> r
+    TrR r _ _ _-> r
+    LfL r _ _ _-> r
+    LfR r _ _ _ -> r
 
   
 {---------------------------------- INSTANCES ----------------------------------}

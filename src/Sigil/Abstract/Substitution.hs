@@ -139,19 +139,6 @@ instance ( Ord n
         shadow' = maybe shadow (\n -> Set.insert n shadow) (name bind)
     Appχ χ l r -> Appχ χ (substitute shadow sub l) (substitute shadow sub r)
 
-    Eqlχ χ tel ty a a' ->
-      Eqlχ χ tel'
-        (substitute shadow' sub ty)
-        (substitute shadow' sub a)
-        (substitute shadow' sub a')
-        where 
-          (tel', shadow') = subst_tel shadow sub tel
-
-    Dapχ χ tel val ->
-      Dapχ χ tel' (substitute shadow' sub val)
-       where
-         (tel', shadow') = subst_tel shadow sub tel
-
     Indχ χ name fsort terms ->
       Indχ χ name (substitute shadow sub <$> fsort) (map subst_term terms)
       where 
@@ -171,6 +158,41 @@ instance ( Ord n
           PatVar n -> Set.singleton n
           PatCtr _ subpats -> fold (map pat_shadow subpats)
 
+    Eqlχ χ tel ty a a' ->
+      Eqlχ χ tel'
+        (substitute shadow' sub ty)
+        (substitute shadow' sub a)
+        (substitute shadow' sub a')
+        where 
+          (tel', shadow') = subst_tel shadow sub tel
+
+    ETCχ χ eq -> ETCχ χ (substitute shadow sub eq)
+    CTEχ χ corr -> CTEχ χ (substitute shadow sub corr)
+
+    Dapχ χ tel val ->
+      Dapχ χ tel' (substitute shadow' sub val)
+       where
+         (tel', shadow') = subst_tel shadow sub tel
+  
+    TrRχ χ tel ty val ->
+      TrRχ χ tel' (substitute shadow' sub ty) (substitute shadow' sub val)
+        where
+          (tel', shadow') = subst_tel shadow sub tel
+
+    TrLχ χ tel ty val ->
+      TrLχ χ tel' (substitute shadow' sub ty) (substitute shadow' sub val)
+        where
+          (tel', shadow') = subst_tel shadow sub tel
+
+    LfRχ χ tel ty val ->
+      LfRχ χ tel' (substitute shadow' sub ty) (substitute shadow' sub val)
+        where
+          (tel', shadow') = subst_tel shadow sub tel
+    LfLχ χ tel ty val ->
+      LfLχ χ tel' (substitute shadow' sub ty) (substitute shadow' sub val)
+        where
+          (tel', shadow') = subst_tel shadow sub tel
+
     where
       subst_tel shadow _ [] = ([], shadow)
       subst_tel shadow sub ((bind, ty) : tel) =
@@ -188,15 +210,6 @@ instance ( Ord n
     Absχ _ bind body -> let fvb = free_vars body in
       free_vars bind <> maybe fvb (\n -> Set.delete n fvb) (name bind)
     Appχ _ l r -> Set.union (free_vars l) (free_vars r)
-    Eqlχ _ tel ty a a' -> 
-      let (vars, diff_vars) = free_tel tel
-      in vars <>
-          Set.difference 
-           (free_vars ty <> free_vars a <> free_vars a')
-           diff_vars
-    Dapχ _ tel val -> 
-      let (vars, diff_vars) = free_tel tel
-      in vars <> Set.difference (free_vars val) diff_vars
     Indχ _ name fsort terms ->
       let fvt = fold (map (free_vars . snd) terms)
       in Set.delete name fvt <> (fold . fmap free_vars) fsort
@@ -209,6 +222,32 @@ instance ( Ord n
             PatVar n -> Set.singleton n
       in
         free_vars recur <> free_vars val <> maybe fvc (\n -> Set.delete n fvc) (name recur)
+    Eqlχ _ tel ty a a' -> 
+      let (vars, diff_vars) = free_tel tel
+      in vars <>
+          Set.difference 
+           (free_vars ty <> free_vars a <> free_vars a')
+           diff_vars
+    ETCχ _ val -> free_vars val
+    CTEχ _ val -> free_vars val
+
+    Dapχ _ tel val -> 
+      let (vars, diff_vars) = free_tel tel
+      in vars <> Set.difference (free_vars val) diff_vars
+
+    TrRχ _ tel ty val ->
+      let (vars, diff_vars) = free_tel tel
+      in vars <> Set.difference (free_vars ty <> free_vars val) diff_vars
+    TrLχ _ tel ty val ->
+      let (vars, diff_vars) = free_tel tel
+      in vars <> Set.difference (free_vars ty <> free_vars val) diff_vars
+    LfRχ _ tel ty val ->
+      let (vars, diff_vars) = free_tel tel
+      in vars <> Set.difference (free_vars ty <> free_vars val) diff_vars
+    LfLχ _ tel ty val ->
+      let (vars, diff_vars) = free_tel tel
+      in vars <> Set.difference (free_vars ty <> free_vars val) diff_vars
+
     where 
       free_tel [] = (Set.empty, Set.empty)
       free_tel ((bind, val) : tel) =
@@ -254,12 +293,6 @@ instance Traversable (Functorχ χ) => Regen (Core OptBind Name χ) where
         (sub', bind') <- freshen_bind bind sub
         Absχ χ bind' <$> (go sub' body)
       Appχ χ l r -> Appχ χ <$> go sub l <*> go sub r
-      Eqlχ χ tel ty a a' -> do
-        (sub', tel') <- freshen_tel tel sub
-        Eqlχ χ tel' <$> go sub' ty <*> go sub' a <*> go sub' a'
-      Dapχ χ tel val -> do
-        (sub', tel') <- freshen_tel tel sub
-        Dapχ χ tel' <$> go sub' val
       Indχ χ name fsort ctors -> do
         name' <- freshen name
         fsort' <- mapM (go sub) fsort
@@ -287,6 +320,29 @@ instance Traversable (Functorχ χ) => Regen (Core OptBind Name χ) where
             PatVar n -> do
               n' <- freshen n
               pure (insert n n' sub, PatVar n')
+
+      Eqlχ χ tel ty a a' -> do
+        (sub', tel') <- freshen_tel tel sub
+        Eqlχ χ tel' <$> go sub' ty <*> go sub' a <*> go sub' a'
+      ETCχ χ val -> ETCχ χ <$> go sub val
+      CTEχ χ val -> CTEχ χ <$> go sub val
+
+      Dapχ χ tel val -> do
+        (sub', tel') <- freshen_tel tel sub
+        Dapχ χ tel' <$> go sub' val
+  
+      TrRχ χ tel ty val -> do
+        (sub', tel') <- freshen_tel tel sub
+        TrRχ χ tel' <$> go sub' ty <*> go sub' val
+      TrLχ χ tel ty val -> do
+        (sub', tel') <- freshen_tel tel sub
+        TrLχ χ tel' <$> go sub' ty <*> go sub' val
+      LfRχ χ tel ty val -> do
+        (sub', tel') <- freshen_tel tel sub
+        LfRχ χ tel' <$> go sub' ty <*> go sub' val
+      LfLχ χ tel ty val -> do
+        (sub', tel') <- freshen_tel tel sub
+        LfLχ χ tel' <$> go sub' ty <*> go sub' val
 
 instance Traversable (Functorχ χ) => Regen (Core AnnBind Name χ) where 
   regen = go empty where
@@ -322,12 +378,6 @@ instance Traversable (Functorχ χ) => Regen (Core AnnBind Name χ) where
         (sub', bind') <- freshen_bind bind sub
         Absχ χ bind' <$> (go sub' body)
       Appχ χ l r -> Appχ χ <$> (go sub l) <*> (go sub r)
-      Eqlχ χ tel ty a a' -> do
-        (sub', tel') <- freshen_tel tel sub
-        Eqlχ χ tel' <$> go sub' ty <*> go sub' a <*> go sub' a'
-      Dapχ χ tel val -> do
-        (sub', tel') <- freshen_tel tel sub
-        Dapχ χ tel' <$> go sub' val
       Indχ χ name fsort ctors -> do
         name' <- freshen name
         fsort' <- mapM (go sub) fsort
@@ -355,3 +405,26 @@ instance Traversable (Functorχ χ) => Regen (Core AnnBind Name χ) where
             PatVar n -> do
               n' <- freshen n
               pure (insert n n' sub, PatVar n')
+      Eqlχ χ tel ty a a' -> do
+        (sub', tel') <- freshen_tel tel sub
+        Eqlχ χ tel' <$> go sub' ty <*> go sub' a <*> go sub' a'
+
+      ETCχ χ val -> ETCχ χ <$> go sub val
+      CTEχ χ val -> CTEχ χ <$> go sub val
+
+      Dapχ χ tel val -> do
+        (sub', tel') <- freshen_tel tel sub
+        Dapχ χ tel' <$> go sub' val
+  
+      TrRχ χ tel ty val -> do
+        (sub', tel') <- freshen_tel tel sub
+        TrRχ χ tel' <$> go sub' ty <*> go sub' val
+      TrLχ χ tel ty val -> do
+        (sub', tel') <- freshen_tel tel sub
+        TrLχ χ tel' <$> go sub' ty <*> go sub' val
+      LfRχ χ tel ty val -> do
+        (sub', tel') <- freshen_tel tel sub
+        LfRχ χ tel' <$> go sub' ty <*> go sub' val
+      LfLχ χ tel ty val -> do
+        (sub', tel') <- freshen_tel tel sub
+        LfLχ χ tel' <$> go sub' ty <*> go sub' val

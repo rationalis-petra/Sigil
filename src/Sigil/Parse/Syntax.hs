@@ -29,11 +29,17 @@ data Syntax
   | RUni Range Integer
   | RPrd Range ArgType (Maybe Text) (Maybe Syntax) Syntax
   | RAbs Range ArgType (Maybe Text) (Maybe Syntax) Syntax
-  | REql Range RawTel Syntax Syntax Syntax
-  | RDap Range RawTel Syntax
   | RInd Range Text (Maybe Syntax) [(Text, Syntax)]
   | RCtr Range Text (Maybe Syntax)
   | RRec Range (Maybe Text) (Maybe Syntax) Syntax [(Pattern Text, Syntax)]
+  | REql Range RawTel Syntax Syntax Syntax
+  | RETC Range Syntax
+  | RCTE Range Syntax
+  | RDap Range RawTel Syntax
+  | RTrL Range RawTel Syntax Syntax
+  | RTrR Range RawTel Syntax Syntax
+  | RLfL Range RawTel Syntax Syntax
+  | RLfR Range RawTel Syntax Syntax
 
 data SynModule = RModule Path [ImportDef] [ExportDef] [SynEntry]
 
@@ -61,6 +67,25 @@ instance Pretty s => Pretty (MixToken s) where
     NamePart p -> "(np" <+> pretty p <> ")"
     Syn s -> "(sy" <+> pretty s <> ")"
 
+instance HasRange Syntax where
+  range = \case 
+    RMix r _ -> r
+    RUni r _ -> r
+    RPrd r _ _ _ _ -> r
+    RAbs r _ _ _ _ -> r
+    RInd r _ _ _ -> r
+    RCtr r _ _ -> r
+    RRec r _ _ _ _ -> r
+    REql r _ _ _ _ -> r
+    RETC r _ -> r
+    RCTE r _ -> r
+
+    RDap r _ _ -> r
+    RTrL r _ _ _ -> r
+    RTrR r _ _ _ -> r
+    RLfL r _ _ _ -> r
+    RLfR r _ _ _ -> r
+
 instance Pretty Syntax where
   pretty = \case 
     RMix _ toks -> "mix [" <> sep (map pretty toks) <> "]"
@@ -84,8 +109,6 @@ instance Pretty Syntax where
               (Nothing, Just v) -> lp <> "_ ⮜" <+> pretty v <> rp
               _ -> "_")
       <+> "→" <+> pretty body
-    REql _ tel ty v1 v2 -> "ι" <+> pretty_tel tel <+> pretty ty <+> pretty v1 <+> pretty v2
-    RDap _ tel id -> "ρ" <+> pretty_tel tel <+> pretty id
     RInd _ name ms ctors ->
       vsep ["μ" <+> pretty name <> ","
                 <+> maybe "." ((<> ".") . pretty) ms
@@ -104,6 +127,15 @@ instance Pretty Syntax where
         pbracket p = case p of
           PatCtr _ _ -> "(" <> pretty_pat p <> ")"
           PatVar _ -> pretty_pat p
+    REql _ tel ty v1 v2 -> "ι" <+> pretty_tel tel <+> pretty ty <+> pretty v1 <+> pretty v2
+    RETC _ val -> "↓" <+> pretty val
+    RCTE _ val -> "↑" <+> pretty val
+
+    RDap _ tel id -> "ρ" <+> pretty_tel tel <+> pretty id
+    RTrL _ tel ty val -> "⍄" <+> pretty_tel tel  <+> pretty ty <+> pretty val
+    RTrR _ tel ty val -> "⍃" <+> pretty_tel tel  <+> pretty ty <+> pretty val
+    RLfL _ tel ty val -> "⎕⍄" <+> pretty_tel tel <+> pretty ty <+> pretty val
+    RLfR _ tel ty val -> "⎕⍃" <+> pretty_tel tel <+> pretty ty <+> pretty val
 
     where
       pretty_tel tel =
@@ -127,4 +159,5 @@ instance Pretty SynModule where
     vsep $
     ("module" <+> (foldl' (<>) "" . zipWith (<>) ("" : repeat ".") . fmap pretty . toList . unPath $ path))
     : emptyDoc : intersperse emptyDoc (fmap (align . pretty) entries)
+
 

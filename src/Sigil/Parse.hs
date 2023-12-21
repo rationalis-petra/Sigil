@@ -127,12 +127,6 @@ mix_core precs = \case
     Absχ (rn, aty)
     <$> (OptBind . (mt ,) <$> mapM (mix_core precs) ms)
     <*> mix_core (update_precs (maybeToList mt) precs) body
-  REql rn rt ty v1 v2 -> do
-    (tel', precs') <- mix_tel precs rt []
-    Eqlχ rn tel' <$> mix_core precs' ty <*> mix_core precs' v1 <*> mix_core precs' v2
-  RDap rn tel ref -> do
-    (tel', precs') <- mix_tel precs tel []
-    Dapχ rn tel' <$> mix_core precs' ref
   RInd rn nm mty ctors ->
     let precs' = update_precs [nm] precs
         mix_ctors = mapM mix_ctor
@@ -150,6 +144,29 @@ mix_core precs = \case
     <$> (OptBind . (mt,) <$> mapM (mix_core precs) mty)
     <*> mix_core precs val
     <*> mapM mix_case cases
+
+  REql rn rt ty v1 v2 -> do
+    (tel', precs') <- mix_tel precs rt []
+    Eqlχ rn tel' <$> mix_core precs' ty <*> mix_core precs' v1 <*> mix_core precs' v2
+  RETC rn val -> ETCχ rn <$> mix_core precs val
+  RCTE rn val -> CTEχ rn <$> mix_core precs val
+
+  RDap rn tel ref -> do
+    (tel', precs') <- mix_tel precs tel []
+    Dapχ rn tel' <$> mix_core precs' ref
+  RTrL rn tel ty val -> do
+    (tel', precs') <- mix_tel precs tel []
+    TrLχ rn tel' <$> mix_core precs' ty <*> mix_core precs' val
+  RTrR rn tel ty val -> do
+    (tel', precs') <- mix_tel precs tel []
+    TrRχ rn tel' <$> mix_core precs' ty <*> mix_core precs' val
+  RLfL rn tel ty val -> do
+    (tel', precs') <- mix_tel precs tel []
+    LfLχ rn tel' <$> mix_core precs' ty <*> mix_core precs' val
+  RLfR rn tel ty val -> do
+    (tel', precs') <- mix_tel precs tel []
+    LfRχ rn tel' <$> mix_core precs' ty <*> mix_core precs' val
+
   where
     mix_tel :: Precedences
       -> [(Maybe Text, Maybe (Syntax, Syntax, Syntax), Syntax)]

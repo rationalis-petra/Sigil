@@ -77,12 +77,6 @@ instance (Ord n, Binding b, Eq1 (Functorχ χ), Applicative (Functorχ χ), Alph
                   , maybe (snd rename) (\n -> Map.insert n (name b) (snd rename)) (name b'))
     (Appχ _ l r, Appχ _ l' r') ->
       αequal rename l l' && αequal rename r r'
-    (Eqlχ _ tel ty v1 v2, Eqlχ _ tel' ty' v1' v2') ->
-      let (tel_eq, rename') = αequal_tel rename tel tel'
-      in tel_eq && αequal rename' ty ty' && αequal rename' v1 v1' && αequal rename' v2 v2'
-    (Dapχ _ tel val, Dapχ _ tel' val') ->
-      let (tel_eq, rename') = αequal_tel rename tel tel'
-      in tel_eq && αequal rename' val val'
     (Ctrχ _ label ty, Ctrχ _ label' ty') -> label == label' && liftEq (αequal rename) ty ty'
     (Indχ _ name fsort ctors, Indχ _ name' fsort' ctors') ->
       liftEq (αequal rename) fsort fsort'
@@ -90,6 +84,30 @@ instance (Ord n, Binding b, Eq1 (Functorχ χ), Applicative (Functorχ χ), Alph
       where 
         rename' = ( Map.insert name (Just name') (fst rename)
                   , Map.insert name' (Just name) (snd rename))
+    -- TODO: Rec
+    (Eqlχ _ tel ty v1 v2, Eqlχ _ tel' ty' v1' v2') ->
+      let (tel_eq, rename') = αequal_tel rename tel tel'
+      in tel_eq && αequal rename' ty ty' && αequal rename' v1 v1' && αequal rename' v2 v2'
+
+    (ETCχ _ val, ETCχ _ val') -> αequal rename val val'
+    (CTEχ _ val, CTEχ _ val') -> αequal rename val val'
+  
+    (Dapχ _ tel val, Dapχ _ tel' val') ->
+      let (tel_eq, rename') = αequal_tel rename tel tel'
+      in tel_eq && αequal rename' val val'
+    (TrLχ _ tel ty val, TrLχ _ tel' ty' val') ->
+      let (tel_eq, rename') = αequal_tel rename tel tel'
+      in tel_eq && αequal rename' ty ty' && αequal rename' val val'
+    (TrRχ _ tel ty val, TrRχ _ tel' ty' val') ->
+      let (tel_eq, rename') = αequal_tel rename tel tel'
+      in tel_eq && αequal rename' ty ty' && αequal rename' val val'
+    (LfLχ _ tel ty val, LfLχ _ tel' ty' val') ->
+      let (tel_eq, rename') = αequal_tel rename tel tel'
+      in tel_eq && αequal rename' ty ty' && αequal rename' val val'
+    (LfRχ _ tel ty val, LfRχ _ tel' ty' val') ->
+      let (tel_eq, rename') = αequal_tel rename tel tel'
+      in tel_eq && αequal rename' ty ty' && αequal rename' val val'
+
     (_, _) -> False
     where
       αequal_tel rename [] [] = (True, rename)

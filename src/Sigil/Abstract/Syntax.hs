@@ -19,11 +19,17 @@ module Sigil.Abstract.Syntax
   , Prdχ
   , Absχ
   , Appχ
-  , Eqlχ
-  , Dapχ
   , Indχ
   , Ctrχ
   , Recχ
+  , Eqlχ
+  , ETCχ
+  , CTEχ
+  , Dapχ
+  , TrLχ
+  , TrRχ
+  , LfLχ
+  , LfRχ
   , Functorχ
   , Singleχ
 
@@ -107,14 +113,34 @@ data Core b n χ
   | Absχ (Absχ χ) (b n (Core b n χ)) (Core b n χ)
   | Appχ (Appχ χ) (Core b n χ) (Core b n χ)
 
-  -- Identity, Dependent Ap, Symmetry
-  | Eqlχ (Eqlχ χ) (Tel b n (Core b n χ)) (Core b n χ) (Core b n χ) (Core b n χ)
-  | Dapχ (Dapχ χ) (Tel b n (Core b n χ)) (Core b n χ)
-
   -- Generic Recursive Types: Type definition, intro/elim
   | Indχ (Indχ χ) n ((Functorχ χ) (Core b n χ)) [(Text, Core b n χ)]
   | Ctrχ (Ctrχ χ) Text ((Functorχ χ) (Core b n χ))
   | Recχ (Recχ χ) (b n (Core b n χ)) (Core b n χ) [Case b n χ]
+
+  -- All our Homotopy Types 
+  -- Eql (ι) is an equality type
+  -- ETC (↓) Extracts a 1-1-Correspondence from an equality
+  -- CTE (↑) Constructs an equality from a 1-1-Correspondence 
+  | Eqlχ (Eqlχ χ) (Tel b n (Core b n χ)) (Core b n χ) (Core b n χ) (Core b n χ)
+  | ETCχ (ETCχ χ) (Core b n χ) 
+  | CTEχ (CTEχ χ) (Core b n χ) 
+
+  -- Dap (ρ) is a generalization of the reflexive equality constructor
+  -- transport: given an ι (x ⮜ B a b ≜ p). A f g
+  -- tr→ ⮜ A[x ↦ a] → A[x ↦ b]
+  -- tr→   f[x ↦ a] ≜ g[x ↦ b] 
+  -- tr← ⮜ A[x ↦ b] → A[x ↦ x]
+  -- tr←   g[x ↦ b] ≜ f[x ↦ a] 
+  -- further, lift→ ⮜ ι (x ≜ p). A f (tr→ (x ≜ p). A f)
+  -- Sym transposes sqaures
+  | Dapχ (Dapχ χ) (Tel b n (Core b n χ)) (Core b n χ)
+  | TrRχ (TrRχ χ) (Tel b n (Core b n χ)) (Core b n χ) (Core b n χ)
+  | TrLχ (TrLχ χ) (Tel b n (Core b n χ)) (Core b n χ) (Core b n χ) 
+  | LfRχ (LfRχ χ) (Tel b n (Core b n χ)) (Core b n χ) (Core b n χ)
+  | LfLχ (LfLχ χ) (Tel b n (Core b n χ)) (Core b n χ) (Core b n χ)
+  -- | Symχ (Symχ χ) (Core b n χ) (Core b n χ)
+
 
 type family Coreχ (b :: Type -> Type -> Type) n χ
 type family Functorχ χ :: Type -> Type
@@ -123,11 +149,19 @@ type family Uniχ χ
 type family Prdχ χ
 type family Absχ χ
 type family Appχ χ
-type family Eqlχ χ
-type family Dapχ χ
 type family Indχ χ
 type family Ctrχ χ
 type family Recχ χ
+
+type family Eqlχ χ
+type family Dapχ χ
+type family TrRχ χ
+type family LfRχ χ
+type family TrLχ χ
+type family LfLχ χ
+type family ETCχ χ
+type family CTEχ χ
+  
 
 type Forall (φ :: Type -> Constraint) b n χ
   = ( φ n
@@ -327,20 +361,6 @@ pretty_core_builder pretty_name pretty_coreχ c =
     -- telescoping
     Appχ χ l r -> sep $ bracket <$> unwind (Appχ χ l r)
 
-    Eqlχ _ tel ty a a' ->
-      ("ι"
-       <+> pretty_tel tel
-       <+> pretty_core ty
-       <+> ("(" <> pretty_core a)
-       <+> "="
-       <+> (pretty_core a' <> ")"))
-
-    Dapχ _ tel val ->
-      ("ρ"
-       <+> pretty_tel tel
-       <+> pretty_core val)
-
-  
     Indχ _ name _ terms ->
       vsep [ "μ" <+> pretty_name name <+> "⮜" <+> "??fty" <+> "."
            , indent 2 (align (vsep $ map (\(text, ty) -> pretty text <+> pretty_core ty) terms))]
@@ -356,6 +376,29 @@ pretty_core_builder pretty_name pretty_coreχ c =
         pbracket p = case p of
           PatCtr _ _ -> "(" <> pretty_pat p <> ")"
           PatVar _ -> pretty_pat p
+
+    Eqlχ _ tel ty a a' ->
+      ("ι"
+       <+> pretty_tel tel
+       <+> pretty_core ty
+       <+> ("(" <> pretty_core a)
+       <+> "="
+       <+> (pretty_core a' <> ")"))
+    ETCχ _ val -> pretty_core val <+> "↓"
+    CTEχ _ val -> pretty_core val <+> "↑"
+
+    Dapχ _ tel val ->
+      ("ρ"
+       <+> pretty_tel tel
+       <+> pretty_core val)
+
+    TrRχ _ tel ty val -> "⍄" <+> pretty_tel tel <+> pretty_core ty <+> pretty_core val
+    TrLχ _ tel ty val -> "⍃" <+> pretty_tel tel <+> pretty_core ty <+> pretty_core val
+
+    LfRχ _ tel ty val -> "⎕⍄" <+> pretty_tel tel <+> pretty_core ty <+> pretty_core val
+    LfLχ _ tel ty val -> "⎕⍃" <+> pretty_tel tel <+> pretty_core ty <+> pretty_core val
+
+  
     where 
         pretty_core = pretty_core_builder pretty_name pretty_coreχ
 

@@ -167,13 +167,20 @@ syn_entry = mutual
 syn_core :: forall m. Monad m => Pos -> ParserT m Syntax
 syn_core level = do
   next <- lookAhead (satisfy (const True))
-  case next of
+  val <- case next of
     'λ' -> plam
-    'ι' -> pid
-    'ρ' -> pap
     'μ' -> pind
     'φ' -> prec
+    'ι' -> pid
+    'ρ' -> pap
+    '⍃' -> (ptr RTrL)
+    '⍄' -> (ptr RTrR)
+    '⎕' -> ptr =<< ((symbol "⎕⍄" *> pure RLfR) <||> (symbol "⎕⍃" *> pure RLfL))
     _ -> pprod <||> pexpr
+  f <- (symbol "↓" *> pure (\v -> RETC (range v) v))
+       <||> (symbol "↑" *> pure (\v -> RCTE (range v) v))
+       <||> pure id 
+  pure $ f val
   where
     plam :: ParserT m Syntax
     plam = 
@@ -224,57 +231,6 @@ syn_core level = do
 
         ty_only :: ParserT m (ArgType, Maybe Text, Maybe Syntax)
         ty_only = (\t -> (Regular, Nothing, Just t)) <$> choice' [plam, pexpr]
-
-
-    pid :: ParserT m Syntax
-    pid = with_range mkid 
-      where
-        mkid :: ParserT m (Range -> Syntax)
-        mkid = do 
-          symbol "ι"
-          tel <- ptel
-          symbol "."
-          RMix _ [ty, a, a'] <- syn_core level
-          let syn = \case 
-                NamePart txt -> RMix mempty [NamePart txt]
-                Syn core -> core
-          pure $ (\r -> REql r tel (syn ty) (syn a) (syn a'))
-
-    pap :: ParserT m Syntax
-    pap = with_range mkap 
-      where
-        mkap :: ParserT m (Range -> Syntax)
-        mkap = do 
-          symbol "ρ"
-          tel <- ptel
-          symbol "."
-          pf <- syn_core level
-          pure $ (\r -> RDap r tel pf)
-
-    ptel :: ParserT m RawTel
-    ptel =
-      (do
-        entry <- between lparen rparen $ do
-          arg <- fmap Just anyvar
-          next <- lookAhead (satisfy (const True))
-          case next of
-            '⮜' -> do
-              symbol "⮜"
-              RMix _ [ty, a, a'] <- syn_core level
-              symbol "≜"
-              val <- syn_core level
-              let syn = \case
-                    NamePart txt -> RMix mempty [NamePart txt]
-                    Syn core -> core
-              pure (arg, Just (syn ty, syn a, syn a'), val)
-            '≜' -> do
-              symbol "≜"
-              val <- syn_core level
-              pure (arg, Nothing, val)
-            _ -> fail "expecting telescope ⮜ or ≜"
-        tel' <- ptel
-        pure $ entry : tel')
-      <||> pure []
             
     pind :: ParserT m Syntax
     pind = mkind --with_range (mkind)
@@ -321,6 +277,69 @@ syn_core level = do
         ppattern =
           (PatCtr <$> (single ':' *> anyvar) <*> many ppattern)
           <|> (PatVar <$> (try $ anyvar >>= (\v -> if (v == "→") then fail "ppattern" else pure v)))
+
+    pid :: ParserT m Syntax
+    pid = with_range mkid 
+      where
+        mkid :: ParserT m (Range -> Syntax)
+        mkid = do 
+          symbol "ι"
+          tel <- ptel
+          symbol "."
+          RMix _ [ty, a, a'] <- syn_core level
+          let syn = \case 
+                NamePart txt -> RMix mempty [NamePart txt]
+                Syn core -> core
+          pure $ (\r -> REql r tel (syn ty) (syn a) (syn a'))
+
+    pap :: ParserT m Syntax
+    pap = with_range mkap 
+      where
+        mkap :: ParserT m (Range -> Syntax)
+        mkap = do 
+          symbol "ρ"
+          tel <- ptel
+          symbol "."
+          pf <- syn_core level
+          pure $ (\r -> RDap r tel pf)
+
+    ptr :: (Range -> RawTel -> Syntax -> Syntax -> Syntax) -> ParserT m Syntax
+    ptr f = with_range mktr
+      where
+        mktr = do 
+          symbol "⎕" <|> symbol "⍄" <|> symbol "⍃"
+          tel <- ptel
+          symbol "."
+          RMix _ [ty, val] <- syn_core level
+          let syn = \case 
+                NamePart txt -> RMix mempty [NamePart txt]
+                Syn core -> core
+          pure $ \r -> f r tel (syn ty) (syn val)
+
+    ptel :: ParserT m RawTel
+    ptel =
+      (do
+        entry <- between lparen rparen $ do
+          arg <- fmap Just anyvar
+          next <- lookAhead (satisfy (const True))
+          case next of
+            '⮜' -> do
+              symbol "⮜"
+              RMix _ [ty, a, a'] <- syn_core level
+              symbol "≜"
+              val <- syn_core level
+              let syn = \case
+                    NamePart txt -> RMix mempty [NamePart txt]
+                    Syn core -> core
+              pure (arg, Just (syn ty, syn a, syn a'), val)
+            '≜' -> do
+              symbol "≜"
+              val <- syn_core level
+              pure (arg, Nothing, val)
+            _ -> fail "expecting telescope ⮜ or ≜"
+        tel' <- ptel
+        pure $ entry : tel')
+      <||> pure []
         
 
     pexpr :: ParserT m Syntax

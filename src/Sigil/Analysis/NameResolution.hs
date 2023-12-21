@@ -60,12 +60,6 @@ instance ResolveTo ParsedCore ResolvedCore where
       ty' <- mapM (resolve lift_err vars) ty
       Absχ (rn,at) (OptBind (n, ty')) <$> resolve lift_err vars' e
     App rn l r -> Appχ rn <$> resolve lift_err vars l <*> resolve lift_err vars r
-    Eql rn tel ty a a' -> do
-      (vars', tel') <- resolve_tel vars tel
-      Eqlχ rn tel' <$> resolve lift_err vars' ty <*> resolve lift_err vars' a <*> resolve lift_err vars' a'
-    Dap rn tel val -> do
-      (vars', tel') <- resolve_tel vars tel
-      Dapχ rn tel' <$> resolve lift_err vars' val
     Ind rn text msort ctors -> do
       id <- fresh_id 
       let n = Name $ Right (id, text)
@@ -100,6 +94,30 @@ instance ResolveTo ParsedCore ResolvedCore where
             id <- fresh_id
             let p' = PatVar $ Name $ Right $ (id, n)
             pure $ (p', insert n (Left id) vars)
+
+    Eql rn tel ty a a' -> do
+      (vars', tel') <- resolve_tel vars tel
+      Eqlχ rn tel' <$> resolve lift_err vars' ty <*> resolve lift_err vars' a <*> resolve lift_err vars' a'
+    ETC rn val -> do
+      ETCχ rn <$> resolve lift_err vars val
+    CTE rn val -> do
+      CTEχ rn <$> resolve lift_err vars val
+
+    Dap rn tel val -> do
+      (vars', tel') <- resolve_tel vars tel
+      Dapχ rn tel' <$> resolve lift_err vars' val
+    TrL rn tel ty val -> do
+      (vars', tel') <- resolve_tel vars tel
+      TrLχ rn tel' <$> resolve lift_err vars' ty <*> resolve lift_err vars' val
+    TrR rn tel ty val -> do
+      (vars', tel') <- resolve_tel vars tel
+      TrRχ rn tel' <$> resolve lift_err vars' ty <*> resolve lift_err vars' val
+    LfL rn tel ty val -> do
+      (vars', tel') <- resolve_tel vars tel
+      LfLχ rn tel' <$> resolve lift_err vars' ty <*> resolve lift_err vars' val
+    LfR rn tel ty val -> do
+      (vars', tel') <- resolve_tel vars tel
+      LfRχ rn tel' <$> resolve lift_err vars' ty <*> resolve lift_err vars' val
 
     where
       resolve_tel vars [] = pure (vars, [])
