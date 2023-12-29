@@ -285,7 +285,9 @@ eval term env = case term of
     -- TODO: eliminate unused binds
     (tel_sem, env') <- eval_tel env tel
     ty_sem <- eval ty env'
-    eql env' tel_sem ty_sem v1 v2
+    v1_sem <- eval v1 env'
+    v2_sem <- eval v2 env'
+    eql env' tel_sem ty_sem v1_sem v2_sem
     -- TODO: phase 3!!
     -- pure $ SEql tel' ty' v1' v2'
 
@@ -410,7 +412,7 @@ eval_sem env term = case term of
   SEql tel ty v1 v2 -> do
     (tel_sem, env') <- eval_stel env tel 
     ty_sem <- eval_sem env ty   
-    seql env' tel_sem ty_sem v1 v2
+    eql env' tel_sem ty_sem v1 v2
   SDap tel val -> do
     (tel_sem, env') <- eval_stel env tel
     SDap tel_sem <$> eval_sem env' val
@@ -473,39 +475,6 @@ dap env tel term = case term of
   SCtr _ _ _ -> throw ("Currently implementing dap for constructors")
   _ -> throw ("Don't know how to dap:" <+> pretty term)
 
-eql :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Map Name (Sem m) -> SemTel m -> Sem m
-  -> InternalCore -> InternalCore -> m (Sem m)
-eql env tel tipe v1 v2 = case tipe of
-  Neutral _ _ -> SEql tel tipe <$> eval v1 env <*> eval v2 env -- TODO: is this neutral??
-  SPrd at name a fnc -> do
-    u <- fresh_varn "u"
-    v <- fresh_varn "v"
-    id <- fresh_varn "id"
-    -- TODO: subst left of tel in u
-    aleft <- eval_sem (foldl (\env (nm, (_, l, _), _) -> insert nm l env) env tel) a
-    aright <- eval_sem (foldl (\env (nm, (_, _, r), _) -> insert nm r env) env tel) a
-    pure (SPrd at u aleft $ SAbs u aleft
-           (\uval ->
-             pure $ SPrd at v aright $ SAbs v aright
-             (\vval -> do
-               eqty <- seql (insert u uval . insert v vval $ env) tel a uval vval
-               pure $ SPrd at id eqty (SAbs id eqty
-                 (\idval -> do
-                     b <- fnc `app` (Neutral a (NeuVar name)) -- TODO: I think this is wrong?
-                     eql (insert u uval . insert v vval . insert id idval . insert name (Neutral a (NeuVar name)) $ env)
-                      (tel <> [(name, (a, uval, vval), idval)])
-                      b (App v1 (Var u)) (App v2 (Var v)))))))
-  SUni n -> SEql tel (SUni n) <$> eval v1 env <*> eval v2 env
-  -- SInd nm sort ctors -> do
-    -- let update_ctor = \case
-    --       (SPrd nm a b) = SPrd nm (to_eq a) 
-    --       t -> t
-
-    -- pure $ SInd nm sort ctors'
-  SInd _ _ _ ->
-    throw ("Don't know how to reduce ι at type:" <+> pretty tipe)
-  _ -> throw ("ι expects a type as first value, got:" <+> pretty tipe)
-
 
 recur :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err)
   => Map Name (Sem m) -> Name -> Sem m -> Sem m -> [(Sem m -> Maybe (m (Sem m)), m (Pattern Name, Sem m))] -> m (Sem m)
@@ -519,9 +488,9 @@ recur _ rname rty@(SPrd _ _ _ b) val cases =
       _ -> throw "recur must induct over a constructor"
 recur _ _ _ _ _ = throw "recur expects recursive type to be fn" 
 
-seql :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Map Name (Sem m) -> [(Name, (Sem m, Sem m, Sem m), Sem m)] -> Sem m
+eql :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Map Name (Sem m) -> [(Name, (Sem m, Sem m, Sem m), Sem m)] -> Sem m
   -> Sem m -> Sem m -> m (Sem m)
-seql env tel tipe v1 v2 = case tipe of
+eql env tel tipe v1 v2 = case tipe of
   Neutral _ _ -> SEql tel tipe <$> eval_sem env v1 <*> eval_sem env v2 -- TODO: is this neutral??
   SPrd at name a fnc -> do
     u <- fresh_varn "u"
@@ -534,13 +503,13 @@ seql env tel tipe v1 v2 = case tipe of
            (\uval ->
              pure $ SPrd at v aright $ SAbs v aright
              (\vval -> do
-               eqty <- (seql (insert u uval . insert v vval $ env) tel a uval vval)
+               eqty <- (eql (insert u uval . insert v vval $ env) tel a uval vval)
                pure $ SPrd at id eqty (SAbs id eqty
                  (\idval -> do
                      b <- fnc `app` (Neutral a (NeuVar name)) -- TODO: I think this is wrong?
                      v1' <- v1 `app` uval
                      v2' <- v2 `app` vval 
-                     seql (insert u uval . insert v vval . insert id idval . insert name (Neutral a (NeuVar name)) $ env)
+                     eql (insert u uval . insert v vval . insert id idval . insert name (Neutral a (NeuVar name)) $ env)
                       (tel <> [(name, (a, uval, vval), idval)])
                       b v1' v2')))))
   SUni n -> SEql tel (SUni n) <$> eval_sem env v1 <*> eval_sem env v2
