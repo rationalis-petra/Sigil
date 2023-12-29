@@ -1,5 +1,6 @@
 module Sigil.Concrete.Internal
   ( Internal
+  , InternalTel
   , InternalCore
   , InternalEntry
   , InternalModule
@@ -10,12 +11,15 @@ module Sigil.Concrete.Internal
   , pattern Prd
   , pattern Abs
   , pattern App
-  , pattern Eql
-  , pattern Dap
   , pattern Ind
   , pattern Ctr
   , pattern Rec
-  , pattern TyCon ) where
+  , pattern TyCon
+  , pattern Eql
+  , pattern Dap
+  , pattern TrL
+  , pattern TrR
+  ) where
 
 import Data.Functor.Identity
 import Data.Text (Text)
@@ -35,16 +39,20 @@ type instance Uniχ Internal = ()
 type instance Prdχ Internal = ArgType
 type instance Absχ Internal = ArgType
 type instance Appχ Internal = ()
-type instance Eqlχ Internal = ()
-type instance Dapχ Internal = ()
 type instance Indχ Internal = ()
 type instance Ctrχ Internal = ()
 type instance Recχ Internal = ()
+type instance Eqlχ Internal = ()
+type instance Dapχ Internal = ()
+type instance TrLχ Internal = ()
+type instance TrRχ Internal = ()
 type instance TyConχ Internal = ()
 
 type instance Singleχ Internal = ()
 
 type InternalCore = Core AnnBind Name Internal
+
+type InternalTel = Tel AnnBind Name InternalCore
 
 type InternalEntry = Entry AnnBind Name Internal
 
@@ -52,7 +60,7 @@ type InternalModule = Module AnnBind Name Internal
 
 type InternalPackage = Package InternalModule
 
-{-# COMPLETE Uni, Var, Prd, Abs, App, Eql, Dap, Ind, Ctr, Rec, TyCon #-}
+{-# COMPLETE Uni, Var, Prd, Abs, App, Ind, Ctr, Rec, Eql, Dap, TrL, TrR, TyCon #-}
 
 pattern Uni :: Integer -> InternalCore
 pattern Uni n <- Uniχ () n
@@ -74,14 +82,6 @@ pattern App :: InternalCore -> InternalCore -> InternalCore
 pattern App l r <- Appχ () l r
   where App l r = Appχ () l r
 
-pattern Eql :: [(AnnBind Name (InternalCore, InternalCore, InternalCore), InternalCore)] -> InternalCore -> InternalCore -> InternalCore -> InternalCore
-pattern Eql tel ty a a' <- Eqlχ () tel ty a a'
-  where Eql tel ty a a' = Eqlχ () tel ty a a'
-
-pattern Dap :: [(AnnBind Name (InternalCore, InternalCore, InternalCore), InternalCore)] -> InternalCore -> InternalCore
-pattern Dap tel val <- Dapχ () tel val
-  where Dap tel val = Dapχ () tel val
-
 pattern Ind :: Name -> InternalCore -> [(Text, InternalCore)] -> InternalCore
 pattern Ind name sort ctors <- Indχ () name (Identity sort) ctors
   where Ind name sort ctors = Indχ () name (Identity sort) ctors
@@ -93,6 +93,22 @@ pattern Ctr label ty <- Ctrχ () label (Identity ty)
 pattern Rec :: AnnBind Name InternalCore -> InternalCore -> [(Pattern Name, InternalCore)] -> InternalCore
 pattern Rec bind val cases <- Recχ () bind val cases
   where Rec bind val cases = Recχ () bind val cases
+
+pattern Eql :: [(AnnBind Name (InternalCore, InternalCore, InternalCore), InternalCore)] -> InternalCore -> InternalCore -> InternalCore -> InternalCore
+pattern Eql tel ty a a' <- Eqlχ () tel ty a a'
+  where Eql tel ty a a' = Eqlχ () tel ty a a'
+
+pattern Dap :: [(AnnBind Name (InternalCore, InternalCore, InternalCore), InternalCore)] -> InternalCore -> InternalCore
+pattern Dap tel val <- Dapχ () tel val
+  where Dap tel val = Dapχ () tel val
+
+pattern TrL :: [(AnnBind Name (InternalCore, InternalCore, InternalCore), InternalCore)] -> InternalCore -> InternalCore -> InternalCore
+pattern TrL tel ty val <- TrLχ () tel ty val
+  where TrL tel ty val = TrLχ () tel ty val
+
+pattern TrR :: [(AnnBind Name (InternalCore, InternalCore, InternalCore), InternalCore)] -> InternalCore -> InternalCore -> InternalCore
+pattern TrR tel ty val <- TrRχ () tel ty val
+  where TrR tel ty val = TrRχ () tel ty val
 
 -- pattern IPrd :: AnnBind Name InternalCore -> InternalCore -> InternalCore
 -- pattern IPrd b ty <- Coreχ (IPrdχ () b ty)
@@ -108,7 +124,7 @@ pattern TyCon e n t <- Coreχ (TyConχ () e n t)
 
 
 instance Pretty InternalCore where
-  pretty c = case c of  
+  pretty c = case c of
     Uni n -> "𝕌" <> pretty_subscript n
       where
         pretty_subscript =
@@ -133,9 +149,6 @@ instance Pretty InternalCore where
 
     App l r -> sep $ fmap bracket $ unwind (App l r)
 
-    Eql tel ty a b -> ("ι" <+> pretty_tel tel <+> "." <+> bracket ty <+> bracket a <+> bracket b)
-    Dap tel val -> ("ρ" <+> pretty_tel tel <+> "." <+> pretty val)
-
     Ind name sort ctors -> vsep
       [ "μ" <+> pretty name <+> "⮜" <+> pretty sort <> "."
       , indent 2 (align (vsep (map (\(l,ty) -> pretty l <+> "⮜" <+> pretty ty) ctors)))
@@ -151,6 +164,11 @@ instance Pretty InternalCore where
         pretty_pat = \case
           (PatCtr n pats) -> pretty (":" <> n) <+> sep (map pretty_pat pats)
           (PatVar n) -> pretty n
+    Eql tel ty a b -> ("ι" <+> pretty_tel tel <+> "." <+> bracket ty <+> bracket a <+> bracket b)
+
+    Dap tel val -> ("ρ" <+> pretty_tel tel <+> "." <+> pretty val)
+    TrL tel ty val -> ("⍃" <+> pretty_tel tel <+> "." <+> pretty ty <+> pretty val)
+    TrR tel ty val -> ("⍄" <+> pretty_tel tel <+> "." <+> pretty ty <+> pretty val)
 
     TyCon e n t -> pretty e <+> "⦃" <> pretty n <+> "⮜" <+> pretty t <> "⦄"
   

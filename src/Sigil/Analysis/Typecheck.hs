@@ -103,6 +103,24 @@ instance Checkable Name InternalCore InternalCore where
           j <- check_lvl lift_err bty
           pure (Prd at (AnnBind (n, a')) b', Uni (max i j))
       
+        Ind n a ctors -> do
+          (a', asort) <- infer' env a
+          anorm <- normalize' env asort a 
+          let env' = insert n (Just anorm, asort) env
+          ctors' <- forM ctors $ \(label, ty) -> do
+            ty' <- check' env' ty asort -- TODO: is this predicativity??
+            pure $ (label, ty')
+          pure $ (Ind n a' ctors', a')
+
+        Ctr label ty ->
+          case ty of
+            ind@(Ind n sort ctors) -> case find ((== label) . fst) ctors of
+              Just (_, val) -> do
+                check_eq (range term) interp env sort ty (subst (n ↦ ind) val)
+                pure $ (Ctr label ty, ty)
+              Nothing -> throwError' $ "Couln't find constructor" <+> pretty label
+            _ -> throwError' $ "Constructor" <+> pretty label <+> "must be labeled with inductive datatype, got:" <+> pretty ty
+  
         Dap [] val -> do  
           (val', val_ty) <- infer' env val
           pure (Dap [] val', Eql [] val_ty val' val')
@@ -141,27 +159,9 @@ instance Checkable Name InternalCore InternalCore where
           v1' <- check' env_l v1 ty_norm_l
           v2' <- check' env_r v2 ty_norm_r
           pure (Eql tel' ty_m v1' v2', kind_m)
-
-        Ind n a ctors -> do
-          (a', asort) <- infer' env a
-          anorm <- normalize' env asort a 
-          let env' = insert n (Just anorm, asort) env
-          ctors' <- forM ctors $ \(label, ty) -> do
-            ty' <- check' env' ty asort -- TODO: is this predicativity??
-            pure $ (label, ty')
-          pure $ (Ind n a' ctors', a')
-
-        Ctr label ty ->
-          case ty of
-            ind@(Ind n sort ctors) -> case find ((== label) . fst) ctors of
-              Just (_, val) -> do
-                check_eq (range term) interp env sort ty (subst (n ↦ ind) val)
-                pure $ (Ctr label ty, ty)
-              Nothing -> throwError' $ "Couln't find constructor" <+> pretty label
-            _ -> throwError' $ "Constructor" <+> pretty label <+> "must be labeled with inductive datatype, got:" <+> pretty ty
           
         _ -> throwError' $ "infer not implemented for internal term:" <+> pretty term
-  
+
   
   -- Note: types are expected to be in normal form
   -- Note: environment is expected to contain types of terms!!
@@ -259,19 +259,6 @@ instance Checkable Name ResolvedCore InternalCore where
             Nothing -> (\v -> (v,v)) <$> fresh_var "_"
         
           pure (Abs at (AnnBind (n, a')) body', Prd at (AnnBind (n', a')) ret_ty)
-
-        -- Absχ (_,at) (OptBind (Just n, Nothing)) body -> do
-        --   -- Infer type of n
-        --   mvar <- fresh_var (name_text n <> "-ty")
-        --   -- Do we need to inform the process how/that it is bound?
-        
-        --   let env' = insert n (Nothing, Var mvar) env
-        --   (body', ret_ty, subs) <- infer' env' body
-        --   nty <- case lookup mvar subs of
-        --     Just ty -> ty
-        --     Nothing -> throwError' "couldn't infer type of argument"
-
-        --   pure (Abs at (AnnBind (n, nty)) body', Prd at (AnnBind (n, nty)) ret_ty)
         
         Prdχ (_,at) (OptBind (maybe_n, Just a)) b -> do
           (a', aty) <- infer' env a
@@ -284,47 +271,6 @@ instance Checkable Name ResolvedCore InternalCore where
           i <- check_lvl lift_err aty
           j <- check_lvl lift_err bty
           pure (Prd at (AnnBind (n', a')) b', Uni (max i j))
-
-        Dapχ _ [] val -> do  
-          (val', val_ty) <- infer' env val
-          pure (Dap [] val', Eql [] val_ty val' val')
-
-        Eqlχ _ tel ty v1 v2 -> do
-          let infer_tel [] tel_in env_l env_r env_m = pure (tel_in, env_l, env_r, env_m) 
-              infer_tel ((OptBind (Just n, Just (ty, v1, v2)), prf) : tel) tel_in env_l env_r env_m = do
-                (ty_l, kind_l) <- infer' env_l ty
-                (ty_r, kind_r) <- infer' env_r ty
-                (ty_m, kind_m) <- infer' env_m ty
-
-                v1' <- check' env_l v1 ty_l
-                v2' <- check' env_r v2 ty_r
-
-                prf' <- check' env prf (Eql tel_in ty_m v1' v2')
-
-                ty_norm_l <- normalize' env_l kind_l ty_l 
-                ty_norm_r <- normalize' env_r kind_r ty_r
-                ty_norm_m <- normalize' env_m kind_m ty_m
-
-                v1_norm <- normalize' env_l ty_norm_l v1'
-                v2_norm <- normalize' env_r ty_norm_r v2'
-
-                infer_tel tel
-                  (tel_in <> [(AnnBind (n, (ty_m, v1', v2')), prf')])
-                  (insert n (Just v1_norm, ty_norm_l) env_l)
-                  (insert n (Just v2_norm, ty_norm_r) env_r)
-                  (insert n (Nothing, ty_norm_m) env_m)
-              infer_tel _ _ _ _ _ = throwError' "error in tel optbind"
-          
-          (tel', env_l, env_r, env_m) <- infer_tel tel [] env env env
-
-          (ty_l, kind_l) <- infer' env_l ty
-          (ty_r, kind_r) <- infer' env_r ty
-          (ty_m, kind_m) <- infer' env_m ty
-          ty_norm_l <- normalize' env_l kind_l ty_l
-          ty_norm_r <- normalize' env_r kind_r ty_r
-          v1' <- check' env_l v1 ty_norm_l
-          v2' <- check' env_r v2 ty_norm_r
-          pure (Eql tel' ty_m v1' v2', kind_m)
 
         Indχ _ name (Just a) ctors -> do
           (a', asort) <- infer' env a
@@ -387,6 +333,44 @@ instance Checkable Name ResolvedCore InternalCore where
 
           cases' <- mapM (check_case (insert rnm (Nothing, rnorm) env) inty) cases
           pure $ (Rec (AnnBind (rnm, rty')) val' cases', out)
+
+        Dapχ _ tel val -> do  
+          (tel', env_l, env_r, env_m) <- infer_resolved_tel (range term) interp env tel
+          (val_l, _) <- infer' env_l val
+          (val_r, _) <- infer' env_r val
+          (val_neu, ty_neu) <- infer' env_m val
+          pure (Dap tel' val_neu, Eql tel' ty_neu val_l val_r)
+
+        Eqlχ _ tel ty v1 v2 -> do
+          (tel', env_l, env_r, env_m) <- infer_resolved_tel (range term) interp env tel
+
+          (ty_l, kind_l) <- infer' env_l ty
+          (ty_r, kind_r) <- infer' env_r ty
+          (ty_m, kind_m) <- infer' env_m ty
+          ty_norm_l <- normalize' env_l kind_l ty_l
+          ty_norm_r <- normalize' env_r kind_r ty_r
+          v1' <- check' env_l v1 ty_norm_l
+          v2' <- check' env_r v2 ty_norm_r
+          pure (Eql tel' ty_m v1' v2', kind_m)
+
+        TrLχ _ tel ty v -> do
+          (tel', env_l, env_r, env_m) <- infer_resolved_tel (range term) interp env tel
+          (ty_l, _) <- infer' env_l ty
+          (ty_r, kind_r) <- infer' env_r ty
+          (ty_m, _) <- infer' env_m ty
+          ty_norm_r <- normalize' env_r kind_r ty_r
+          v' <- check' env_r v ty_norm_r
+          -- step1: check that 
+          pure (TrL tel' ty_m v', ty_l)
+          
+        TrRχ _ tel ty v -> do
+          (tel', env_l, env_r, env_m) <- infer_resolved_tel (range term) interp env tel
+          (ty_l, kind_l) <- infer' env_l ty
+          (ty_r, _) <- infer' env_r ty
+          (ty_m, _) <- infer' env_m ty
+          ty_norm_l <- normalize' env_l kind_l ty_l
+          v' <- check' env_l v ty_norm_l
+          pure (TrR tel' ty_m v', ty_r)
 
         _ -> throwError . lift_err . flip PrettyErr (range term) $ vsep ["infer not implemented for resolved term:", pretty term]
   
@@ -493,6 +477,50 @@ instance Checkable Name ResolvedCore InternalCore where
           _ <- check_eq (range term) interp env kind ty ty'
           pure term'
 
+-- Utility functions for Checking Resolved Terms, specifically for working with telescopes
+
+-- infer :: forall e err m. (Environment Name e, MonadError err m, MonadGen m)
+--   => CheckInterp m err e InternalCore -> e (Maybe InternalCore,InternalCore) -> ResolvedCore -> m (InternalCore, InternalCore)
+infer_resolved_tel :: forall e err m. (Environment Name e, MonadError err m, MonadGen m)
+  => Range -> CheckInterp m err e InternalCore -> e (Maybe InternalCore, InternalCore) -> ResolvedTel
+  -> m (InternalTel, e (Maybe InternalCore, InternalCore), e (Maybe InternalCore, InternalCore), e (Maybe InternalCore, InternalCore))
+infer_resolved_tel range interp@(CheckInterp {..}) env tel =
+  let infer' = infer interp
+      check' = check interp
+      normalize' = normalize (lift_err . flip NormErr range)
+      throwError' = throwError . lift_err . flip PrettyErr (Range Nothing)
+
+      infer_tel [] tel_in env_l env_r env_m = pure (tel_in, env_l, env_r, env_m) 
+      infer_tel ((OptBind (Just n, Just (ty, v1, v2)), prf) : tel) tel_in env_l env_r env_m = do
+        (ty_l, kind_l) <- infer' env_l ty
+        (ty_r, kind_r) <- infer' env_r ty
+        (ty_m, kind_m) <- infer' env_m ty
+
+        v1' <- check' env_l v1 ty_l
+        v2' <- check' env_r v2 ty_r
+
+        prf' <- check' env prf (Eql tel_in ty_m v1' v2')
+
+        ty_norm_l <- normalize' env_l kind_l ty_l 
+        ty_norm_r <- normalize' env_r kind_r ty_r
+        ty_norm_m <- normalize' env_m kind_m ty_m
+
+        v1_norm <- normalize' env_l ty_norm_l v1'
+        v2_norm <- normalize' env_r ty_norm_r v2'
+
+        infer_tel tel
+          (tel_in <> [(AnnBind (n, (ty_m, v1', v2')), prf')])
+          (insert n (Just v1_norm, ty_norm_l) env_l)
+          (insert n (Just v2_norm, ty_norm_r) env_r)
+          (insert n (Nothing, ty_norm_m) env_m)
+      infer_tel _ _ _ _ _ = throwError' "error in tel optbind"
+  in infer_tel tel [] env env env
+
+-- check_resolved_tel ::
+-- check_resolved_tel = 
+
+  
+
 check_entry :: (Environment Name e, MonadError err m, MonadGen m)
   => CheckInterp m err e InternalCore
   -> e (Maybe InternalCore, InternalCore) -> ResolvedEntry -> m InternalEntry
@@ -514,7 +542,6 @@ check_entry interp@(CheckInterp {..}) env mod =
         OptBind (Nothing, _) -> throwError' $ "Expecting Single definition to have a name"
 
 
--- TODO: swap environment → world?
 check_module :: (Environment Name e, MonadError err m, MonadGen m)
   => CheckInterp m err e InternalCore
   -> e (Maybe InternalCore, InternalCore) -> ResolvedModule -> m InternalModule
@@ -538,7 +565,7 @@ check_module interp@(CheckInterp {..}) env mod = do
       (_, sort) <- infer interp env ty   
       eval env sort ty
 
--- TODO: replace with check_sub!!
+-- TODO: replace with check_sub (?)
 --check_eq _ _ = undefined
 check_eq :: (MonadError err m, Pretty a) => Range -> (CheckInterp m err e a) -> e (Maybe a, a) -> a -> a -> a -> m ()
 check_eq range (CheckInterp {..}) env ty l r = 
@@ -562,3 +589,23 @@ prod_out :: Core b n χ -> Core b n χ
 prod_out = \case 
   Prdχ _ _ r -> prod_out r
   v -> v
+
+-- Helpers for constructing the 1-1-Correspondence type
+-- sigma :: Binding b => Core b n χ -> n -> Core b n χ -> Core b n χ -> Core b n χ
+-- sigma u nm a b = Indχ ? 
+
+-- is_contr :: (MonadGen m, Binding b) => Core b n χ -> Core b n χ
+-- is_contr uni val = do
+--   var <- fresh_var 
+--   sigma (Idχ _ )
+
+-- -- 
+-- -- Given a type (in universe 𝕌)
+-- correspondence :: (MonadGen m, Binding b) => Core b n χ -> Core b n χ -> Core b n χ
+-- correspondence 
+
+-- -- Make a pair at Σ-type
+-- pr :: Binding b => Core b n χ -> Core b n χ -> Core b n χ -> Core b n χ
+-- pr ty x y = Appχ (Appχ (Ctrχ _ "," ty) x) y
+
+

@@ -1,5 +1,6 @@
 module Sigil.Concrete.Resolved
   ( Resolved
+  , ResolvedTel
   , ResolvedCore
   , ResolvedEntry
   , ResolvedModule
@@ -36,6 +37,8 @@ type instance LfRχ Resolved = Range
 type instance Functorχ Resolved = Maybe
 
 type ResolvedCore = Core OptBind Name Resolved
+
+type ResolvedTel = Tel OptBind Name ResolvedCore
 
 type instance Singleχ Resolved = Range
 
