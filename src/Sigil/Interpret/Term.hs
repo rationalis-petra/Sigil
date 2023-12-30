@@ -298,12 +298,12 @@ eval term env = case term of
     (tel', env') <- eval_tel env tel
     ty' <- eval ty env'
     val' <- eval val env'
-    eval_over env' STrL tel' ty' val'
+    eval_over env' (\tel -> if null tel then (\_ v -> v) else STrL tel) tel' ty' val'
   TrR tel ty val -> do
     (tel', env') <- eval_tel env tel
     ty' <- eval ty env'
     val' <- eval val env'
-    eval_over env' STrR tel' ty' val'
+    eval_over env' (\tel -> if null tel then (\_ v -> v) else STrR tel) tel' ty' val'
   -- LfL tel ty val -> eval_over env LfL tel ty val
   -- LfR tel ty val -> eval_over env LfR tel ty val
   -- Implicit terms 
