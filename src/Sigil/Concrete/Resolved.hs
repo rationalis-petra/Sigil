@@ -50,6 +50,9 @@ type ResolvedModule = Module OptBind Name Resolved
 instance Pretty ResolvedCore where
   pretty = pretty_core_builder pretty pretty 
 
+instance Pretty ResolvedEntry where
+  pretty = pretty_entry_builder name pretty pretty pretty
+
 instance HasRange ResolvedCore where
   range core = case core of
     Coreχ _ -> mempty

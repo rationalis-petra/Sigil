@@ -7,6 +7,8 @@ module Sigil.Analysis.Typecheck
   , check_module
   ) where
 
+import Debug.Trace
+
 
 {-------------------------------- TYPECHECKING ---------------------------------}
 {- The typechecker implemented here is a bidirectional type-checker.           -}
@@ -551,12 +553,12 @@ check_module interp@(CheckInterp {..}) env mod = do
   where 
     check_entries _ [] = pure []
     check_entries env (d:ds) = do
-      d' <- check_entry interp env d
+      d' <- check_entry interp env $ trace (show $ "checking entry" <+> pretty d) d
       case d' of
         Singleχ () (AnnBind (n, ty)) val -> do
-          ty' <- eval_ty env ty
-          val' <- eval env ty val
-          let env' = insert n (Just val', ty') env
+          ty' <- eval_ty env $ trace (show $ vsep ["ty:" <+> pretty ty, "val:" <+> pretty val]) ty
+          val' <- eval env ty $ trace (show $ "ty':" <+> pretty ty') val
+          let env' = insert n (Just val', ty') $ trace (show $ "val':" <+> pretty val') env
           ds' <- check_entries env' ds
           pure (d' : ds')
   

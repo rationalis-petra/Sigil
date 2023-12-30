@@ -162,6 +162,7 @@ freshen q = pure q
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
+
 instance (Pretty n, Pretty ty) => Pretty (OptBind n ty) where
   pretty bind = case bind of  
     OptBind (Just n, Nothing) -> pretty n

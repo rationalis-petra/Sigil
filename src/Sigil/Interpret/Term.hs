@@ -117,14 +117,12 @@ read_nf (Normal ty val) = case (ty, val) of
   -- Values
   (SPrd at name a b, f) -> do
     let
-      fnc_name = (maybe name id (get_name f))
       neua = Neutral a $ NeuVar name
-      neuvar = Neutral a $ NeuVar fnc_name
       lvl = uni_level a
 
     a' <- read_nf $ Normal (SUni lvl) a
-    f' <- read_nf =<< (Normal <$> (b `app` neua) <*> (f `app` neuvar))
-    pure $ Abs at (bind fnc_name a') f'
+    f' <- read_nf =<< (Normal <$> (b `app` neua) <*> (f `app` neua))
+    pure $ Abs at (bind name a') f'
 
   -- TODO: figure out what to do with SDap telescope?!
   (SEql tel ty _ _, SDap _ val) -> do
@@ -388,7 +386,6 @@ eval_stel env tel = go env tel [] where
         go env tel ((name, (ity', v1', v2'), id') : tel_out)
   go env [] tel_out = pure (reverse tel_out, env)
 
-
 {-------------------------------------------------------------------------------}
 {-                                                                             -}
 {-                                                                             -}
@@ -408,7 +405,8 @@ eval_sem env term = case term of
     a' <- eval_sem env a
     pure $ SPrd at n a' $ SAbs n a' (eval_sem env <=< app b)
   SAbs n a f -> do
-    pure $ SAbs n a (eval_sem env <=< f)
+    a' <- eval_sem env a
+    pure $ SAbs n a' (eval_sem env <=< f)
   SEql tel ty v1 v2 -> do
     (tel_sem, env') <- eval_stel env tel 
     ty_sem <- eval_sem env ty   
@@ -546,12 +544,6 @@ uni_level sem = case sem of
 
 throw :: (MonadError err m, ?lift_err :: Doc ann -> err) => Doc ann -> m a
 throw doc = throwError $ ?lift_err doc
-
-get_name :: Sem m -> Maybe Name  
-get_name = \case  
-  SPrd _ nm _ _ -> Just nm
-  SAbs nm _ _ -> Just nm
-  _ -> Nothing
 
 {-------------------------------- MISC INSTANCES -------------------------------}
 {-                                                                             -}

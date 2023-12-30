@@ -7,6 +7,7 @@ import Prettyprinter
 import Prettyprinter.Render.Sigil
 
 import Sigil.Abstract.Names
+import Sigil.Abstract.AlphaEq
 import Sigil.Abstract.Environment
 import Sigil.Concrete.Internal
 import Sigil.Concrete.Decorations.Implicit
@@ -76,7 +77,14 @@ norm_tests =
     norm_test "𝕌0-const" (𝓊 1) (𝓊 0) (𝓊 0)
 
     -- (λ (A:𝕌₁) A) 𝕌 ↝ 𝕌
-  , norm_test "id-app" (𝓊 1) (([(idn 0 "A", 𝓊 1)] ⇒ idv 0 "A") ⋅ 𝓊 0) (𝓊 0)
+  , norm_test "id-app-1" (𝓊 1) (([(idn 0 "A", 𝓊 1)] ⇒ idv 0 "A") ⋅ 𝓊 0) (𝓊 0)
+
+    -- id ℕ ↝ λ (n ⮜ ℕ) → n
+  , let id = [(idn 0 "A", 𝓊 0), (idn 1 "x", idv 0 "A")] ⇒ idv 1 "x"
+        nat = ind (idn 2 "N") (𝓊 0)
+                 [ ("zero", (idv 2 "N"))
+                 , ("succ", [(idn 3 "_", idv 2 "N")] → (idv 2 "N"))]
+    in norm_test "id-app-2" ([(idn 1 "x", nat)] → nat) (id ⋅ nat) ([(idn 1 "x", nat)] ⇒ idv 1 "x")
 
     -- (A:𝕌₀) → 𝕌₀ ↝ (A:𝕌₀) → 𝕌₀
   , norm_test "pi-const" (𝓊 0) ([(idn 0 "A", 𝓊 0)] → 𝓊 0) ([(idn 0 "A", 𝓊 0)] → 𝓊 0)
@@ -87,7 +95,7 @@ norm_tests =
     norm_test :: Text -> InternalCore -> InternalCore -> InternalCore -> Test
     norm_test name ty a expected = 
       Test name $ case runNormM $ normalize id default_env ty a of 
-        Right result | result == expected -> Nothing
+        Right result | αeq result expected -> Nothing
                      | otherwise ->
                          Just $ vsep [ "norm-test error: result different to value."
                                      , "result:" <+> pretty result 
@@ -115,6 +123,9 @@ idv n t = Var $ Name $ Right (n, t)
 
 idn :: Integer -> Text -> Name
 idn n t = Name $ Right (n, t)
+
+ind :: Name -> InternalCore ->  [(Text, InternalCore)] -> InternalCore
+ind  = Ind
 
 -- qvar :: Text -> Core AnnBind Name UD
 -- qvar v = Var void $ Name $ Left [v]

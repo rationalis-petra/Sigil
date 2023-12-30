@@ -4,14 +4,15 @@ module InteractiveCli
 
 
 import Prelude hiding (mod, getLine, putStr, putStrLn, readFile, null)
+import System.IO hiding (getLine, putStr, putStrLn, readFile)
 
 import Control.Monad (void)
 import Control.Monad.Except (MonadError)
 import Control.Lens (makeLenses, (^.), (%~), _1, _2)
 import Data.List.NonEmpty
 import Data.Text (Text, unpack, null)
+import qualified Data.Map as Map
 import Data.Text.IO
-import System.IO hiding (getLine, putStr, putStrLn, readFile)
 
 import qualified Text.Megaparsec as Megaparsec
 import Text.Megaparsec hiding (parse, runParser)
@@ -51,7 +52,17 @@ data Command
 interactive_cli :: forall m e s t f. (MonadError SigilDoc m, MonadGen m, Environment Name e)
   => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f -> InteractiveCliOpts -> IO ()
 interactive_cli interp@(Interpreter {..}) opts = do
-    s <- if not (null (ifile opts)) then eval_file "sigil-user" (ifile opts) start_state else pure start_state
+    (merr, state') <- run start_state $ do
+      intern_package
+        "sigil-user" (Package
+                      (PackageHeader "sigil-user" [] (0,0,0))
+                      (MTree Map.empty))
+      pure $ ()
+    case merr of
+      Right () -> pure ()
+      Left err -> putDocLn ("error in initialization:" <+> err)
+
+    s <- if not (null (ifile opts)) then eval_file "sigil-user" (ifile opts) state' else pure state'
     loop s (InteractiveState ("sigil-user", []))
   where
     loop :: s -> InteractiveState -> IO ()
