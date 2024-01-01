@@ -7,8 +7,6 @@ module Sigil.Analysis.Typecheck
   , check_module
   ) where
 
-import Debug.Trace
-
 
 {-------------------------------- TYPECHECKING ---------------------------------}
 {- The typechecker implemented here is a bidirectional type-checker.           -}
@@ -515,7 +513,11 @@ infer_resolved_tel range interp@(CheckInterp {..}) env tel =
           (insert n (Just v1_norm, ty_norm_l) env_l)
           (insert n (Just v2_norm, ty_norm_r) env_r)
           (insert n (Nothing, ty_norm_m) env_m)
-      infer_tel _ _ _ _ _ = throwError' "error in tel optbind"
+      infer_tel _ _ _ _ _ = throwError' "Error in inferring tel: optbind not implemented"
+      -- infer_tel ((OptBind (Just n, Just (ty, v1, v2)), prf) : tel) tel_in env_l env_r env_m = 
+      --   (prfl, kind_l) <- infer' env_l ty
+      --   (ty_r, kind_r) <- infer' env_r ty
+      --   (ty_m, kind_m) <- infer' env_m ty
   in infer_tel tel [] env env env
 
 -- check_resolved_tel ::
@@ -553,12 +555,12 @@ check_module interp@(CheckInterp {..}) env mod = do
   where 
     check_entries _ [] = pure []
     check_entries env (d:ds) = do
-      d' <- check_entry interp env $ trace (show $ "checking entry" <+> pretty d) d
+      d' <- check_entry interp env d
       case d' of
         Singleχ () (AnnBind (n, ty)) val -> do
-          ty' <- eval_ty env $ trace (show $ vsep ["ty:" <+> pretty ty, "val:" <+> pretty val]) ty
-          val' <- eval env ty $ trace (show $ "ty':" <+> pretty ty') val
-          let env' = insert n (Just val', ty') $ trace (show $ "val':" <+> pretty val') env
+          ty' <- eval_ty env ty
+          val' <- eval env ty val
+          let env' = insert n (Just val', ty') env
           ds' <- check_entries env' ds
           pure (d' : ds')
   
