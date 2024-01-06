@@ -26,6 +26,7 @@ import Sigil.Analysis.FormulaCheck
 import Sigil.Analysis.NameResolution
 import Sigil.Concrete.Internal (InternalCore, InternalModule)
 
+
 eval_expr :: forall m e s t f. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
   Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f -> Text -> [ImportDef] -> Text -> m (InternalCore, InternalCore)
 eval_expr i@(Interpreter {..}) package_name imports line = do
@@ -43,8 +44,8 @@ eval_expr i@(Interpreter {..}) package_name imports line = do
 
 eval_mod :: forall m e s t f. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
   Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f -> Text -> Text -> Text -> m InternalModule
-eval_mod i@(Interpreter {..}) package_name modulename modul = do
-  parsed <- mod (get_precs package_name) modulename modul -- TODO: eof??
+eval_mod i@(Interpreter {..}) package_name filename modul_text = do
+  parsed <- mod (get_precs package_name) filename modul_text -- TODO: eof??
     `catchError` (throwError . (<+>) "Parse:")
 
   resolve_vars <- get_resolve package_name (parsed^.module_imports)

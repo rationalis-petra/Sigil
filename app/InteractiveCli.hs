@@ -28,6 +28,7 @@ import Sigil.Interpret.Interpreter
 import Sigil.Concrete.Internal
 
 import InterpretUtils
+import Actions.Package
 
 newtype InteractiveCliOpts = InteractiveCliOpts
   { ifile :: Text
@@ -46,6 +47,7 @@ data Command
   = Eval Text
   | Import ImportDef
   | Load Text
+  | LoadPackage Text
   | Quit
   | Malformed SigilDoc
 
@@ -55,7 +57,7 @@ interactive_cli interp@(Interpreter {..}) opts = do
     (merr, state') <- run start_state $ do
       intern_package
         "sigil-user" (Package
-                      (PackageHeader "sigil-user" [] (0,0,0))
+                      (PackageHeader "sigil-user" [] [])
                       (MTree Map.empty))
       pure $ ()
     case merr of
@@ -84,6 +86,14 @@ interactive_cli interp@(Interpreter {..}) opts = do
         Load filename -> do 
           state' <- eval_file (istate^.location._1) filename state
           loop state' istate
+
+        LoadPackage filename -> do 
+          out <- build_dependency_list [unpack filename] 
+          case out of  
+            Right _ -> loop state istate
+            Left err -> do
+              putDocLn err 
+              loop state istate
           
         Import def -> loop state ((location._2 %~ (def :)) istate)
 
@@ -121,7 +131,8 @@ command_parser = do
       void $ C.char ';'
       cmd <- ( (const Quit <$> symbol "q")
         <|> (symbol "import" *> pImport)
-        <|> (symbol "load" *> pLoadFile))
+        <|> try (symbol "load" *> (Load <$> pLoadFile))
+        <|> (symbol "load-package" *> (LoadPackage <$> pLoadFile)))
       sc <* eof
       pure cmd
     _ -> Eval <$> takeWhileP (Just "any") (const True)
@@ -143,12 +154,11 @@ command_parser = do
     pModifier = 
       const ImWildcard <$> (lexeme (C.char '.') *> symbol "(..)")
 
-    pLoadFile = do  
-      Load <$>
-        takeWhileP (Just "non-whitespace")
-          (\case
-            ' '  -> False
-            '\t' -> False
-            '\n' -> False
-            '\r' -> False
-            _    -> True)
+    pLoadFile =
+      takeWhile1P (Just "non-whitespace")
+      (\case
+          ' '  -> False
+          '\t' -> False
+          '\n' -> False
+          '\r' -> False
+          _    -> True)

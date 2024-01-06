@@ -32,6 +32,7 @@ dependencies:
 - pipes-parse
 - pipes-aeson
 - aeson
+- directory
 - containers
 - bytestring
 - network

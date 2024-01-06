@@ -4,8 +4,8 @@ module Sigil.Abstract.AlphaEq
 
 
 {------------------------------- Alpha Equality --------------------------------}
-{-                                                                             -}
-{-                                                                             -}
+{- This file contans the AlphaEq typeclass (see more below), along with        -}
+{- several instances of AlphaEq for various syntactic entities                 -}
 {-                                                                             -}
 {-                                                                             -}
 {-------------------------------------------------------------------------------}

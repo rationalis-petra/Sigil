@@ -36,6 +36,9 @@ module Sigil.Abstract.Syntax
   -- Lenses
   , package_header
   , package_modules
+  , package_name
+  , provides
+  , requires
   
   , module_header
   , module_imports
@@ -193,9 +196,10 @@ type Forallχ (φ :: Type -> Constraint) χ
 {---------------------------------------------------------------------------------}
 
 data PackageHeader = PackageHeader
-  { _name :: Text
+  { _package_name :: Text
   , _provides :: [Text]
-  , _version :: (Int, Int, Int)
+  , _requires :: [Text]
+  -- , _version :: (Int, Int, Int)
   -- , _options :: Options (optimization/debuggng etc.)
   }
 
@@ -203,8 +207,9 @@ data Package m = Package { _package_header :: PackageHeader
                          , _package_modules :: (MTree m)
                          }
 
-newtype MTree m = MTree (Map Text (Maybe m, Maybe (MTree m)))
+newtype MTree m = MTree { untree :: Map Text (Maybe m, Maybe (MTree m)) }
 
+$(makeLenses ''PackageHeader)
 $(makeLenses ''Package)
 
 instance Functor MTree where

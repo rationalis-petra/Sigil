@@ -1,8 +1,16 @@
 module Tui.Interaction
-  ( eval_text
-  , query_text
+  -- Packages
+  ( load_package
+  , set_package
+  , add_package_import
+
+  -- Modules
   , load_file
   , add_import
+
+  -- Terms
+  , eval_text
+  , query_text
   ) where
 
 import Prelude hiding (mod, getLine, putStr, putStrLn, readFile, null)
@@ -33,6 +41,7 @@ import Sigil.Parse.Lexer
 import Sigil.Concrete.Internal (InternalCore)
 
 import InterpretUtils
+import qualified Actions.Package as Package
 import Tui.Types
 
 eval_text :: forall m e s t f id. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
@@ -121,3 +130,69 @@ pImport = do
 pModifier :: TParser ImportModifier
 pModifier = 
   const ImWildcard <$> (lexeme (C.char '.') *> symbol "(…)")
+
+
+-- add_package_import :: forall m e s t f id. (MonadError SigilDoc m, MonadGen m, Environment Name e)
+--   => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
+add_package_import :: forall m e s t f id.Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
+  -> T.EventM id (InteractiveState s) ()
+add_package_import interp = do
+  focus .= Palette
+  paletteAction .= (\import_statement -> 
+    let notWhitespace ' ' = False
+        notWhitespace '\n' = False
+        notWhitespace '\t' = False
+        notWhitespace _ = True
+    in if all notWhitespace (unpack import_statement)
+    then do
+      -- TODO: We need to recheck the package with the new import
+      packageImports %= (import_statement :)
+      is <- use packageImports
+      st <- use interpreterState
+      pkg <- use $ location._1
+      (_, st') <- liftIO $ (run interp) (st) (set_package_imports interp pkg is)
+      interpreterState .= st'
+
+    else outputState .= "Package name must not contain whitespace")
+  
+
+load_package :: forall m e s t f id. (MonadError SigilDoc m, MonadGen m, Environment Name e)
+  => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
+  -> T.EventM id (InteractiveState s) ()
+load_package interpreter = do
+  focus .= Palette
+  paletteAction .= (\filename -> do
+    istate <- use interpreterState
+    out <- liftIO $ Package.load_package interpreter istate filename 
+    case out of 
+      Right istate' -> do
+        (mpkgs, istate'') <- liftIO $ (run interpreter) istate' (get_available_packages interpreter)
+        interpreterState .= istate''
+        case mpkgs of
+          Right pkgs -> loadedPackages .= pkgs
+          Left err -> outputState .= show err
+      Left err -> outputState .= show err)
+
+set_package :: forall m e s t f id. 
+  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
+  -> Text -> T.EventM id (InteractiveState s) ()
+set_package interpreter pkg_name = do
+  -- (possibly replace location with (Package, Either Module Imports)
+  -- Location _1 = Package, _2 = Module, _3 = Imports 
+  location._1 .= pkg_name
+  location._2 .= Nothing
+  moduleIx .= 0
+  
+  istate <- use interpreterState
+  (mmodules, istate') <- liftIO $ (run interpreter) istate (get_available_modules interpreter pkg_name)
+  interpreterState .= istate'
+  case mmodules of 
+    Right modules -> do 
+      availableModules .= modules
+
+    Left err -> do
+      outputState .= show err
+      availableModules .= []
+
+  
+  

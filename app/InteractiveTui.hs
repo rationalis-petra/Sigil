@@ -9,7 +9,6 @@ import Control.Monad (void)
 import Control.Monad.Except (MonadError)
 import Control.Monad.IO.Class (liftIO)
 import Lens.Micro
--- import Lens.Micro.TH
 import Lens.Micro.Mtl
 import Data.Functor.Classes (liftEq)
 import Data.Foldable (find)
@@ -36,6 +35,7 @@ import Sigil.Concrete.Internal (InternalCore)
 import qualified Tui.Editor as Editor
 import Tui.Types
 import Tui.Defaults.EditorKeymap
+import Tui.Interaction (set_package)
 
 data InteractiveTuiOpts = InteractiveTuiOpts
   deriving (Show, Read, Eq)
@@ -52,7 +52,7 @@ interactive_tui interpreter _ = do
                     (merr, state')  <- liftIO $ (run interpreter) istate $ do
                       (intern_package interpreter)
                         "sigil-user" (Package
-                                      (PackageHeader "sigil-user" [] (0,0,0))
+                                      (PackageHeader "sigil-user" [] [])
                                       (MTree Map.empty))
                       packages <- get_available_packages interpreter
                       modules <- get_available_modules interpreter "sigil-user"
@@ -91,9 +91,11 @@ interactive_tui interpreter _ = do
 
         -- session
         , _location = ("sigil-user", Nothing, [])
-        , _availableModules = []
         , _loadedPackages = []
+        , _packageImports = []
+        , _availableModules = []
         , _packageIx = 0
+        , _packageImportsIx = 0
         , _moduleIx = 0
         , _importIx = 0
 
@@ -120,6 +122,9 @@ draw st =
         vBox ([withAttr (A.attrName "title") (str "Packages")]
               <> packagesList
               <> [hBorder]
+              <> [withAttr (A.attrName "title") (str "Package Imports")]
+              <> packageImportsList
+              <> [hBorder]
               <> [withAttr (A.attrName "title") (str "Modules")]
               <> modulesList
               <> [hBorder]
@@ -134,6 +139,13 @@ draw st =
 
         else fmap (\s -> (if (s == st^.location._1) then withAttr (A.attrName "emphasis") else id)
                     (str . ("  " <>) .  show . pretty $ s)) (st^.loadedPackages)
+
+      packageImportsList =
+        if (st^.focus) == Navigation NavPackImport
+        then zipWith (\s i -> (if i == st^.packageImportsIx then withAttr (A.attrName "selected") else id)
+                              (str . ("  " <>) .  show . pretty $ s))
+             (st^.packageImports) [0..]
+        else fmap (\s -> (str . ("  " <>) .  show . pretty $ s)) (st^.packageImports)
              
       modulesList =
         if (st^.focus) == Navigation NavModule
@@ -182,9 +194,10 @@ change_focus _ v = v
 choose_cursor :: InteractiveState s -> [T.CursorLocation ID] -> Maybe (T.CursorLocation ID)
 choose_cursor st locs = find (liftEq (==) (Just $ st^.focus) . T.cursorLocationName) locs
 
-app_handle_event :: forall m e s t f ev. Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
+app_handle_event :: forall m e s t f ev.
+  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
   -> T.BrickEvent ID ev -> T.EventM ID (InteractiveState s) ()
-app_handle_event _ = \case
+app_handle_event interp = \case
   (T.VtyEvent (V.EvKey V.KUp    [V.MCtrl])) -> focus %= change_focus DUp
   (T.VtyEvent (V.EvKey V.KDown  [V.MCtrl])) -> focus %= change_focus DDown
   (T.VtyEvent (V.EvKey V.KLeft  [V.MCtrl])) -> focus %= change_focus DLeft
@@ -195,38 +208,87 @@ app_handle_event _ = \case
     case f of 
       Input -> Editor.handleEvent ev editorState
       Palette -> handle_palette_event ev
-      Navigation loc -> handle_nav_event loc ev
+      Navigation loc -> handle_nav_event interp loc ev
       _ -> pure ()
 
-handle_nav_event :: NavLoc -> T.BrickEvent ID e -> T.EventM ID (InteractiveState s) ()
-handle_nav_event loc ev =
+handle_nav_event :: forall m e s t f ev.
+  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
+  -> NavLoc -> T.BrickEvent ID ev -> T.EventM ID (InteractiveState s) ()
+handle_nav_event interp loc ev =
   let ix :: Lens' (InteractiveState s) Int
       ix = case loc of   
-        NavPackage -> packageIx
-        NavModule ->  moduleIx
-        NavEntry ->   importIx
+        NavPackage    -> packageIx
+        NavPackImport -> packageImportsIx
+        NavModule     -> moduleIx
+        NavEntry      -> importIx
+      refresh = do
+        moduleIx .= 0
+        importIx .= 0
+        case loc of 
+          NavPackage -> do
+            pix <- use packageIx
+            pkgs <- use loadedPackages
+            let [] ?! _ = Nothing
+                (x:_) ?! 0 = Just x
+                (_:xs) ?! n = xs ?! (n - 1)
+            case pkgs ?! pix of 
+              Just pkg_name -> do
+                st <- use interpreterState
+                (mmodules, st') <- liftIO $ (run interp) st (get_available_modules interp pkg_name)
+                interpreterState .= st'
+                case mmodules of 
+                  Right modules -> availableModules .= modules
+                  Left err -> do
+                    outputState .= show err
+                    availableModules .= []
+              Nothing -> pure ()
+          NavPackImport -> do
+           -- TODO: redisplay all entries
+           pure ()
+          NavModule -> do
+           -- TODO: redisplay all entries
+           pure ()
+          NavEntry -> pure ()
+
       inc = do
         upper <- case loc of 
           NavPackage -> length <$> use loadedPackages
+          NavPackImport -> length <$> use packageImports
           NavModule -> length <$> use availableModules
           NavEntry -> length <$> use (location._3)
-        ix %= min upper . (+ 1)
-      dec = ix %= max 0 . (\x -> x - 1)
+        ix %= min (max 0 (upper - 1)) . (+ 1)
+        refresh
+      dec = do
+        ix %= max 0 . (\x -> x - 1)
+        refresh
 
       del = do
         ixval <- use ix
         case loc of 
           NavPackage -> pure () -- TODO: add action
-          NavModule -> pure () -- TODO: add action
+          NavPackImport -> pure () -- TODO: add action
+          NavModule -> pure ()  -- TODO: add action
           NavEntry -> do
             (location._3) %= fmap snd . filter ((/= ixval) . fst) . zip [0..]
             upper <- length <$> use (location._3)
             importIx %= min upper
 
+      -- sel = select
+      sel = do
+        ixval <- use ix
+        packages <- use loadedPackages
+        case loc of 
+          NavPackage ->
+            case fmap snd . filter ((== ixval) . fst) . zip [0..] $ packages of 
+              [] -> pure ()
+              pkg : _ -> set_package interp pkg
+          _ -> pure ()
+
   in case ev of
-    (T.VtyEvent (V.EvKey (V.KUp)       [])) -> dec
-    (T.VtyEvent (V.EvKey (V.KDown)     [])) -> inc 
+    (T.VtyEvent (V.EvKey V.KUp       []))   -> dec
+    (T.VtyEvent (V.EvKey V.KDown     []))   -> inc 
     (T.VtyEvent (V.EvKey (V.KChar 'd') [])) -> del
+    (T.VtyEvent (V.EvKey V.KEnter []))      -> sel
     _ -> pure ()
 
 handle_palette_event :: T.BrickEvent ID e -> T.EventM ID (InteractiveState s) ()

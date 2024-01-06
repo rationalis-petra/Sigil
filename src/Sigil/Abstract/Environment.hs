@@ -3,6 +3,8 @@ module Sigil.Abstract.Environment
   ( get_modulo_path
   , insert_at_path
   , get_paths
+  , get_world_path
+  --, set_at_world_path
 
   -- Environment
   , Environment(..)
@@ -12,6 +14,7 @@ module Sigil.Abstract.Environment
   , globals
   , eval_helper
   ) where
+
 
 {--------------------------------- ENVIRONMENT ---------------------------------}
 {-                                                                             -}
@@ -26,7 +29,7 @@ import Data.Foldable (fold, find)
 import Data.List (sortOn)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.List.NonEmpty (NonEmpty(..), (<|))
-import Data.Text (Text)
+import Data.Text (Text, pack)
 import qualified Data.Set as Set
 import Data.Set (Set)
 import qualified Data.Map as Map
@@ -39,8 +42,8 @@ import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax 
   
 
-{------------------------------------ WORLD ------------------------------------}
-{-                                                                             -}
+{---------------------------------- PACKAGES -----------------------------------}
+{- MTree manipulation for packages                                             -}
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
@@ -73,6 +76,25 @@ get_modulo_path path (MTree subtree) =
       Just (Just v, _) -> Just (v, (t : ts))
       _ -> Nothing
 
+{------------------------------------ WORLD ------------------------------------}
+{- A world is a set of packages, this is lookup for a world.                   -}
+{- Can give an error if there is a name-collision (will return bad package)    -}
+{-------------------------------------------------------------------------------}
+
+get_world_path :: [Package a] -> Package a -> Path -> (Either Text (Maybe (a, [Text])))
+get_world_path world package path =
+  -- Step 1: check for collisions
+  let merged_world = MTree $ fold $ fmap untree exported_modules
+      exported_modules = (package^.package_modules) : (fmap get_exports world)
+      get_exports package = MTree $ Map.filterWithKey (\k _ -> elem k (package^.package_header.provides)) $ untree $ package^.package_modules
+
+  in if sum (fmap (Map.size . untree) exported_modules) == Map.size (untree merged_world)
+  then Right $ get_modulo_path path merged_world
+  else Left $ pack $ show $ fmap fst $ Map.toList $ untree merged_world
+
+-- set_at_world_path :: [Package a] -> Package a -> Path -> a -> Package a
+-- set_at_world_path world package path val =
+
 get_paths :: MTree a -> [Path]
 get_paths (MTree subtree) = 
   let go :: Text -> (Maybe a, Maybe (MTree a)) -> [Path]
@@ -95,6 +117,17 @@ data Env a = Env
   , _env_imports :: [ImportDef]
   , _world :: MTree (EModule a)
   }
+
+-- from_world :: Package a -> [Package a] -> Env a
+-- from_world :: package packages = 
+--   let merged_world = MTree $ fold $ fmap untree exported_modules
+--       exported_modules = (package^.package_modules) : (fmap get_exports world)
+--       get_exports package = MTree $ Map.filterWithKey (\k _ -> elem k (package^.package_header.provides)) $ untree $ package^.package_modules
+
+--   in Env merged_world
+  -- in if sum (fmap (Map.size . untree) exported_modules) == Map.size (untree merged_world)
+  -- then Right $ get_modulo_path path merged_world
+  -- else Left $ pack $ show $ fmap fst $ Map.toList $ untree merged_world
 
 $(makeLenses ''Env)
 $(makeLenses ''EModule)

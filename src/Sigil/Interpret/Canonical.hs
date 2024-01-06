@@ -20,13 +20,14 @@ import Control.Monad.State (StateT, runStateT)
 import Control.Monad.Except (ExceptT, throwError, runExceptT)
 import Control.Monad (join, forM)
 import qualified Data.List.NonEmpty as NonEmpty
+import Data.Foldable (fold)
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.Map as Map
 import Data.Map (Map)
 import qualified Data.Set as Set
 import Data.Text (Text)
 
-import Control.Lens (makeLenses, (^.), (.=), (%~), use, at)
+import Control.Lens (makeLenses, (^.), (.=), (.~), (%~), use, at)
 import Prettyprinter
 --import Topograph : todo: use for dependency analysis in evaluation
 
@@ -84,22 +85,55 @@ canonical_interpreter liftErr = Interpreter
   , solve_formula = \f _ formula ->
       solve (f . liftErr . EvalErr) formula
 
+  , make_package = \package_name -> do
+      (world.at package_name) .=
+        Just (Package (PackageHeader package_name [] []) (MTree Map.empty))
   , intern_package = \package_name package -> do
       (world.at package_name) .= Just package 
 
+  , reify_package = \package_name -> do
+      pkg <- use (world.at package_name)
+      case pkg of 
+        Just v -> pure v
+        Nothing -> throwError . liftErr . InternalErr $ "can't find package" <> pretty package_name
+
+  -- Modify a package
+  , set_package_imports = \package_name imports -> do
+      mpkg <- use $ world.at package_name
+      case mpkg of
+        Just package -> world.at package_name .= Just (((package_header.requires) .~ imports) package)
+        Nothing -> pure ()
+
+  , set_package_exports = \package_name exports -> do
+      mpkg <- use $ world.at package_name
+      case mpkg of
+        Just package -> world.at package_name .= Just (((package_header.provides) .~ exports) package)
+        Nothing -> pure ()
+
+
+  -- TODO: need to update properly if other modules depend on this one
   , intern_module = \package_name path modul -> do
       packages <- use world
       pkg' <- case Map.lookup package_name packages of 
         Just package -> pure $ (package_modules %~ (insert_at_path path modul)) package
-        Nothing -> throwError $ liftErr $ InternalErr ("couldn't find package:" <+> pretty package_name)
+        Nothing -> throwError $ liftErr $ InternalErr ("Couldn't find package:" <+> pretty package_name)
       (world.at package_name) .= Just pkg'
 
   , get_env = \package_name imports -> do
       packages <- use world
-      modules <- case Map.lookup package_name packages of
-        Just val -> pure $ val^.package_modules
-        Nothing -> throwError $ liftErr $ InternalErr ("couldn't find package:" <+> pretty package_name)
-      pure $ Env Map.empty 0 (to_globmap modules) imports (to_eworld modules)
+      package <- case Map.lookup package_name packages of 
+        Just val -> pure $ val
+        Nothing -> throwError $ liftErr $ InternalErr ("Couldn't find package:" <+> pretty package_name)
+      -- Get all required packages
+      req_packages <- forM (package^.package_header^.requires) $ \name -> do
+        case Map.lookup name packages of 
+          Just val -> pure $ val
+          Nothing -> throwError $ liftErr $ InternalErr ("Couldn't find package:" <+> pretty name)
+
+      let merged_world = MTree $ fold $ fmap untree exported_modules
+          exported_modules = (package^.package_modules) : (fmap get_exports req_packages)
+          get_exports package = MTree $ Map.filterWithKey (\k _ -> elem k (package^.package_header.provides)) $ untree $ package^.package_modules
+      pure $ Env Map.empty 0 (to_globmap merged_world) imports (to_eworld merged_world)
 
   , get_precs = \package_name imports -> do
       -- For the time being, we don't care about precedence group
@@ -107,36 +141,50 @@ canonical_interpreter liftErr = Interpreter
       -- Therefore, the path of the current module is irrelevant
       packages <- use world
       package <- case Map.lookup package_name packages of 
-        Just val -> pure $ val^.package_modules
-        Nothing -> throwError $ liftErr $ InternalErr ("couldn't find package:" <+> pretty package_name)
+        Just val -> pure $ val
+        Nothing -> throwError $ liftErr $ InternalErr ("Couldn't find package:" <+> pretty package_name)
+      -- Get all required packages
+      req_packages <- forM (package^.package_header^.requires) $ \name -> do
+        case Map.lookup name packages of 
+          Just val -> pure $ val
+          Nothing -> throwError $ liftErr $ InternalErr ("Couldn't find package:" <+> pretty name)
+      
 
       imported_names <- forM imports $ \(Im (path, m)) -> do
-        (mdle,p) <- case get_modulo_path path package of 
-          Nothing -> throwError $ liftErr $ InternalErr ("can't find import path:" <+> pretty (show path))
-          Just (v,p) -> pure (v,p)
-        if not (null p) then (throwError $ liftErr $ InternalErr "there was a modulo path; can't deal rn") else pure ()
+        (mdle,p) <- case get_world_path req_packages package path of 
+          Right (Just (v,p)) -> pure (v,p)
+          Right Nothing -> throwError $ liftErr $ InternalErr ("Can't find import path:" <+> pretty path)
+          Left name -> throwError$ liftErr $ InternalErr ("Name clash with package:" <+> pretty name)
+        if not (null p) then (throwError $ liftErr $ InternalErr "There was a modulo path; can't deal rn") else pure ()
         case m of
-          ImWildcard -> 
+          ImWildcard ->
             pure $ join $ map
               (\case
                   Singleχ _ (AnnBind (n, _)) _ -> [name_text n])
               (mdle^.module_entries)
-          _ -> throwError $ liftErr $ InternalErr "only deal in wildcard modifiers!"
+          _ -> throwError $ liftErr $ InternalErr "Only deal in wildcard modifiers!"
 
       pure $ update_precs (join imported_names) default_precs
 
   , get_resolve = \package_name imports -> do
       packages <- use world
-      modules <- case Map.lookup package_name packages of 
-        Just val -> pure (val^.package_modules)
-        Nothing -> throwError $ liftErr $ InternalErr ("couldn't find package:" <+> pretty package_name)
+      -- Get all required packages
+      package <- case Map.lookup package_name packages of 
+        Just val -> pure val
+        Nothing -> throwError $ liftErr $ InternalErr ("Couldn't find package:" <+> pretty package_name)
+      req_packages <- forM (package^.package_header^.requires) $ \name -> do
+        case Map.lookup name packages of 
+          Just val -> pure $ val
+          Nothing -> throwError $ liftErr $ InternalErr ("Couldn't find package:" <+> pretty name)
+
       let get_imports :: Map Text QualName -> [ImportDef] -> CanonM err (Map Text QualName)
           get_imports gmap [] = pure gmap
           get_imports gmap (Im (path,im) : imports) = do
-            (mdle,p) <- case get_modulo_path path modules of
-              Nothing -> throwError $ liftErr $ InternalErr ("can't find import path: " <> pretty (show path))
-              Just (v,p) -> pure (v,p)
-            if not (null p) then (throwError $ liftErr $ InternalErr "there was a modulo path; can't deal rn") else pure ()
+            (mdle,p) <- case get_world_path req_packages package path of
+              Right (Just (v,p)) -> pure (v,p)
+              Right Nothing -> throwError $ liftErr $ InternalErr ("Can't find import path:" <+> pretty path)
+              Left name -> throwError$ liftErr $ InternalErr ("Name clash with package:" <+> pretty name)
+            if not (null p) then (throwError $ liftErr $ InternalErr "There was a modulo path; can't deal rn") else pure ()
             case im of
               ImWildcard ->
                 foldl
@@ -152,16 +200,26 @@ canonical_interpreter liftErr = Interpreter
 
   , get_module_env = \package_name module_path -> do
       packages <- use world
-      modules <- case Map.lookup package_name packages of 
-        Just val -> pure (val^.package_modules)
+      package <- case Map.lookup package_name packages of 
+        Just val -> pure val
         Nothing -> throwError $ liftErr $ InternalErr ("couldn't find package:" <+> pretty package_name)
-      imodule <- case get_modulo_path module_path modules of 
-          Nothing -> throwError $ liftErr $ InternalErr ("can't find import path:" <+> pretty (show module_path))
-          Just (v,p) -> if null p then pure v else throwError $ liftErr $ InternalErr ("module path finding:" <+> pretty (show module_path))
+      req_packages <- forM (package^.(package_header.requires)) $ \name -> do
+        case Map.lookup name packages of 
+          Just val -> pure $ val
+          Nothing -> throwError $ liftErr $ InternalErr ("Couldn't find package:" <+> pretty name)
+
+      imodule <- case get_world_path req_packages package module_path of
+        Right (Just (v,p)) -> if null p then pure v else throwError $ liftErr $ InternalErr ("module path finding:" <+> pretty (show module_path))
+        Right Nothing -> throwError $ liftErr $ InternalErr ("Can't find import path:" <+> pretty module_path)
+        Left name -> throwError$ liftErr $ InternalErr ("Name clash with package:" <+> pretty name)
       
       let insert_entry entry env = case entry of  
             Singleχ _ (AnnBind (n,ty)) val -> insert n (Just ty, val) env 
-          pre_env = Env Map.empty 0 (to_globmap modules) (imodule^.module_imports) (to_eworld modules)
+          merged_world = MTree $ fold $ fmap untree exported_modules
+          exported_modules = (package^.package_modules) : (fmap get_exports req_packages)
+          get_exports package = MTree $ Map.filterWithKey (\k _ -> elem k (package^.package_header.provides)) $ untree $ package^.package_modules
+
+          pre_env = Env Map.empty 0 (to_globmap merged_world) (imodule^.module_imports) (to_eworld merged_world)
       pure $ foldr insert_entry pre_env (imodule^.module_entries)
 
   , get_module_precs = \package_name module_path -> do
@@ -169,17 +227,23 @@ canonical_interpreter liftErr = Interpreter
       -- We also treat all paths as absolute (not relative to current module).
       -- Therefore, the path of the current module is irrelevant
       packages <- use world
-      modules <- case Map.lookup package_name packages of 
-        Just val -> pure (val^.package_modules)
+      package <- case Map.lookup package_name packages of 
+        Just val -> pure val
         Nothing -> throwError $ liftErr $ InternalErr ("couldn't find package:" <+> pretty package_name)
-      imodule <- case get_modulo_path module_path modules of 
-          Nothing -> throwError $ liftErr $ InternalErr ("can't find import path:" <+> pretty (show module_path))
-          Just (v,p) -> if null p then pure v else throwError $ liftErr $ InternalErr ("can't find import path: " <> pretty (show module_path))
+      req_packages <- forM (package^.package_header.requires) $ \name -> do
+        case Map.lookup name packages of 
+          Just p -> pure p
+          Nothing -> throwError $ liftErr $ InternalErr ("Can't find import path:" <+> pretty module_path)
+      imodule <- case get_world_path req_packages package module_path of 
+          Right (Just (v,p)) -> if null p then pure v else throwError $ liftErr $ InternalErr ("module path finding:" <+> pretty (show module_path))
+          Right Nothing -> throwError $ liftErr $ InternalErr ("Can't find import path:" <+> pretty module_path)
+          Left name -> throwError$ liftErr $ InternalErr ("Name clash with package:" <+> pretty name)
   
       imported_names <- forM (imodule^.module_imports) $ \(Im (path, m)) -> do
-        (mdle,p) <- case get_modulo_path path modules of 
-          Nothing -> throwError $ liftErr $ InternalErr ("can't find import path: " <> pretty (show path))
-          Just (v,p) -> pure (v,p)
+        (mdle,p) <- case get_world_path req_packages package path of
+          Right (Just (v,p)) -> pure (v,p)
+          Right Nothing -> throwError $ liftErr $ InternalErr ("Can't find import path:" <+> pretty module_path)
+          Left name -> throwError$ liftErr $ InternalErr ("Name clash with package:" <+> pretty name)
         if null p then pure () else (throwError $ liftErr $ InternalErr "there was a modulo path; can't deal rn")
         case m of
           ImWildcard -> 

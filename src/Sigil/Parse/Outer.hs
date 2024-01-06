@@ -3,6 +3,7 @@ module Sigil.Parse.Outer
   ( syn_core
   , syn_entry
   , syn_mod
+  , mod_header
   , syn_formula
   ) where
 
@@ -53,49 +54,53 @@ with_range p = do
 {-                                                                             -}
 {-------------------------------------------------------------------------------}      
 
+mod_header :: ParserT m (Path, [Either ImportDef ExportDef])
+mod_header = L.nonIndented scn (L.indentBlock scn modul)
+  where 
+    modul :: ParserT m (L.IndentOpt (ParserT m) (Path, [Either ImportDef ExportDef]) [Either ImportDef ExportDef])
+    modul = do 
+      symbol "module"
+      title <- do
+        l <- sepBy anyvar (C.char '.')
+        case l of 
+          (x:xs) -> pure $ Path $ x :| xs
+          [] -> fail "title must be nonempty"
+      pure (L.IndentMany Nothing (pure . (title, ) . join) modulePart)
+    
+    modulePart :: ParserT m [Either ImportDef ExportDef]
+    modulePart =
+      L.indentBlock scn (imports <|> exports)
+    
+    imports :: ParserT m (L.IndentOpt (ParserT m) [Either ImportDef ExportDef] (Either ImportDef ExportDef))
+    imports = do
+      symbol "import" 
+      pure (L.IndentSome Nothing pure (fmap Left importStatement))
+    
+    importStatement :: ParserT m ImportDef
+    importStatement = do
+      var <- anyvar
+      vars <- many (try $ C.char '.' *> anyvar)
+      isMany <- try (symbol ".(…)" *> pure True) <|> pure False
+      if isMany
+        then pure $ Im $ (,ImWildcard) $ Path $ var :| vars
+        else pure $ Im $ (,ImSingleton) $ Path $ var :| vars
+
+      
+    exports :: ParserT m (L.IndentOpt (ParserT m) [Either ImportDef ExportDef] (Either ImportDef ExportDef))
+    exports = do
+     symbol "export"
+     pure (L.IndentSome Nothing pure (fmap Right exportStatement))
+    
+    exportStatement :: ParserT m ExportDef
+    exportStatement = Ex . (,ExSingleton) . Path . (:| []) <$> anyvar
+
 syn_mod :: Monad m => ParserT m SynModule
 syn_mod = do
-  (title, ports) <- module_header
+  (title, ports) <- mod_header
   let imports = lefts ports
       exports = rights ports
   body <- many $ L.nonIndented scn (syn_entry <* scn)
   pure $ RModule title imports exports body
-
-  where
-    module_header :: ParserT m (Path, [Either ImportDef ExportDef])
-    module_header = do
-      L.nonIndented scn (L.indentBlock scn modul)
-      where 
-        modul :: ParserT m (L.IndentOpt (ParserT m) (Path, [Either ImportDef ExportDef]) [Either ImportDef ExportDef])
-        modul = do 
-          symbol "module"
-          title <- do
-            l <- sepBy anyvar (C.char '.')
-            case l of 
-              (x:xs) -> pure $ Path $ x :| xs
-              [] -> fail "title must be nonempty"
-          pure (L.IndentMany Nothing (pure . (title, ) . join) modulePart)
-      
-        modulePart :: ParserT m [Either ImportDef ExportDef]
-        modulePart =
-          L.indentBlock scn (imports <|> exports)
-      
-        imports :: ParserT m (L.IndentOpt (ParserT m) [Either ImportDef ExportDef] (Either ImportDef ExportDef))
-        imports = do
-          symbol "import" 
-          pure (L.IndentSome Nothing pure (fmap Left importStatement))
-      
-        importStatement :: ParserT m ImportDef
-        importStatement = Im . (,ImSingleton) . Path . (:| []) <$> anyvar
-          
-        exports :: ParserT m (L.IndentOpt (ParserT m) [Either ImportDef ExportDef] (Either ImportDef ExportDef))
-        exports = do
-         symbol "export"
-         pure (L.IndentSome Nothing pure (fmap Right exportStatement))
-      
-        exportStatement :: ParserT m ExportDef
-        exportStatement = Ex . (,ExSingleton) . Path . (:| []) <$> anyvar
-
 
 {--------------------------------- DEF PARSER ----------------------------------}
 {- The def parser parses definitions, which have one of the following forms:   -}

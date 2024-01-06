@@ -64,9 +64,14 @@ data Interpreter m err env s t f = Interpreter
   , solve_formula :: (err -> err) -> env -> f -> m (Substitution Name t)
 
   {------------------------- Environment Manipulation --------------------------}
-  -- Load a module into the interpreter's state
-  , intern_module :: Text -> Path -> InternalModule -> m ()
+  -- Create or get a package
+  , make_package :: Text -> m ()
   , intern_package :: Text -> InternalPackage -> m ()
+  , reify_package :: Text -> m InternalPackage
+  -- Modify a package
+  , set_package_imports :: Text -> [Text] -> m ()
+  , set_package_exports :: Text -> [Text] -> m ()
+  , intern_module :: Text -> Path -> InternalModule -> m ()
 
   {---------------------------- Environment Queries ----------------------------}
   -- Get the initial environment/precedences for a given package with a
@@ -80,9 +85,9 @@ data Interpreter m err env s t f = Interpreter
   , get_module_precs :: Text -> Path -> m Precedences
   , get_module_resolve :: Text -> Path -> m (Map Text QualName)
 
-  -- Get all module paths in a package (does not include imported modules)
-  , get_available_modules :: Text -> m [Path]
+  -- Get all packages, get all module paths in a package (does not include imported modules)
   , get_available_packages :: m [Text]
+  , get_available_modules :: Text -> m [Path]
 
   {------------------------------ Using the Monad ------------------------------}
   -- The Monad m

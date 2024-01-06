@@ -6,9 +6,11 @@ module Tui.Types
   , paletteState
   , paletteAction
   , loadedPackages
+  , packageImports
   , availableModules
   , location
   , packageIx
+  , packageImportsIx
   , moduleIx
   , importIx
   , interpreterState
@@ -43,11 +45,15 @@ data InteractiveState s = InteractiveState
 
   -- session
   , _loadedPackages :: [Text]
+  , _packageImports :: [Text]
   , _availableModules :: [Path]
+
+  -- 
   , _location :: (Text, Maybe InternalModule, [ImportDef])
 
   -- side panel
   , _packageIx :: Int
+  , _packageImportsIx :: Int
   , _moduleIx :: Int
   , _importIx :: Int
 
@@ -55,7 +61,7 @@ data InteractiveState s = InteractiveState
   , _interpreterState :: s
   }
 
-data NavLoc = NavPackage | NavModule | NavEntry
+data NavLoc = NavPackage | NavPackImport | NavModule | NavEntry
   deriving (Ord, Show, Eq)
   
 data ID = Input | Navigation NavLoc | Output | Palette

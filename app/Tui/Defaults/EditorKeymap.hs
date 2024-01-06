@@ -129,6 +129,8 @@ module_keymap interpreter self = \case
             , ([(V.KChar ';', []), (V.KChar 'e', []), (V.KChar 'q', [])], query_text interpreter (getText . view self))
             , ([(V.KChar ';', []), (V.KChar 'm', []), (V.KChar 'f', [])], load_file interpreter)
             , ([(V.KChar ';', []), (V.KChar 'm', []), (V.KChar 'i', [])], add_import)
+            , ([(V.KChar ';', []), (V.KChar 'p', []), (V.KChar 'f', [])], load_package interpreter)
+            , ([(V.KChar ';', []), (V.KChar 'p', []), (V.KChar 'i', [])], add_package_import interpreter)
 
             -- Quit
             , ([(V.KChar ' ', []), (V.KChar 'q', []), (V.KChar 'q', [])], halt)
