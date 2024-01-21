@@ -1,8 +1,8 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE ImplicitParams #-}
 module Sigil.Interpret.Canonical
-  ( Context(..)
-  , CanonM
+  ( CanonM
   , canonical_interpreter
   ) where
 
@@ -16,316 +16,133 @@ module Sigil.Interpret.Canonical
 {- current machine.                                                            -}
 {-------------------------------------------------------------------------------}
 
-import Control.Monad.State (StateT, runStateT)
-import Control.Monad.Except (ExceptT, throwError, runExceptT)
-import Control.Monad (join, forM)
-import qualified Data.List.NonEmpty as NonEmpty
-import Data.Foldable (fold)
-import Data.List.NonEmpty (NonEmpty(..))
+import Prelude hiding (lookup)
+import Control.Monad.State (StateT, MonadState, runStateT, get)
+import Control.Monad.Except (ExceptT, MonadError, throwError, runExceptT)
+import Control.Applicative (Alternative)
 import qualified Data.Map as Map
-import Data.Map (Map)
-import qualified Data.Set as Set
-import Data.Text (Text)
 
-import Control.Lens (makeLenses, (^.), (.=), (.~), (%~), use, at)
+import Control.Lens ((^.), (.=), (.~), (%~), use, at)
 import Prettyprinter
 --import Topograph : todo: use for dependency analysis in evaluation
 
 import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
-import Sigil.Abstract.Unify
-import Sigil.Abstract.Environment
-import Sigil.Parse.Mixfix
+import Sigil.Abstract.Environment hiding (insert)
 import Sigil.Concrete.Internal
 import Sigil.Interpret.Interpreter
 import Sigil.Interpret.Unify
-import Sigil.Interpret.Term
+
+import Sigil.Interpret.Canonical.Values
+import Sigil.Interpret.Canonical.Term
+import Sigil.Interpret.Canonical.Environment
+import Sigil.Interpret.Canonical.World
 
 instance Show InternalCore where    
   show = show . pretty
 
-newtype Context = Context { _world :: Map Text (Package InternalModule) } -- threads :: ??
+newtype CanonM err a = CannonM { unCanonM :: StateT (World (CanonM err)) (ExceptT err Gen) a }
+  deriving (Functor, Applicative, Alternative, Monad, MonadState (World (CanonM err)), MonadError err, MonadGen)
 
-$(makeLenses ''Context)
+-- Get an environment...
+-- From a package + set of imports
 
-type CanonM err = StateT Context (ExceptT err Gen)
+-- from a module  
 
-default_precs :: Precedences
-default_precs = Precedences
-  (Map.fromList
-   [ ("sum", PrecedenceNode Set.empty (Set.fromList ["prod"]))
-   , ("prod", PrecedenceNode Set.empty (Set.fromList ["ppd"]))
-   , ("ppd", PrecedenceNode Set.empty (Set.fromList ["tight"]))
-   , ("ctrl", PrecedenceNode Set.empty (Set.fromList ["tight"]))
-   , ("tight", PrecedenceNode Set.empty (Set.fromList ["tight"]))
-   , ("tight", PrecedenceNode Set.empty (Set.fromList ["close"]))
-   , ("close", PrecedenceNode Set.empty Set.empty)
-   ])
-  "sum" "ppd" "ppd" "close"
+-- Evaluation 
+--eval_module :: InternalModule -> 
 
 
 canonical_interpreter :: forall err. (Monoid err) => (InterpreterErr -> err)
-  -> Interpreter (CanonM err) err (Env (Maybe InternalCore, InternalCore)) Context InternalCore (Formula Name InternalCore)
-canonical_interpreter liftErr = Interpreter
-  { reify = pure
-  , reflect = pure
-  , reify_formula = pure
-  , reflect_formula = pure
-
-  -- eval :: (err -> err) -> env -> t -> t -> m t
-  , eval = \f env ty term ->
-      normalize (f . liftErr . EvalErr) env ty term
+  -> Interpreter (CanonM err) err (CanonEnv (CanonM err)) (World (CanonM err))
+canonical_interpreter lift_err = Interpreter
+  { -- eval :: (err -> err) -> env -> t -> t -> m t
+  eval = \f env ty term ->
+      normalize (f . lift_err . EvalErr) (to_semenv env) ty term
 
   -- norm_eq :: (err -> err) -> env -> t -> t -> t -> m Bool
   , norm_eq = \f env ty a b ->
-      equiv (f . liftErr . EvalErr) env ty a b
+      equiv (f . lift_err . EvalErr) (to_semenv env) ty a b
 
   -- TODO: add environment to unification!!
   -- solve_formula :: (err -> err) -> env -> Formula t -> m (Substitution t)
   , solve_formula = \f _ formula ->
-      solve (f . liftErr . EvalErr) formula
+      solve (f . lift_err . EvalErr) formula
 
   , make_package = \package_name -> do
-      (world.at package_name) .=
-        Just (Package (PackageHeader package_name [] []) (MTree Map.empty))
-  , intern_package = \package_name package -> do
-      (world.at package_name) .= Just package 
+      (world_packages.at package_name) .=
+        Just (SemPackage [] [] (MTree (Map.empty)), Package (PackageHeader package_name [] []) (MTree Map.empty))
 
-  , reify_package = \package_name -> do
-      pkg <- use (world.at package_name)
+  , intern_package = \package_name package -> do
+      env <- CanonEnv <$> use world_packages <*> pure Map.empty
+      sem_package <- let ?lift_err = lift_err . EvalErr in eval_package (to_semenv env) package
+      (world_packages.at package_name) .= Just (sem_package, package)
+
+  , get_package = \package_name -> do
+      pkg <- use (world_packages.at package_name)
       case pkg of 
-        Just v -> pure v
-        Nothing -> throwError . liftErr . InternalErr $ "can't find package" <> pretty package_name
+        Just (_,v) -> pure v
+        Nothing -> throwError . lift_err . InternalErr $ "can't find package" <> pretty package_name
 
   -- Modify a package
   , set_package_imports = \package_name imports -> do
-      mpkg <- use $ world.at package_name
+      mpkg <- use $ world_packages.at package_name
       case mpkg of
-        Just package -> world.at package_name .= Just (((package_header.requires) .~ imports) package)
+        Just (sem_package, package) ->
+          -- TODO: re-evaluate package (requires source text...)
+          let package' = ((package_header.requires) .~ imports) package
+              sem_package' = sem_package { sprequires = imports}
+          in world_packages.at package_name .= Just (sem_package', package')
         Nothing -> pure ()
 
   , set_package_exports = \package_name exports -> do
-      mpkg <- use $ world.at package_name
+      mpkg <- use $ world_packages.at package_name
       case mpkg of
-        Just package -> world.at package_name .= Just (((package_header.provides) .~ exports) package)
+          -- TODO: re-evaluate package (requires source text for proper name resolution?)
+        Just (sem_package, package) -> 
+          let package' = ((package_header.requires) .~ exports) package
+              sem_package' = sem_package { spprovides = exports}
+          in world_packages.at package_name .= Just (sem_package', package')
         Nothing -> pure ()
 
 
   -- TODO: need to update properly if other modules depend on this one
-  , intern_module = \package_name path modul -> do
-      packages <- use world
-      pkg' <- case Map.lookup package_name packages of 
-        Just package -> pure $ (package_modules %~ (insert_at_path path modul)) package
-        Nothing -> throwError $ liftErr $ InternalErr ("Couldn't find package:" <+> pretty package_name)
-      (world.at package_name) .= Just pkg'
+  , intern_module = \(Path (package_name, module_name)) modul -> do
+      packages <- use world_packages
+      let sem_env = to_semenv $ CanonEnv packages Map.empty 
+      pkg_pr <- case Map.lookup package_name packages of 
+        Just (sem_package, package) -> do
+          sem_module <- let ?lift_err = lift_err . EvalErr in eval_module sem_env modul
+          let sem_package' = sem_package { spmodules = (insert_at_path module_name sem_module (spmodules sem_package)) }
+              package' = (package_modules %~ (insert_at_path module_name modul)) package
+          pure $ (sem_package', package')
+        Nothing -> throwError $ lift_err $ InternalErr ("Couldn't find package:" <+> pretty package_name)
+      (world_packages.at package_name) .= Just pkg_pr
 
-  , get_env = \package_name imports -> do
-      packages <- use world
-      package <- case Map.lookup package_name packages of 
-        Just val -> pure $ val
-        Nothing -> throwError $ liftErr $ InternalErr ("Couldn't find package:" <+> pretty package_name)
-      -- Get all required packages
-      req_packages <- forM (package^.package_header^.requires) $ \name -> do
-        case Map.lookup name packages of 
-          Just val -> pure $ val
-          Nothing -> throwError $ liftErr $ InternalErr ("Couldn't find package:" <+> pretty name)
-
-      let merged_world = MTree $ fold $ fmap untree exported_modules
-          exported_modules = (package^.package_modules) : (fmap get_exports req_packages)
-          get_exports package = MTree $ Map.filterWithKey (\k _ -> elem k (package^.package_header.provides)) $ untree $ package^.package_modules
-      pure $ Env Map.empty 0 (to_globmap merged_world) imports (to_eworld merged_world)
-
+  , get_env = canon_get_env lift_err <$> get
   , get_precs = \package_name imports -> do
-      -- For the time being, we don't care about precedence group
-      -- We also treat all paths as absolute (not relative to current module).
-      -- Therefore, the path of the current module is irrelevant
-      packages <- use world
-      package <- case Map.lookup package_name packages of 
-        Just val -> pure $ val
-        Nothing -> throwError $ liftErr $ InternalErr ("Couldn't find package:" <+> pretty package_name)
-      -- Get all required packages
-      req_packages <- forM (package^.package_header^.requires) $ \name -> do
-        case Map.lookup name packages of 
-          Just val -> pure $ val
-          Nothing -> throwError $ liftErr $ InternalErr ("Couldn't find package:" <+> pretty name)
+      world <- get
+      canon_get_precs lift_err world package_name imports
       
-
-      imported_names <- forM imports $ \(Im (path, m)) -> do
-        (mdle,p) <- case get_world_path req_packages package path of 
-          Right (Just (v,p)) -> pure (v,p)
-          Right Nothing -> throwError $ liftErr $ InternalErr ("Can't find import path:" <+> pretty path)
-          Left name -> throwError$ liftErr $ InternalErr ("Name clash with package:" <+> pretty name)
-        if not (null p) then (throwError $ liftErr $ InternalErr "There was a modulo path; can't deal rn") else pure ()
-        case m of
-          ImWildcard ->
-            pure $ join $ map
-              (\case
-                  Singleχ _ (AnnBind (n, _)) _ -> [name_text n])
-              (mdle^.module_entries)
-          _ -> throwError $ liftErr $ InternalErr "Only deal in wildcard modifiers!"
-
-      pure $ update_precs (join imported_names) default_precs
-
   , get_resolve = \package_name imports -> do
-      packages <- use world
-      -- Get all required packages
-      package <- case Map.lookup package_name packages of 
-        Just val -> pure val
-        Nothing -> throwError $ liftErr $ InternalErr ("Couldn't find package:" <+> pretty package_name)
-      req_packages <- forM (package^.package_header^.requires) $ \name -> do
-        case Map.lookup name packages of 
-          Just val -> pure $ val
-          Nothing -> throwError $ liftErr $ InternalErr ("Couldn't find package:" <+> pretty name)
-
-      let get_imports :: Map Text QualName -> [ImportDef] -> CanonM err (Map Text QualName)
-          get_imports gmap [] = pure gmap
-          get_imports gmap (Im (path,im) : imports) = do
-            (mdle,p) <- case get_world_path req_packages package path of
-              Right (Just (v,p)) -> pure (v,p)
-              Right Nothing -> throwError $ liftErr $ InternalErr ("Can't find import path:" <+> pretty path)
-              Left name -> throwError$ liftErr $ InternalErr ("Name clash with package:" <+> pretty name)
-            if not (null p) then (throwError $ liftErr $ InternalErr "There was a modulo path; can't deal rn") else pure ()
-            case im of
-              ImWildcard ->
-                foldl
-                  (\mnd entry ->
-                     case entry of
-                       Singleχ _ (AnnBind (n, _)) _ ->
-                         Map.insert (name_text n)
-                                    (NonEmpty.append (unPath path) (name_text n :| [])) <$> mnd)
-                  (get_imports gmap imports)
-                  (mdle^.module_entries)
-              _ -> throwError $ liftErr $ InternalErr "only deal in wildcard modifiers!"
-      get_imports Map.empty imports
-
-  , get_module_env = \package_name module_path -> do
-      packages <- use world
-      package <- case Map.lookup package_name packages of 
-        Just val -> pure val
-        Nothing -> throwError $ liftErr $ InternalErr ("couldn't find package:" <+> pretty package_name)
-      req_packages <- forM (package^.(package_header.requires)) $ \name -> do
-        case Map.lookup name packages of 
-          Just val -> pure $ val
-          Nothing -> throwError $ liftErr $ InternalErr ("Couldn't find package:" <+> pretty name)
-
-      imodule <- case get_world_path req_packages package module_path of
-        Right (Just (v,p)) -> if null p then pure v else throwError $ liftErr $ InternalErr ("module path finding:" <+> pretty (show module_path))
-        Right Nothing -> throwError $ liftErr $ InternalErr ("Can't find import path:" <+> pretty module_path)
-        Left name -> throwError$ liftErr $ InternalErr ("Name clash with package:" <+> pretty name)
-      
-      let insert_entry entry env = case entry of  
-            Singleχ _ (AnnBind (n,ty)) val -> insert n (Just ty, val) env 
-          merged_world = MTree $ fold $ fmap untree exported_modules
-          exported_modules = (package^.package_modules) : (fmap get_exports req_packages)
-          get_exports package = MTree $ Map.filterWithKey (\k _ -> elem k (package^.package_header.provides)) $ untree $ package^.package_modules
-
-          pre_env = Env Map.empty 0 (to_globmap merged_world) (imodule^.module_imports) (to_eworld merged_world)
-      pure $ foldr insert_entry pre_env (imodule^.module_entries)
-
-  , get_module_precs = \package_name module_path -> do
-      -- For the time being, we don't care about precedence group
-      -- We also treat all paths as absolute (not relative to current module).
-      -- Therefore, the path of the current module is irrelevant
-      packages <- use world
-      package <- case Map.lookup package_name packages of 
-        Just val -> pure val
-        Nothing -> throwError $ liftErr $ InternalErr ("couldn't find package:" <+> pretty package_name)
-      req_packages <- forM (package^.package_header.requires) $ \name -> do
-        case Map.lookup name packages of 
-          Just p -> pure p
-          Nothing -> throwError $ liftErr $ InternalErr ("Can't find import path:" <+> pretty module_path)
-      imodule <- case get_world_path req_packages package module_path of 
-          Right (Just (v,p)) -> if null p then pure v else throwError $ liftErr $ InternalErr ("module path finding:" <+> pretty (show module_path))
-          Right Nothing -> throwError $ liftErr $ InternalErr ("Can't find import path:" <+> pretty module_path)
-          Left name -> throwError$ liftErr $ InternalErr ("Name clash with package:" <+> pretty name)
-  
-      imported_names <- forM (imodule^.module_imports) $ \(Im (path, m)) -> do
-        (mdle,p) <- case get_world_path req_packages package path of
-          Right (Just (v,p)) -> pure (v,p)
-          Right Nothing -> throwError $ liftErr $ InternalErr ("Can't find import path:" <+> pretty module_path)
-          Left name -> throwError$ liftErr $ InternalErr ("Name clash with package:" <+> pretty name)
-        if null p then pure () else (throwError $ liftErr $ InternalErr "there was a modulo path; can't deal rn")
-        case m of
-          ImWildcard -> 
-            pure $ join $ map
-              (\case
-                  Singleχ _ (AnnBind (n, _)) _ -> [name_text n])
-              (mdle^.module_entries)
-          _ -> throwError $ liftErr $ InternalErr "only deal in wildcard modifiers!"
-
-      pure $ update_precs (join imported_names) default_precs
-
-  , get_module_resolve = \package_name module_path -> do
-      packages <- use world
-      modules <- case Map.lookup package_name packages of 
-        Just val -> pure (val^.package_modules)
-        Nothing -> throwError $ liftErr $ InternalErr ("couldn't find package:" <+> pretty package_name)
-      imodule <- case get_modulo_path module_path modules of 
-          Nothing -> throwError $ liftErr $ InternalErr ("can't find import path:" <+> pretty (show module_path))
-          Just (v,p) -> if null p then pure v else throwError $ liftErr $ InternalErr ("can't find import path: " <> pretty (show module_path))
-      let get_imports :: Map Text QualName -> [ImportDef] -> CanonM err (Map Text QualName)
-          get_imports gmap [] = pure gmap
-          get_imports gmap (Im (path,im) : imports) = do
-            (mdle,p) <- case get_modulo_path path modules of
-              Nothing -> throwError $ liftErr $ InternalErr ("can't find import path: " <> pretty (show path))
-              Just (v,p) -> pure (v,p)
-            if not (null p) then (throwError $ liftErr $ InternalErr "there was a modulo path; can't deal rn") else pure ()
-            case im of
-              ImWildcard ->
-                foldl
-                  (\mnd entry ->
-                     case entry of
-                       Singleχ _ (AnnBind (n, _)) _ ->
-                         Map.insert (name_text n)
-                                    (NonEmpty.append (unPath path) (name_text n :| [])) <$> mnd)
-                  (get_imports gmap imports)
-                  (mdle^.module_entries)
-              _ -> throwError $ liftErr $ InternalErr "only deal in wildcard modifiers!"
-      get_imports Map.empty (imodule^.module_imports)
+      world <- get
+      canon_get_resolve lift_err world package_name imports
   
   , get_available_modules = \package_name -> do
-      packages <- use world
+      packages <- use world_packages
       case Map.lookup package_name packages of 
-        Just package -> pure $ get_paths (package^.package_modules)
-        Nothing -> throwError $ liftErr $ InternalErr ("couldn't find package:" <+> pretty package_name)
+        Just (_, package) -> pure $ get_paths (package^.package_modules)
+        Nothing -> throwError $ lift_err $ InternalErr ("couldn't find package:" <+> pretty package_name)
 
   , get_available_packages = do
-      packages <- use world
+      packages <- use world_packages
       pure $ Map.foldrWithKey (\k _ l -> (k: l)) [] packages
 
   , run = \s mon -> 
-      pure $ case run_gen $ runExceptT $ runStateT mon s of 
+      pure $ case run_gen $ runExceptT $ runStateT (unCanonM mon) s of 
         Right (v,s) -> (Right v, s)
         Left err -> (Left err, s)
 
-  , start_state = Context Map.empty
+  , start_state = World Map.empty
   , stop = pure ()
-
-  , to_image = error "to_image not implemented"
-  , from_image = error "to_image not implemented"
   }
-
-to_globmap :: MTree InternalModule -> Map Path (Maybe InternalCore, InternalCore)
-to_globmap (MTree root) = Map.foldrWithKey (go []) Map.empty root
-  where 
-    go :: [Text] -> Text -> (Maybe InternalModule, Maybe (MTree InternalModule))
-       -> Map Path (Maybe InternalCore, InternalCore)
-       -> Map Path (Maybe InternalCore, InternalCore)
-    go psf name (mim, mw) gmap = gmap''
-      where 
-        gmap' = case mim of 
-          Just modul -> foldl (add_entry (name : psf)) gmap (modul^.module_entries)
-          Nothing -> gmap
-        gmap'' = case mw of 
-          Just (MTree child) -> Map.foldrWithKey (go (name : psf)) gmap' child
-          Nothing -> gmap'
-    
-    add_entry :: [Text] -> Map Path (Maybe InternalCore, InternalCore) -> InternalEntry -> Map Path (Maybe InternalCore, InternalCore)
-    add_entry psf gmap entry = case entry of
-      Singleχ _ (AnnBind (n, ty)) val -> Map.insert (Path $ NonEmpty.reverse (name_text n :| psf)) (Just val, ty) gmap 
-    
-
-to_eworld :: MTree InternalModule -> MTree (EModule (Maybe InternalCore, InternalCore))
-to_eworld world = flip fmap world $ \mod ->
-  EModule (mod^.module_header) (mod^.module_imports) (mod^.module_exports) $ flip fmap (mod^.module_entries) $ \case
-   Singleχ _ (AnnBind (n,ty)) val -> (n, (name_text n), (Just val, ty))

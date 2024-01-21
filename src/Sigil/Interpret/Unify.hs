@@ -950,11 +950,6 @@ unwind core = fmap (_2 %~ reverse) (go core)
 wind :: (Atom', [InternalCore]) -> InternalCore
 wind (a, vars) = foldl App (unatom a) vars
     
--- telescope :: Core b n χ -> ([b n (Core b n χ)], Core b n χ)
--- telescope term = case term of
---   Abs χ b body -> (_1 %~ (:) b) $ telescope body
---   a -> ([], a)
-
 untelescope :: ([AnnBind Name InternalCore], InternalCore) -> InternalCore
 untelescope (bindings, body) = foldr (Abs Regular) body bindings
 
@@ -983,7 +978,6 @@ get_base _ a = a
 
 throw :: (MonadError err m, ?lift_err :: Doc ann -> err) => Doc ann -> m a
 throw doc = throwError $ ?lift_err doc
-
 
 -- Helper functions that maybe can be moved to another file??  
 

@@ -22,10 +22,8 @@ import Prettyprinter.Render.Sigil
 
 import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
-import Sigil.Abstract.Environment
 import Sigil.Parse.Lexer
 import Sigil.Interpret.Interpreter
-import Sigil.Concrete.Internal
 
 import InterpretUtils
 import Actions.Package
@@ -51,8 +49,8 @@ data Command
   | Quit
   | Malformed SigilDoc
 
-interactive_cli :: forall m e s t f. (MonadError SigilDoc m, MonadGen m, Environment Name e)
-  => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f -> InteractiveCliOpts -> IO ()
+interactive_cli :: forall m env s. (MonadError SigilDoc m, MonadGen m)
+  => Interpreter m SigilDoc env s -> InteractiveCliOpts -> IO ()
 interactive_cli interp@(Interpreter {..}) opts = do
     (merr, state') <- run start_state $ do
       intern_package
@@ -108,7 +106,7 @@ interactive_cli interp@(Interpreter {..}) opts = do
       text <- readFile (unpack filename)
       (result, state') <- run state $ do
         mod <- eval_mod interp package_name filename text
-        intern_module package_name (mod^.module_header) mod
+        intern_module (mod^.module_header) mod
         pure mod
         
       case result of
@@ -146,7 +144,7 @@ command_parser = do
       l <- sep anyvar (C.char '.' <* sc)
       path <- case l of 
         [] -> fail "import path must be nonempty"
-        (x:xs) -> pure (Path $ x:|xs)
+        (x:xs) -> pure (x:|xs)
       modifier <- pModifier <|> pure ImSingleton
       pure . Import $ Im (path, modifier)
 

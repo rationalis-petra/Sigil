@@ -66,6 +66,8 @@ import Prelude hiding (lookup, length)
 import Control.Lens (makeLenses, (^.))
 import Data.Kind
 import Data.List (intersperse)
+import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.Map (Map)
 import Data.Set (Set)
 import Data.Foldable
@@ -120,6 +122,11 @@ data Core b n χ
   | Indχ (Indχ χ) n ((Functorχ χ) (Core b n χ)) [(Text, Core b n χ)]
   | Ctrχ (Ctrχ χ) Text ((Functorχ χ) (Core b n χ))
   | Recχ (Recχ χ) (b n (Core b n χ)) (Core b n χ) [Case b n χ]
+
+  -- Structures: Type, intro, elim
+  -- | Sigχ (Sigχ χ) [(Text, (b n (Core b n χ)))]
+  -- | Sctχ (Sctχ χ) [(Text, (b n (Core b n χ)))]
+  -- | Prjχ (Prjχ χ) (Core b n χ) Text
 
   -- All our Homotopy Types 
   -- Eql (ι) is an equality type
@@ -207,7 +214,7 @@ data Package m = Package { _package_header :: PackageHeader
                          , _package_modules :: (MTree m)
                          }
 
-newtype MTree m = MTree { untree :: Map Text (Maybe m, Maybe (MTree m)) }
+newtype MTree a = MTree { untree :: Map Text (Maybe a, Maybe (MTree a)) }
 
 $(makeLenses ''PackageHeader)
 $(makeLenses ''Package)
@@ -261,10 +268,10 @@ data ExportModifier
   | ExSingleton
   deriving (Ord, Eq, Show)
 
-newtype ImportDef = Im { unImport :: (Path, ImportModifier) }
+newtype ImportDef = Im { unImport :: (NonEmpty Text, ImportModifier) }
   deriving (Eq, Ord, Show)
 
-newtype ExportDef = Ex { unEexport :: (Path, ExportModifier) }
+newtype ExportDef = Ex { unEexport :: (NonEmpty Text, ExportModifier) }
   deriving (Eq, Ord, Show)
 
 -- TODO: add fields!
@@ -382,6 +389,10 @@ pretty_core_builder pretty_name pretty_coreχ c =
           PatCtr _ _ -> "(" <> pretty_pat p <> ")"
           PatVar _ -> pretty_pat p
 
+    -- Sigχ _ fields ->
+    -- Sctχ _ fields ->
+    -- Prjχ _ val field ->
+
     Eqlχ _ tel ty a a' ->
       ("ι"
        <+> pretty_tel tel
@@ -453,8 +464,11 @@ pretty_mod_builder pretty_entry m =
     ("module" <+> (foldl' (<>) "" . zipWith (<>) ("" : repeat ".") . fmap pretty . toList . unPath $ (m^.module_header)))
     : emptyDoc : intersperse emptyDoc (fmap (align . pretty_entry) (m^.module_entries))
 
+pretty_path :: NonEmpty Text -> Doc ann  
+pretty_path = fold . fmap pretty . NonEmpty.intersperse "."
+
 instance Pretty ImportDef where
-  pretty (Im (path, mod)) = pretty path <> case mod of
+  pretty (Im (path, mod)) = pretty_path path <> case mod of
     ImWildcard -> ".(…)"
     ImSingleton -> ""
     ImAlias fm to -> "" <+> pretty fm <+> "→" <+> pretty to
@@ -462,7 +476,7 @@ instance Pretty ImportDef where
     ImGroup set -> " (." <> (sep . fmap pretty . toList $ set) <> ")"
   
 instance Pretty ExportDef where
-  pretty (Ex (path, mod)) = pretty path <> case mod of
+  pretty (Ex (path, mod)) = pretty_path path <> case mod of
     ExWildcard -> ".(..)"
     ExAsType -> "astype??" -- TODO what did I mean??
     ExSeal -> "↓"

@@ -15,9 +15,7 @@ import qualified Graphics.Vty as V
 import qualified Brick.Types as T
 import Brick.Main (halt)
 
-import Sigil.Abstract.Names (Name, MonadGen)
-import Sigil.Abstract.Environment (Environment)
-import Sigil.Concrete.Internal (InternalCore)
+import Sigil.Abstract.Names (MonadGen)
 import Sigil.Interpret.Interpreter
 
 import Tui.Types
@@ -78,8 +76,8 @@ default_keymap self = \case
   Structural -> []
 
 
-module_keymap :: forall m e s t f id. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-                    Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
+module_keymap :: forall m env s id. (MonadError SigilDoc m, MonadGen m) =>
+                    Interpreter m SigilDoc env s
               -> Lens' (InteractiveState s) (Editor (InteractiveState s) id) -> EditMode -> Keymap (T.EventM id (InteractiveState s) ())
 module_keymap interpreter self = \case 
             -- Movement

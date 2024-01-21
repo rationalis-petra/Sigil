@@ -49,9 +49,7 @@ import Sigil.Parse.Combinator
 import Sigil.Parse.Lexer
 import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
-import Sigil.Abstract.Environment
 import Sigil.Interpret.Interpreter
-import Sigil.Concrete.Internal (InternalCore)
 
 import InterpretUtils
 
@@ -113,12 +111,14 @@ build_dependency_list dirnames = do
 
   -- Step 2: Read the headers of all these files and convert these headers into
   --         a Map-representation of a DAG 
+  --         TODO: current bug: if file dependes on module in another package,
+  --         will assume it's in this package!!
   graph_map <- runExceptT $ forM files $ \filename -> do
     contents <- liftIO $ readFile filename
     case runParser mod_header filename contents of 
       Left err -> throwError $ pretty $ errorBundlePretty err
       Right (_, ports) ->
-        pure (filename, Set.fromList $ map (unpack . fold . intersperse "/" . toList . unPath . fst . unImport) (lefts ports))
+        pure (filename, Set.fromList $ map (unpack . fold . intersperse "/" . toList . fst . unImport) (lefts ports))
 
   -- Step 4: Use Topograph to sort the graph (or return an error)
   case graph_map of
@@ -129,8 +129,8 @@ build_dependency_list dirnames = do
     Left err -> pure $ Left err
 
 
-load_package_files :: forall m e s t f. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-                    Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
+load_package_files :: forall m env s. (MonadError SigilDoc m, MonadGen m) =>
+                    Interpreter m SigilDoc env s
                    -> s -> Text -> [String] -> IO (Either SigilDoc s)
 load_package_files interpreter istate pkg_name files = runExceptT (go istate files) 
   where
@@ -146,7 +146,7 @@ load_package_files interpreter istate pkg_name files = runExceptT (go istate fil
         Left err -> throwError err
       (result, istate') <- liftIO $ (run interpreter) istate $ do
         mod <- eval_mod interpreter pkg_name (pack filename) contents
-        (intern_module interpreter) pkg_name (mod^.module_header) mod
+        (intern_module interpreter) (mod^.module_header) mod
         pure mod
       case result of
         Left err -> throwError err
@@ -156,8 +156,8 @@ load_package_files interpreter istate pkg_name files = runExceptT (go istate fil
 
 
 -- build_dependency_list :: [FilePath] -> IO (Either SigilDoc [FilePath])
-load_package :: forall m e s t f. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-                    Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
+load_package :: forall m env s. (MonadError SigilDoc m, MonadGen m) =>
+                    Interpreter m SigilDoc env s
           -> s -> Text -> IO (Either SigilDoc s)
 load_package interp state filename = do
     out <- liftIO $ (Right <$> readFile (unpack filename)) `Exception.catch` (pure . Left)

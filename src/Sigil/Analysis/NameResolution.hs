@@ -12,7 +12,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Data.List.NonEmpty ()
 import Data.Map (Map, lookup, insert)
 import Data.Text (Text)
-import Data.List.NonEmpty (NonEmpty(..))
+import Data.List.NonEmpty ()
 
 import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
@@ -29,9 +29,9 @@ import Sigil.Concrete.Resolved
 {-------------------------------------------------------------------------------}
 
 class ResolveTo a b | a -> b where
-  resolve :: (MonadGen m, MonadError err m) => (Text -> err) -> Map Text (Either Integer QualName) -> a -> m b
+  resolve :: (MonadGen m, MonadError err m) => (Text -> err) -> Map Text (Either Integer Path) -> a -> m b
 
-resolve_closed :: (MonadGen m, MonadError err m, ResolveTo a b) => (Text -> err) -> Map Text QualName -> a -> m b
+resolve_closed :: (MonadGen m, MonadError err m, ResolveTo a b) => (Text -> err) -> Map Text Path -> a -> m b
 resolve_closed lift_err rmap = resolve lift_err (fmap Right rmap)
 
 instance ResolveTo a b => ResolveTo (a, a, a) (b, b, b) where
@@ -148,13 +148,13 @@ instance ResolveTo (Formula Text ParsedCore) (Formula Name ResolvedCore) where
       pure $ Bind q n ty' f'
 
 
-resolve_entry :: (MonadGen m, MonadError err m) => (Text -> err) -> Path -> Map Text (Either Integer QualName) -> ParsedEntry -> m ResolvedEntry
+resolve_entry :: (MonadGen m, MonadError err m) => (Text -> err) -> Path -> Map Text (Either Integer Path) -> ParsedEntry -> m ResolvedEntry
 resolve_entry lift_err path vars entry = case entry of
   Singleχ rn (OptBind (t,a)) val -> do
-    let qn = (path <>) . Path . (:| []) <$> t
-        n = Name . Left . unPath <$> qn
+    let qn = path_snoc path <$> t
+        n = Name . Left <$> qn
         vars' = case (t, qn) of
-          (Just tx, Just nm) -> insert tx (Right $ unPath nm) vars
+          (Just tx, Just nm) -> insert tx (Right $ nm) vars
           _ -> vars
     a' <- mapM (resolve lift_err vars) a
     val' <- resolve lift_err vars' val
@@ -162,13 +162,13 @@ resolve_entry lift_err path vars entry = case entry of
 
 
 -- TODO: interface with environment somehow? (based on imports/exports)
-resolve_module :: (MonadGen m, MonadError err m) => (Text -> err) -> Path -> Map Text (Either Integer QualName) -> ParsedModule -> m ResolvedModule
+resolve_module :: (MonadGen m, MonadError err m) => (Text -> err) -> Path -> Map Text (Either Integer Path) -> ParsedModule -> m ResolvedModule
 resolve_module lift_err path vars modul = do
   entries' <- resolve_entries vars (modul^.module_entries)
   pure $ (module_entries .~ entries') modul
 
   where 
-    --resolve_entries :: (MonadGen m, MonadError err m) => Map Text (Either Integer QualName) -> [ParsedEntry] -> m [ResolvedEntry]
+    --resolve_entries :: (MonadGen m, MonadError err m) => Map Text (Either Integer Path) -> [ParsedEntry] -> m [ResolvedEntry]
     resolve_entries _ [] = pure []
     resolve_entries vars (e:es) = do
       e' <- resolve_entry lift_err path vars e
@@ -180,4 +180,4 @@ resolve_module lift_err path vars modul = do
         maybe vars (\(nm, txt) -> insert txt nm vars) (get_local_name <$> n)
 
     get_local_name (Name (Right (id, text))) = (Left id, text)
-    get_local_name (Name (Left p)) = (Right p, NonEmpty.last p)
+    get_local_name (Name (Left p)) = (Right p, NonEmpty.last $ snd $ unPath p)

@@ -27,8 +27,6 @@ import Prettyprinter.Render.Sigil
 import Prettyprinter.Render.Text
 
 import Sigil.Abstract.Names hiding (bind)
-import Sigil.Abstract.Environment
-import Sigil.Concrete.Internal
 import Sigil.Interpret.Interpreter
 
 import Server.Agent
@@ -41,8 +39,8 @@ data ServerOpts = ServerOpts
   deriving (Show, Read, Eq)
 
 
-server :: forall m e s t f. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f -> ServerOpts -> IO ()
+server :: forall m env s. (MonadError SigilDoc m, MonadGen m) =>
+  Interpreter m SigilDoc env s -> ServerOpts -> IO ()
 server interpreter opts = do
   putStrLn "starting server!"
   runTCPServer Nothing (show $ port opts) (threadWorker interpreter)
@@ -75,8 +73,8 @@ runTCPServer mhost port worker = withSocketsDo $ do
             forkFinally (worker conn) (const $ gracefulClose conn 5000)
 
 
-threadWorker :: forall m e s t f. (MonadError SigilDoc m, MonadGen m, Environment Name e)
-  => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f -> Socket -> IO ()
+threadWorker :: forall m env s. (MonadError SigilDoc m, MonadGen m)
+  => Interpreter m SigilDoc env s -> Socket -> IO ()
 threadWorker interpreter socket = putStrLn "worker started!" >> loop (packetProducer socket) (start_state interpreter)
   where
     loop :: Producer Bs.ByteString IO () -> s -> IO ()
@@ -95,8 +93,8 @@ threadWorker interpreter socket = putStrLn "worker started!" >> loop (packetProd
       = either (>> pure state) id .  bimap (putStrLn . ("Error: " <>) . pack . show) (processMessage interpreter state socket)
 
 
-processMessage :: forall m e s t f. (MonadError SigilDoc m, MonadGen m, Environment Name e)
-  => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f -> s -> Socket -> InMessage -> IO s
+processMessage :: forall m env s. (MonadError SigilDoc m, MonadGen m)
+  => Interpreter m SigilDoc env s -> s -> Socket -> InMessage -> IO s
 processMessage interp@(Interpreter {..}) state socket = \case
   EvalExpr uid _ code -> do
     (result, state') <- run state $ eval_expr interp "sigil-user" [] code

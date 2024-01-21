@@ -4,7 +4,6 @@ module Sigil.Interpret.Interpreter
   , FunctionPragma(..)
   , ArithFun(..)
   , InterpreterErr(..)
-  , Image(..)
   ) where
 
 
@@ -24,13 +23,15 @@ module Sigil.Interpret.Interpreter
 
 import Data.Text (Text)
 import Data.Map (Map)
+import Data.List.NonEmpty (NonEmpty)
 
 import Prettyprinter.Render.Sigil
 
 import Sigil.Abstract.Names
 import Sigil.Abstract.Unify
 import Sigil.Abstract.Substitution
-import Sigil.Abstract.Syntax (ImportDef, MTree)
+import Sigil.Abstract.Environment
+import Sigil.Abstract.Syntax (ImportDef)
 import Sigil.Analysis.Typecheck
 import Sigil.Parse.Mixfix (Precedences)
 import Sigil.Concrete.Internal
@@ -39,55 +40,47 @@ import Sigil.Concrete.Internal
 {---------------------------------- INTERFACE ----------------------------------}
 
 
-data Image a = Image (MTree a) (Restarts a)
-
-type Restarts a = [IO a]
-
 -- m = monad
--- env = environment
+-- err = error type
+-- env = environment 
 -- s = state
--- t = term representation
-data Interpreter m err env s t f = Interpreter
-  -- Converting to/from the term representation, 't'
-  { reify :: InternalCore -> m t
-  , reflect :: t -> m InternalCore
-
-  , reify_formula :: Formula Name InternalCore -> m f
-  , reflect_formula :: f -> m (Formula Name InternalCore)
-
+data Interpreter m err env s = Interpreter
   {--------------------- Term Queries and Transformations ----------------------}
   -- Evaluate a term t in the environment e
-  , eval :: (err -> err) -> env -> t -> t -> m t
+  { eval :: (err -> err) -> env -> InternalCore -> InternalCore -> m InternalCore
+  -- norm :: 
   -- Return true if two terms are canonically equal, false otherwise 
-  , norm_eq :: (err -> err) -> env -> t -> t -> t -> m Bool
+  , norm_eq :: (err -> err) -> env -> InternalCore -> InternalCore -> InternalCore -> m Bool
   -- Higher Order Unification algorithm implementation
-  , solve_formula :: (err -> err) -> env -> f -> m (Substitution Name t)
+  , solve_formula :: (err -> err) -> env -> (Formula Name InternalCore) -> m (Substitution Name InternalCore)
 
   {------------------------- Environment Manipulation --------------------------}
   -- Create or get a package
   , make_package :: Text -> m ()
   , intern_package :: Text -> InternalPackage -> m ()
-  , reify_package :: Text -> m InternalPackage
+  , get_package :: Text -> m InternalPackage
+
   -- Modify a package
   , set_package_imports :: Text -> [Text] -> m ()
   , set_package_exports :: Text -> [Text] -> m ()
-  , intern_module :: Text -> Path -> InternalModule -> m ()
+  , intern_module :: Path -> InternalModule -> m ()
 
   {---------------------------- Environment Queries ----------------------------}
+  -- , env_lookup :: Name -> env -> m (Maybe InternalCore, InternalCore)
+  -- , env_insert :: Name -> (Maybe InternalCore, InternalCore) -> env -> m env
+  
   -- Get the initial environment/precedences for a given package with a
   -- set of imports.
-  , get_env :: Text -> [ImportDef] -> m env
+  , get_env :: m (Env env m)
   , get_precs :: Text -> [ImportDef] -> m Precedences
-  , get_resolve :: Text -> [ImportDef] -> m (Map Text QualName)
+  , get_resolve :: Text -> [ImportDef] -> m (Map Text Path)
 
-  -- As above, but in the context of a specific module, rather than a package + imports.
-  , get_module_env :: Text -> Path -> m env
-  , get_module_precs :: Text -> Path -> m Precedences
-  , get_module_resolve :: Text -> Path -> m (Map Text QualName)
+  -- This function is for use when typechecking a modules in an incomplete package
+  -- , get_partial_env :: m env
 
   -- Get all packages, get all module paths in a package (does not include imported modules)
   , get_available_packages :: m [Text]
-  , get_available_modules :: Text -> m [Path]
+  , get_available_modules :: Text -> m [NonEmpty Text]
 
   {------------------------------ Using the Monad ------------------------------}
   -- The Monad m
@@ -96,11 +89,6 @@ data Interpreter m err env s t f = Interpreter
   -- Startup and close should be used for state s  
   , start_state :: s
   , stop :: m ()
-
-  {---------------------------------- Images -----------------------------------}
-  -- Producing/Loading an image 
-  , from_image :: Image InternalCore -> m ()
-  , to_image :: m (Image InternalCore)
   }
 
 data InbuiltType = InbuiltNat | InbuiltFloat | InbuiltSigned | InbuiltUnsigned | InbuiltChar 

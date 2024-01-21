@@ -35,7 +35,7 @@ import Prettyprinter hiding (lparen, rparen)
 
 import Sigil.Abstract.Syntax
 import Sigil.Abstract.Unify
-import Sigil.Abstract.Names (OptBind(..), name)
+import Sigil.Abstract.Names (Path(..), OptBind(..), name)
 import Sigil.Concrete.Decorations.Range
 import Sigil.Concrete.Parsed
 
@@ -46,11 +46,11 @@ import Sigil.Parse.Outer
 import Sigil.Parse.Mixfix
 
 
-mod :: MonadError SigilDoc m => ([ImportDef] -> m Precedences)
+mod :: MonadError SigilDoc m => Text -> ([ImportDef] -> m Precedences)
   -> Text -> Text -> m ParsedModule
-mod get_precs filename input = do
+mod package_name get_precs filename input = do
   raw_mod <- parse syn_mod filename input
-  mix_mod get_precs raw_mod
+  mix_mod package_name get_precs raw_mod
 
 entry :: MonadError SigilDoc m => Precedences -> Text -> Text -> m ParsedEntry
 entry precs filename input = do
@@ -79,8 +79,8 @@ update_precs_def precs def =
 {-                                                                             -}
 {-------------------------------------------------------------------------------}      
 
-mix_mod :: MonadError SigilDoc m => ([ImportDef] -> m Precedences) -> SynModule -> m ParsedModule
-mix_mod get_precs (RModule title imports exports entries) = do
+mix_mod :: MonadError SigilDoc m => Text -> ([ImportDef] -> m Precedences) -> SynModule -> m ParsedModule
+mix_mod package_name get_precs (RModule title imports exports entries) = do
   precs <- get_precs imports
   body <- let go precs = \case
                 [] -> pure []
@@ -88,7 +88,7 @@ mix_mod get_precs (RModule title imports exports entries) = do
                   entry' <- mix_entry precs entry
                   (:) entry' <$> go (update_precs_def precs entry') entries
           in go precs entries
-  pure $ Module title imports exports body
+  pure $ Module (Path (package_name, title)) imports exports body
 
 
 mix_entry :: forall m. MonadError SigilDoc m => Precedences -> SynEntry -> m ParsedEntry

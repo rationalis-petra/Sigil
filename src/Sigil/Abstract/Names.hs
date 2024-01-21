@@ -1,9 +1,9 @@
 module Sigil.Abstract.Names
   ( UniqueName
   , Path(..)
-  , QualName
   , Name(..)
   , name_text
+  , path_snoc
 
   , Binding(..)
   , OptBind(..)
@@ -39,27 +39,29 @@ import Prettyprinter
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
-newtype Path = Path { unPath :: NonEmpty Text }
-  deriving (Eq, Ord, Semigroup)
+newtype Path = Path { unPath :: (Text, NonEmpty Text) }
+  deriving (Eq, Ord)
 
 instance Pretty Path where
-  pretty = fold . fmap pretty . NonEmpty.intersperse "." . unPath
+  pretty path = ("[" <> (pretty$fst$unPath path) <> "]") <> (fold . fmap pretty . NonEmpty.intersperse "." . snd . unPath $ path)
 
 instance Show Path where
-  show = fold . fmap show . NonEmpty.intersperse "." . unPath
+  show path = ("[" <> (show$fst$unPath path) <> "]") <> (fold . fmap show . NonEmpty.intersperse "." . snd . unPath $ path)
   
 -- A name with a unique identifier 
 type UniqueName = (Integer, Text)
 
 -- A qualified name is one which depends on the value of a toplevel definition
-type QualName = NonEmpty Text
 
-newtype Name = Name (Either QualName UniqueName)
+newtype Name = Name (Either Path UniqueName)
   deriving (Eq, Ord)
 
 name_text :: Name -> Text
-name_text (Name (Left (t :| ts))) = last (t : ts)
+name_text (Name (Left (Path (_, t :| ts)))) = last (t : ts)
 name_text (Name (Right (_, t))) = t
+
+path_snoc :: Path -> Text -> Path
+path_snoc (Path (pkg, path)) name = Path (pkg, path <> (name :| []))
 
 {------------------------------ BIND ABSTRACTION -------------------------------}
 {- There are 3 variants of binding we can have:                                -}

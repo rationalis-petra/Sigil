@@ -22,6 +22,7 @@ module Sigil.Parse.Outer
 
 import Prelude hiding (head, last, tail, mod)
 import Control.Monad (join)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import Data.Either (lefts, rights)
 import Data.List.NonEmpty (NonEmpty((:|)))
@@ -30,7 +31,6 @@ import qualified Text.Megaparsec.Char as C
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Megaparsec hiding (runParser, parse)
 
-import Sigil.Abstract.Names ( Path(..) )
 import Sigil.Abstract.Unify
 import Sigil.Abstract.Syntax
   ( ImportModifier(..), ImportDef(..),
@@ -54,16 +54,16 @@ with_range p = do
 {-                                                                             -}
 {-------------------------------------------------------------------------------}      
 
-mod_header :: ParserT m (Path, [Either ImportDef ExportDef])
+mod_header :: ParserT m (NonEmpty Text, [Either ImportDef ExportDef])
 mod_header = L.nonIndented scn (L.indentBlock scn modul)
   where 
-    modul :: ParserT m (L.IndentOpt (ParserT m) (Path, [Either ImportDef ExportDef]) [Either ImportDef ExportDef])
+    modul :: ParserT m (L.IndentOpt (ParserT m) (NonEmpty Text, [Either ImportDef ExportDef]) [Either ImportDef ExportDef])
     modul = do 
       symbol "module"
       title <- do
         l <- sepBy anyvar (C.char '.')
         case l of 
-          (x:xs) -> pure $ Path $ x :| xs
+          (x:xs) -> pure $ x :| xs
           [] -> fail "title must be nonempty"
       pure (L.IndentMany Nothing (pure . (title, ) . join) modulePart)
     
@@ -80,10 +80,11 @@ mod_header = L.nonIndented scn (L.indentBlock scn modul)
     importStatement = do
       var <- anyvar
       vars <- many (try $ C.char '.' *> anyvar)
-      isMany <- try (symbol ".(…)" *> pure True) <|> pure False
-      if isMany
-        then pure $ Im $ (,ImWildcard) $ Path $ var :| vars
-        else pure $ Im $ (,ImSingleton) $ Path $ var :| vars
+      choice' [ (symbol ".(…)" *> (pure $ Im $ (,ImWildcard) $ var :| vars))
+              , (do set <- Set.fromList <$> (C.char '.' *> between lparen rparen (many1 anyvar))
+                    pure $ Im $ (,ImGroup set) $ var :| vars)
+              , pure $ Im $ (,ImSingleton) $ var :| vars
+              ]
 
       
     exports :: ParserT m (L.IndentOpt (ParserT m) [Either ImportDef ExportDef] (Either ImportDef ExportDef))
@@ -92,7 +93,7 @@ mod_header = L.nonIndented scn (L.indentBlock scn modul)
      pure (L.IndentSome Nothing pure (fmap Right exportStatement))
     
     exportStatement :: ParserT m ExportDef
-    exportStatement = Ex . (,ExSingleton) . Path . (:| []) <$> anyvar
+    exportStatement = Ex . (,ExSingleton) . (:| []) <$> anyvar
 
 syn_mod :: Monad m => ParserT m SynModule
 syn_mod = do

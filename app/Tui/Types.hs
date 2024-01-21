@@ -20,12 +20,12 @@ module Tui.Types
   ) where
 
 import Data.Text
+import Data.List.NonEmpty (NonEmpty)
 
 import Lens.Micro.TH
 --import Brick.Widgets.Edit
 import qualified Brick.Types as T
 
-import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax (ImportDef)
 import Sigil.Concrete.Internal (InternalModule)
 
@@ -46,7 +46,7 @@ data InteractiveState s = InteractiveState
   -- session
   , _loadedPackages :: [Text]
   , _packageImports :: [Text]
-  , _availableModules :: [Path]
+  , _availableModules :: [NonEmpty Text]
 
   -- 
   , _location :: (Text, Maybe InternalModule, [ImportDef])

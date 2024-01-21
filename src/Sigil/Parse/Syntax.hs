@@ -8,12 +8,13 @@ module Sigil.Parse.Syntax
   ) where
 
 import Data.List (intersperse)
+import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.Text (Text)
 import Data.Foldable
 
 import Prettyprinter
 
-import Sigil.Abstract.Names (Path(..))
 import Sigil.Concrete.Decorations.Range
 import Sigil.Concrete.Decorations.Implicit
 import Sigil.Abstract.Syntax
@@ -41,7 +42,7 @@ data Syntax
   | RLfL Range RawTel Syntax Syntax
   | RLfR Range RawTel Syntax Syntax
 
-data SynModule = RModule Path [ImportDef] [ExportDef] [SynEntry]
+data SynModule = RModule (NonEmpty Text) [ImportDef] [ExportDef] [SynEntry]
 
 data SynEntry =
   RSingle Range Text (Maybe Syntax) Syntax
@@ -157,7 +158,7 @@ instance Pretty SynModule where
   -- TODO: imports/exports
   pretty (RModule path _ _ entries) = 
     vsep $
-    ("module" <+> (foldl' (<>) "" . zipWith (<>) ("" : repeat ".") . fmap pretty . toList . unPath $ path))
+    ("module" <+> (fold . NonEmpty.intersperse "." . fmap pretty $ path))
     : emptyDoc : intersperse emptyDoc (fmap (align . pretty) entries)
 
 

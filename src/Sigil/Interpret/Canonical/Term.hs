@@ -1,23 +1,37 @@
 {-# LANGUAGE ScopedTypeVariables, ImplicitParams #-}
-module Sigil.Interpret.Term
-  ( Term(..) ) where
+module Sigil.Interpret.Canonical.Term
+  ( Term(..)
+  , eval
+  , eval_module
+  , eval_package
+  ) where
 
 import Prelude hiding (head, lookup)
 import Control.Monad((<=<))
 import Control.Monad.Except (MonadError, throwError)
-import Data.Kind
+import Control.Lens(view, (^.))
+
+import qualified Data.Map as Map
+import qualified Data.List.NonEmpty as NonEmpty
+import qualified Data.Set as Set
+import Data.Set (Set)
+import Data.List.NonEmpty (NonEmpty(..))
 import Data.Maybe
 import Data.Text (Text)
 import Data.Foldable (find)
-import Data.Map (Map)
 
 import Prettyprinter
+import Topograph
 
 import Sigil.Abstract.Names
-import Sigil.Abstract.Environment
+import Sigil.Abstract.Syntax (Entry(..), MTree(..)
+                             , module_header, module_entries, module_exports, module_imports
+                             , package_modules, package_header, package_name, provides, requires
+                             , ImportDef(..) )
+import Sigil.Abstract.Environment (insert_at_path, get_modulo_path)
 import Sigil.Abstract.AlphaEq
 import Sigil.Concrete.Internal
-import Sigil.Concrete.Decorations.Implicit
+import Sigil.Interpret.Canonical.Values
   
 
 {------------------------------ THE TERM CLASSES -------------------------------}
@@ -25,13 +39,12 @@ import Sigil.Concrete.Decorations.Implicit
 {- supports two primary methods:                                               -}
 {- • normalize: convert to canonical (Β-normal, η-long) form                   -}
 {- • equiv: αβη equivalence                                                    -}
-{-                                                                             -}
 {-------------------------------------------------------------------------------}
 
 
 class Term a where
-  normalize :: (MonadError err m, MonadGen m) => (Doc ann -> err) -> Env (Maybe a,a) -> a -> a -> m a
-  equiv :: (MonadError err m, MonadGen m) => (Doc ann -> err) -> Env (Maybe a,a) -> a -> a -> a -> m Bool
+  normalize :: (MonadError err m, MonadGen m) => (Doc ann -> err) -> SemEnv m -> a -> a -> m a
+  equiv :: (MonadError err m, MonadGen m) => (Doc ann -> err) -> SemEnv m -> a -> a -> a -> m Bool
 
 
 {------------------------------- IMPLEMENTATION --------------------------------}
@@ -53,32 +66,7 @@ class Term a where
 {- accompanied by their type. Neutral terms are those whose evaluation is      -}
 {- blocked because of an uninstantiated variable, e.g. f 2, where f is an      -}
 {- uninstantiated variable.                                                    -}
-{-                                                                             -}
 {-------------------------------------------------------------------------------}
-
-
-data Sem m
-  = SUni Integer
-  | SPrd ArgType Name (Sem m) (Sem m)
-  | SAbs Name (Sem m) (Sem m -> m (Sem m))
-  | SInd Name (Sem m) [(Text, Sem m -> m (Sem m))]
-  | SCtr Text (Sem m) [Sem m]
-  | SEql (SemTel m) (Sem m) (Sem m) (Sem m)
-  | SDap (SemTel m) (Sem m)
-  | STrL (SemTel m) (Sem m) (Sem m)
-  | STrR (SemTel m) (Sem m) (Sem m)
-  | Neutral (Sem m) (Neutral m)
-
-data Neutral m
-  = NeuVar Name
-  | NeuApp (Neutral m) (Normal m)
-  | NeuDap (SemTel m) (Neutral m) -- A neutral explicit substitution, must be empty!
-  | NeuRec Name (Sem m) (Neutral m)
-    [(Sem m -> Maybe (m (Sem m)), m (Pattern Name, Sem m))]
-
-data Normal (m :: Type -> Type) = Normal (Sem m) (Sem m)
-
-type SemTel m = [(Name, (Sem m, Sem m, Sem m), Sem m)]
 
 {-------------------------------- TERM INSTANCE --------------------------------}
 {- The term instance for Core applies type directed normalization by           -}
@@ -101,8 +89,8 @@ type SemTel m = [(Name, (Sem m, Sem m, Sem m), Sem m)]
 instance Term InternalCore where
   normalize lift_error env ty term =
     let ?lift_err = lift_error in
-      let ty' = eval ty =<< env_eval env
-          term' = eval term =<< env_eval env
+      let ty' = eval ty env
+          term' = eval term env
       in read_nf =<< (Normal <$> ty' <*> term')
 
 
@@ -208,8 +196,78 @@ read_ne neu = case neu of
     cases' <- mapM read_case cases
     pure $ Rec (AnnBind (nm, ty')) val' cases'
 
+eval_package :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => SemEnv m -> InternalPackage -> m (SemPackage m)
+eval_package env package = do
 
-eval :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => InternalCore -> Map Name (Sem m) -> m (Sem m)
+  -- dependencies :: MTree -> Map (NonEmpty Text) (Set (NonEmpty Text))
+  let dependencies (MTree mt) = Map.foldrWithKey (go []) Map.empty mt where
+        go psf name (m_mod, m_tree) out =
+          let out' = case m_mod of 
+                Just modul -> Map.insert (NonEmpty.reverse $ name :| psf) (mod_deps modul) out 
+                Nothing -> out
+          in case m_tree of
+            Just (MTree mt) -> Map.foldrWithKey (go (name : psf)) out' mt
+            Nothing -> out'
+
+
+      mod_deps :: InternalModule -> Set (NonEmpty Text)
+      mod_deps = Set.fromList . filter (flip Set.member pkg_mnames) .  fmap im_deps . (view module_imports)
+      im_deps (Im (p,_)) = p -- TODO: this is definitely wrong!
+
+      -- The set of available modules (internal) whose paths are available 
+      pkg_mnames :: Set (NonEmpty Text)
+      pkg_mnames = go1 (package^.package_modules) Set.empty where
+        go1 (MTree mt) out =
+          Map.foldrWithKey (go2 []) out mt
+
+        go2 :: [Text] -> Text -> (Maybe InternalModule, Maybe (MTree InternalModule)) -> Set (NonEmpty Text) -> Set (NonEmpty Text)
+        go2 psf k (mm, mt) out =
+          let out' = maybe out (const $ Set.insert (NonEmpty.reverse (k :| psf)) out) mm
+          in case mt of 
+            Just (MTree subtree) -> Map.foldrWithKey (go2 (k:psf)) out' subtree 
+            Nothing -> out'
+
+   
+  let eval_package_modules :: [NonEmpty Text] -> m (MTree (SemModule m))
+      eval_package_modules mdle_names = foldl coll (pure (MTree Map.empty)) =<< get_modules mdle_names
+
+      get_modules :: [NonEmpty Text] -> m [InternalModule]
+      get_modules [] = pure []
+      get_modules (p : ps) = case get_modulo_path p (package^.package_modules) of 
+        Just (m, []) -> (m :) <$> get_modules ps
+        Just _ -> throw "Modulo path; can't deal"
+        Nothing -> throw "Lost module in get_modules in eval_package"
+
+
+      coll :: m (MTree (SemModule m)) -> InternalModule -> m (MTree (SemModule m))
+      coll comp_mtree modul = do
+        mtree <- comp_mtree
+        smodule <- eval_module ( fst env
+                               , Map.insert (package^.package_header.package_name)
+                                 (SemPackage (package^.package_header.requires) (package^.package_header.provides) mtree)
+                                 (snd env) ) modul 
+        pure $ (insert_at_path (snd . unPath $ (modul^.module_header)) smodule mtree)
+      
+
+  -- Step 1: topological sort dependencies
+  modules' <- case runG (dependencies (package^.package_modules))
+                        (\g -> eval_package_modules $ fmap (gFromVertex g) $ gVertices g) of 
+    Left _ -> throw "Cyclic dependencies found in package"
+    Right m -> m
+    
+  pure $ SemPackage (package^.package_header.requires) (package^.package_header.provides) modules'
+  
+
+eval_module :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => SemEnv m -> InternalModule -> m (SemModule m)
+eval_module env modul = 
+  let go env (Singleχ _ (AnnBind (n, _)) val : es) = do
+        val' <- eval val env
+        ((name_text n, val') :) <$> go (insert n val' env) es
+      go _ [] = pure []
+  in SemModule (modul^.module_imports) (modul^.module_exports)
+      <$> go env (modul^.module_entries)
+
+eval :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => InternalCore -> SemEnv m -> m (Sem m)
 eval term env = case term of
   Uni n -> pure $ SUni n
   Prd at bnd b -> do
@@ -249,7 +307,7 @@ eval term env = case term of
           , ((pat,) <$> (eval core =<< (insert rname (Neutral rty' (NeuVar rname)) <$> match_neu env pat a)))
           )
 
-        match :: Map Name (Sem m) -> Pattern Name -> Sem m -> Maybe (Map Name (Sem m))
+        match :: SemEnv m -> Pattern Name -> Sem m -> Maybe (SemEnv m)
         match env (PatVar n) v = Just $ insert n v env
         match env (PatCtr n subpats) (SCtr n' _ vals)
           | n == n' = foldl (\menv (p, v) -> do -- TODO: check that foldl is corect!
@@ -258,7 +316,7 @@ eval term env = case term of
           | otherwise = Nothing
         match _ _ _ = Nothing
 
-        match_neu :: Map Name (Sem m) -> Pattern Name -> Sem m -> m (Map Name (Sem m))
+        match_neu :: SemEnv m -> Pattern Name -> Sem m -> m (SemEnv m)
         match_neu env (PatVar n) ty = pure $ insert n (Neutral ty (NeuVar n)) env
         match_neu env (PatCtr label subpats) (SInd _ _ ctors) = do
           -- args <- ty_args label ctors
@@ -314,7 +372,7 @@ eval term env = case term of
 {-------------------------------------------------------------------------------}
 
 eval_over :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err)
-  => Map Name (Sem m) -> (SemTel m -> Sem m -> Sem m -> Sem m)
+  => (SemEnv m) -> (SemTel m -> Sem m -> Sem m -> Sem m)
     -> SemTel m -> Sem m -> Sem m -> m (Sem m) 
 eval_over env ctor tel ty val = do
   -- reduce over type families
@@ -343,8 +401,8 @@ eval_over env ctor tel ty val = do
     _ -> throw ("over expects a type as first value, got:" <+> pretty ty)
 
 eval_tel :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err)
-  => Map Name (Sem m) -> [(AnnBind Name (InternalCore, InternalCore, InternalCore), InternalCore)]
-    -> m ([(Name, (Sem m, Sem m, Sem m), Sem m)], Map Name (Sem m))
+  => (SemEnv m) -> [(AnnBind Name (InternalCore, InternalCore, InternalCore), InternalCore)]
+    -> m ([(Name, (Sem m, Sem m, Sem m), Sem m)], SemEnv m)
 eval_tel env [] = pure ([], env)
 eval_tel env ((bnd, id) : tel) = do 
   name <- fromMaybe (throw "Eql Telescope must bind a name") (fmap pure $ name bnd)
@@ -367,9 +425,9 @@ eval_tel env ((bnd, id) : tel) = do
 
 eval_stel :: forall m err ann
   . (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err)
-  => Map Name (Sem m) -> SemTel m -> m (SemTel m, Map Name (Sem m))
+  => (SemEnv m) -> SemTel m -> m (SemTel m, SemEnv m)
 eval_stel env tel = go env tel [] where 
-  go :: Map Name (Sem m) -> SemTel m -> SemTel m -> m (SemTel m, Map Name (Sem m))
+  go :: (SemEnv m) -> SemTel m -> SemTel m -> m (SemTel m, SemEnv m)
   go env ((name, (ity, v1, v2), id) : tel) tel_out = do
     id' <- eval_sem env id
     -- Note: telescopes over refl reduce to regular equalities
@@ -398,7 +456,7 @@ eval_stel env tel = go env tel [] where
 -- Used in Dap, TrL, TrR
 --eval_tm_tel tel_out [] val ty_terms val_terms = case val of 
 
-eval_sem :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Map Name (Sem m) -> (Sem m) -> m (Sem m)
+eval_sem :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => (SemEnv m) -> (Sem m) -> m (Sem m)
 eval_sem env term = case term of
   SUni n -> pure $ SUni n
   SPrd at n a b -> do
@@ -429,7 +487,7 @@ eval_sem env term = case term of
   Neutral _ val -> eval_neusem env val 
 
 
-eval_neusem :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Map Name (Sem m) -> (Neutral m) -> m (Sem m)
+eval_neusem :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => (SemEnv m) -> (Neutral m) -> m (Sem m)
 eval_neusem env neu = case neu of 
   NeuVar n -> lookup_err ?lift_err n env
   NeuApp l (Normal _ r) -> do
@@ -452,7 +510,7 @@ app (Neutral (SPrd _ _ a b) neu) v =
   Neutral <$> (b `app` v) <*> pure (NeuApp neu (Normal a v))
 app l r = throw ("bad args to app:" <+> pretty l <+> "and" <+> pretty r) 
 
-dap :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Map Name (Sem m) -> SemTel m -> (Sem m) -> m (Sem m)
+dap :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => (SemEnv m) -> SemTel m -> (Sem m) -> m (Sem m)
 dap env tel term = case term of
   Neutral ty neu -> pure $ Neutral (SEql tel ty (Neutral ty neu) (Neutral ty neu)) (NeuDap tel neu)
   SAbs name a fnc -> do
@@ -475,7 +533,7 @@ dap env tel term = case term of
 
 
 recur :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err)
-  => Map Name (Sem m) -> Name -> Sem m -> Sem m -> [(Sem m -> Maybe (m (Sem m)), m (Pattern Name, Sem m))] -> m (Sem m)
+  => (SemEnv m) -> Name -> Sem m -> Sem m -> [(Sem m -> Maybe (m (Sem m)), m (Pattern Name, Sem m))] -> m (Sem m)
 recur _ rname rty@(SPrd _ _ _ b) val cases =
     case val of 
       SCtr _ _ _ -> case find (isJust) (map (($ val) . fst) cases) of 
@@ -486,7 +544,7 @@ recur _ rname rty@(SPrd _ _ _ b) val cases =
       _ -> throw "recur must induct over a constructor"
 recur _ _ _ _ _ = throw "recur expects recursive type to be fn" 
 
-eql :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Map Name (Sem m) -> [(Name, (Sem m, Sem m, Sem m), Sem m)] -> Sem m
+eql :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => (SemEnv m) -> [(Name, (Sem m, Sem m, Sem m), Sem m)] -> Sem m
   -> Sem m -> Sem m -> m (Sem m)
 eql env tel tipe v1 v2 = case tipe of
   Neutral _ _ -> SEql tel tipe <$> eval_sem env v1 <*> eval_sem env v2 -- TODO: is this neutral??
@@ -513,20 +571,6 @@ eql env tel tipe v1 v2 = case tipe of
   SUni n -> SEql tel (SUni n) <$> eval_sem env v1 <*> eval_sem env v2
   SInd _ _ _  -> throw ("Don't know how to reduce ι at type:" <+> pretty tipe)
   _ -> throw ("ι must reduce on type, got:" <+> pretty tipe)
-
-env_eval :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Env (Maybe InternalCore, InternalCore) -> m (Map Name (Sem m))
-env_eval = eval_helper ?lift_err eval_var 
-  where
-    eval_var :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) =>
-                Map Name (Sem m) -> Name -> (Maybe InternalCore, InternalCore) -> m (Sem m)
-    eval_var env n (Nothing, ty) = mkvar env n ty
-    eval_var env _ (Just val, _) = eval val env
-    
-    mkvar :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) =>
-              Map Name (Sem m) -> Name -> InternalCore -> m (Sem m)
-    mkvar env n ty = do
-      ty' <- eval ty env
-      pure $ Neutral ty' (NeuVar n)
   
 -- TODO: fix this function - it is wrong!
 uni_level :: Sem m -> Integer
@@ -545,64 +589,9 @@ uni_level sem = case sem of
 throw :: (MonadError err m, ?lift_err :: Doc ann -> err) => Doc ann -> m a
 throw doc = throwError $ ?lift_err doc
 
-{-------------------------------- MISC INSTANCES -------------------------------}
-{-                                                                             -}
-{-                                                                             -}
-{-                                                                             -}
-{-------------------------------------------------------------------------------}
+    
+  
 
+  
 
-instance Pretty (Sem m) where
-  pretty sem = case sem of 
-    SUni n -> "𝕌" <> pretty_subscript n
-      where
-        pretty_subscript =
-          pretty . fmap to_subscript . show
-        to_subscript c = case c of 
-          '0' -> '₀' 
-          '1' -> '₁'
-          '2' -> '₂'
-          '3' -> '₃'
-          '4' -> '₄'
-          '5' -> '₅'
-          '6' -> '₆'
-          '7' -> '₇'
-          '8' -> '₈'
-          '9' -> '₉'
-          _ -> c
-    SPrd at n a b -> case at of
-      Regular -> "(" <> pretty n <+> "⮜" <+> pretty a <> ")" <+> "→" <+> pretty b
-      Implicit -> "⟨" <> pretty n <+> "⮜" <+> pretty a <> ")" <+> "→" <+> pretty b
-    SAbs n _ _ -> "λ (" <> pretty n <> ")" <+> "..."
-    SEql tel ty a b -> "ι" <+> pretty_tel tel <+> pretty ty <+> pretty a <+> pretty b
-    SDap tel val -> "ρ" <+> pretty_tel tel <+> pretty val
-
-    SInd nm val ctors ->
-      "μ" <+> pretty nm <+> "⮜" <+> pretty val
-      <+> nest 2 (vsep (map (\(l,_) -> pretty l <+> "⮜" <+> "...") ctors))
-    SCtr label _ vals -> pretty (":" <> label) <+> sep (map pretty vals)
-    STrL tel ty val -> "⍃" <+> pretty_tel tel <+> pretty ty <+> pretty val
-    STrR tel ty val -> "⍄" <+> pretty_tel tel <+> pretty ty <+> pretty val
-
-    Neutral _ n -> pretty n
-    where 
-      pretty_tel [(name, (ty, v1, v2), id)] = 
-        pretty name <+> "⮜" <+> pretty ty <+> ("(" <> pretty v1 <+> "=" <+> pretty v2 <> ")") <+> "≜" <+> pretty id
-      pretty_tel ((name, (ty, v1, v2), id) : tel) = 
-        pretty name <+> "⮜" <+> pretty ty <+> ("(" <> pretty v1 <+> "=" <+> pretty v2 <> ")") <+> "≜" <+> pretty id
-             <+> "," <+> pretty_tel tel
-      pretty_tel [] = "."
-
-instance Pretty (Neutral m) where
-  pretty neu = case neu of
-    NeuVar n -> pretty n
-    NeuApp l r -> pretty l <+> pretty r
-    NeuDap _ val -> "ρ …." <+> pretty val
-    NeuRec name rty val _ ->
-      vsep [ "φ" <+> pretty name <+> "⮜" <+> pretty rty <> "," <+> pretty val <> "."
-           , nest 2 "..."
-           ] 
-        
-instance Pretty (Normal m) where
-  pretty (Normal _ val) = pretty val
 

@@ -15,6 +15,7 @@ module Sigil.Analysis.Typecheck
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
+import Prelude hiding (lookup)
 import Control.Monad.Except (MonadError, throwError)
 import Control.Lens
 import Control.Monad (forM)
@@ -42,9 +43,9 @@ instance SigilPretty TCErr where
     NormErr doc range -> vsep [doc, ("at: " <+> pretty range)]
     PrettyErr doc range -> vsep [doc, ("at: " <+> pretty range)]
 
-data CheckInterp m err e a = CheckInterp
-  { normalize :: (SigilDoc -> err) -> e (Maybe a, a) -> a -> a -> m a
-  , αβη_eq :: (SigilDoc -> err) -> e (Maybe a, a) -> a -> a -> a -> m Bool
+data CheckInterp m err env = CheckInterp
+  { normalize :: (SigilDoc -> err) -> env -> InternalCore -> InternalCore -> m InternalCore
+  , αβη_eq :: (SigilDoc -> err) -> env -> InternalCore -> InternalCore -> InternalCore -> m Bool
   , lift_err :: TCErr -> err
   }
 
@@ -61,20 +62,26 @@ data CheckInterp m err e a = CheckInterp
 {-------------------------------------------------------------------------------}
   
 
-class Checkable n a t | a -> n t where 
-  infer :: (Environment n e, MonadError err m, MonadGen m) => CheckInterp m err e t -> e (Maybe t,t) -> a -> m (t, t) -- ,[n]
-  check :: (Environment n e, MonadError err m, MonadGen m) => CheckInterp m err e t -> e (Maybe t,t) -> a -> t -> m t -- ,[n]
+class Checkable a where 
+  infer :: (MonadError err m, MonadGen m) => CheckInterp m err env -> Env env m -> a -> m (InternalCore, InternalCore) -- ,[n]
+  check :: (MonadError err m, MonadGen m) => CheckInterp m err env -> Env env m -> a -> InternalCore -> m InternalCore -- ,[n]
 
-instance Checkable Name InternalCore InternalCore where 
+instance Checkable InternalCore where 
+  infer :: forall err m env. (MonadError err m, MonadGen m)
+    => CheckInterp m err env -> Env env m -> InternalCore -> m (InternalCore, InternalCore)
   infer interp@(CheckInterp {..}) env term =
     let infer' = infer interp
         check' = check interp
-        normalize' = normalize (lift_err . flip NormErr (range term))
+        normalize' env = normalize (lift_err . flip NormErr (range term)) (i_impl env)
+
+        throwError' :: SigilDoc -> m a
         throwError' = throwError . (lift_err . flip PrettyErr (range term) . ("throw-resolved" <+>))
-        lookup_err' = lookup_err (lift_err . flip PrettyErr (range term))
+
+        lookup_err' :: Name -> Env env m -> m InternalCore
+        lookup_err' n env = do { val <- lookup n env; maybe (throwError' $ "can't find variable:" <+> pretty n) pure val }
     in 
       case term of
-        Var n -> (\(_, ty) -> (term, ty)) <$> lookup_err' n env
+        Var n -> (term, ) <$> lookup_err' n env
         Uni j -> pure (term, Uni (j + 1))
         App l r -> do
           (l', lty) <- infer' env l
@@ -86,7 +93,7 @@ instance Checkable Name InternalCore InternalCore where
           (a', aty) <- infer' env a
           a_norm <- normalize' env aty a'
      
-          let env' = insert n (Nothing, a_norm) env
+          env' <- insert n (Nothing, a_norm) env
           (body', ret_ty) <- infer' env' body
           n' <- if n `Set.member` free_vars ret_ty then pure n else fresh_var "_"
      
@@ -96,7 +103,7 @@ instance Checkable Name InternalCore InternalCore where
           (a', aty) <- infer' env a
           a_norm <- normalize' env aty a'
      
-          let env' = insert n (Nothing, a_norm) env
+          env' <- insert n (Nothing, a_norm) env
           (b', bty) <- infer' env' b
      
           i <- check_lvl lift_err aty
@@ -106,7 +113,7 @@ instance Checkable Name InternalCore InternalCore where
         Ind n a ctors -> do
           (a', asort) <- infer' env a
           anorm <- normalize' env asort a 
-          let env' = insert n (Just anorm, asort) env
+          env' <- insert n (Just anorm, asort) env
           ctors' <- forM ctors $ \(label, ty) -> do
             ty' <- check' env' ty asort -- TODO: is this predicativity??
             pure $ (label, ty')
@@ -143,12 +150,13 @@ instance Checkable Name InternalCore InternalCore where
 
                 v1_norm <- normalize' env_l ty_norm_l v1' 
                 v2_norm <- normalize' env_r ty_norm_r v2'
+                env_l' <- insert n (Just v1_norm, ty_norm_l) env_l
+                env_r' <- (insert n (Just v2_norm, ty_norm_r) env_r)
+                env_m' <- (insert n (Nothing, ty_norm_m) env_m)
                 infer_tel tel
                   (tel_in <> [(AnnBind (n, (ty_m, v1', v2')), prf')])
-                  (insert n (Just v1_norm, ty_norm_l) env_l)
-                  (insert n (Just v2_norm, ty_norm_r) env_r)
-                  (insert n (Nothing, ty_norm_m) env_m)
-          
+                  env_l' env_r' env_m'
+         
           (tel', env_l, env_r, env_m) <- infer_tel tel [] env env env
 
           (ty_l, kind_l) <- infer' env_l ty
@@ -165,9 +173,14 @@ instance Checkable Name InternalCore InternalCore where
   
   -- Note: types are expected to be in normal form
   -- Note: environment is expected to contain types of terms!!
+
+  check :: forall err m env. (MonadError err m, MonadGen m)
+    => CheckInterp m err env -> Env env m -> InternalCore -> InternalCore -> m InternalCore
   check interp@(CheckInterp {..}) env term ty =
     let infer' = infer interp
         check' = check interp
+
+        throwError' :: SigilDoc -> m a
         throwError' = throwError . lift_err . flip PrettyErr (range term)
     in 
       case (term, ty) of
@@ -181,7 +194,7 @@ instance Checkable Name InternalCore InternalCore where
               (_, kind) <- infer interp env a
               check_eq (range term) interp env kind a a'
               let ret_ty' = if (n == n') then ret_ty else subst (n' ↦ Var n) ret_ty
-              body' <- check'(insert n (Nothing, a) env) body ret_ty'
+              body' <- do { env' <- (insert n (Nothing, a) env); check' env' body ret_ty' }
               pure $ Abs at₁ (AnnBind (n, a')) body'
 
           -- Note: do we want to do this?
@@ -203,7 +216,7 @@ instance Checkable Name InternalCore InternalCore where
         
         (Prd at (AnnBind (n, a)) b, _) -> do -- TODO: universe check???
           a' <- check' env a ty
-          b' <- check' (insert n (Nothing, a) env) b ty
+          b' <- do {env' <- (insert n (Nothing, a) env) ; check' env' b ty }
           pure $ Prd at (AnnBind (n, a')) b'
         
         (Ctr label ity, ty) -> do
@@ -223,14 +236,14 @@ instance Checkable Name InternalCore InternalCore where
           pure term'
 
 
-instance Checkable Name ResolvedCore InternalCore where 
-  infer :: forall e err m. (Environment Name e, MonadError err m, MonadGen m)
-    => CheckInterp m err e InternalCore -> e (Maybe InternalCore,InternalCore) -> ResolvedCore -> m (InternalCore, InternalCore)
+instance Checkable ResolvedCore where 
+  infer :: forall env err m. (MonadError err m, MonadGen m)
+    => CheckInterp m err env -> Env env m -> ResolvedCore -> m (InternalCore, InternalCore)
   infer interp@(CheckInterp {..}) env term =
     let infer' = infer interp
         check' = check interp
-        normalize' = normalize (lift_err . flip NormErr (range term))
-        lookup_err' = lookup_err (lift_err . flip PrettyErr (range term))
+        normalize' env = normalize (lift_err . flip NormErr (range term)) (i_impl env)
+        lookup_err' n env = do { val <- lookup n env; maybe (throwError' $ "can't find variable:" <+> pretty n) pure val }
 
         throwError' :: SigilDoc -> m a
         throwError' = throwError . lift_err . flip PrettyErr (range term)
@@ -238,7 +251,7 @@ instance Checkable Name ResolvedCore InternalCore where
     in 
       case term of
         Varχ _ n -> do
-          ty <- snd <$> lookup_err' n env
+          ty <- lookup_err' n env
           pure (Var n, ty)
         Uniχ _ j -> pure (Uni j, Uni (j + 1))
         Appχ _ l r -> do
@@ -252,7 +265,7 @@ instance Checkable Name ResolvedCore InternalCore where
           (a', asort) <- infer' env a
           a_norm <- normalize' env asort a'
         
-          let env' = maybe env (\n -> insert n (Nothing, a_norm) env) mn
+          env' <- maybe (pure env) (\n -> insert n (Nothing, a_norm) env) mn
           (body', ret_ty) <- infer' env' body
           (n,n') <- case mn of
             Just n -> if n `Set.member` free_vars ret_ty then pure (n, n) else (n,) <$> fresh_var "_"
@@ -265,7 +278,7 @@ instance Checkable Name ResolvedCore InternalCore where
           a_norm <- normalize' env aty a'
         
           n' <- maybe (fresh_var "_") pure maybe_n
-          let env' = insert n' (Nothing, a_norm) env
+          env' <- insert n' (Nothing, a_norm) env
           (b', bty) <- infer' env' b
         
           i <- check_lvl lift_err aty
@@ -275,7 +288,7 @@ instance Checkable Name ResolvedCore InternalCore where
         Indχ _ name (Just a) ctors -> do
           (a', asort) <- infer' env a
           anorm <- normalize' env asort a'
-          let env' = insert name (Just anorm, asort) env
+          env' <- insert name (Just anorm, asort) env
           ctors' <- forM ctors $ \(label, ty) -> do
             -- TODO: level check
             -- ty' <- check' env' ty asort -- TODO: is this predicativity??
@@ -311,9 +324,9 @@ instance Checkable Name ResolvedCore InternalCore where
                 core' <- check' env' core out
                 pure $ (pat, core')
 
-              update_env :: e (Maybe InternalCore, InternalCore) -> InternalCore -> Pattern Name -> m (e (Maybe InternalCore, InternalCore))
+              update_env :: Env env m -> InternalCore -> Pattern Name -> m (Env env m)
               update_env env inty = \case 
-                PatVar n -> pure $ insert n (Nothing, inty) env 
+                PatVar n -> insert n (Nothing, inty) env 
                 PatCtr label subpatterns -> do
                   -- TODO: what about dependently-typed induction!
                   args <- get_args label inty 
@@ -331,7 +344,9 @@ instance Checkable Name ResolvedCore InternalCore where
                   Nothing -> throwError' "Failed to find label for recursion"
               get_args _ _ = throwError' "Can't pattern match on non-inductive type"
 
-          cases' <- mapM (check_case (insert rnm (Nothing, rnorm) env) inty) cases
+          cases' <- do
+            env' <- (insert rnm (Nothing, rnorm) env)
+            mapM (check_case env' inty) cases
           pure $ (Rec (AnnBind (rnm, rty')) val' cases', out)
 
         Dapχ _ tel val -> do  
@@ -377,12 +392,12 @@ instance Checkable Name ResolvedCore InternalCore where
   
   -- Note: types are expected to be in normal form
   -- Note: environment is expected to contain types of terms!!
-  check :: forall m err e. (Environment Name e, MonadError err m, MonadGen m)
-    => CheckInterp m err e InternalCore -> e (Maybe InternalCore, InternalCore) -> ResolvedCore -> InternalCore -> m InternalCore
+  check :: forall m err env. (MonadError err m, MonadGen m)
+    => CheckInterp m err env -> Env env m -> ResolvedCore -> InternalCore -> m InternalCore
   check interp@(CheckInterp {..}) env term ty =
     let infer' = infer interp
         check' = check interp
-        normalize' = normalize (lift_err . flip NormErr (range term))
+        normalize' env = normalize (lift_err . flip NormErr (range term)) (i_impl env)
 
         throwError' :: SigilDoc -> m a
         throwError' = throwError . lift_err . flip PrettyErr (range term)
@@ -398,7 +413,7 @@ instance Checkable Name ResolvedCore InternalCore where
               a_normal <- normalize' env a_kind a_typd
               check_eq (range term) interp env a_kind a_typd a₂
               let ret_ty' = if (n₁ == n₂) then ret_ty else subst (n₂ ↦ Var n₁) ret_ty
-              body' <- check' (insert n₁ (Nothing, a_normal) env) body ret_ty'
+              body' <- do { env' <- (insert n₁ (Nothing, a_normal) env); check' env' body ret_ty' }
               pure $ Abs at₁ (AnnBind (n₁, a_typd)) body'
 
           -- Do we want to do this??
@@ -416,7 +431,7 @@ instance Checkable Name ResolvedCore InternalCore where
         (Absχ (_,at₁) (OptBind (Just n₁, Nothing)) body, Prd at₂ (AnnBind (n₂, a)) ret_ty)
           | at₁ == at₂ -> do
               let ret_ty' = if (n₁ == n₂) then ret_ty else subst (n₂ ↦ Var n₁) ret_ty
-              body' <- check' (insert n₁ (Nothing, a) env) body ret_ty'
+              body' <- do { env' <- (insert n₁ (Nothing, a) env); check' env' body ret_ty' }
               pure $ Abs at₁ (AnnBind (n₁, a)) body'
           -- | at₁ == Regular -> do
           --     n'₂ <- freshen n₂
@@ -432,7 +447,7 @@ instance Checkable Name ResolvedCore InternalCore where
           a' <- check' env a ty
           a_normal <- normalize' env ty a'
           n <- maybe (fresh_var "_") pure mn
-          b' <- check' (insert n (Nothing, a_normal) env) b ty
+          b' <- do { env' <- (insert n (Nothing, a_normal) env); check' env' b ty }
           pure $ Prd at (AnnBind (n, a')) b'
 
   
@@ -440,7 +455,7 @@ instance Checkable Name ResolvedCore InternalCore where
           (a', asort) <- infer' env a
           check_eq (range term) interp env asort a' ty
           anorm <- normalize' env asort a'
-          let env' = insert n (Just anorm, asort) env
+          env' <- insert n (Just anorm, asort) env
           ctors' <- forM ctors $ \(label, ty) -> do
             -- TODO: level check??
             --ty' <- check' env' ty asort -- TODO: is this predicativity??
@@ -479,15 +494,15 @@ instance Checkable Name ResolvedCore InternalCore where
 
 -- Utility functions for Checking Resolved Terms, specifically for working with telescopes
 
--- infer :: forall e err m. (Environment Name e, MonadError err m, MonadGen m)
+-- infer :: forall e err m. (MonadError err m, MonadGen m)
 --   => CheckInterp m err e InternalCore -> e (Maybe InternalCore,InternalCore) -> ResolvedCore -> m (InternalCore, InternalCore)
-infer_resolved_tel :: forall e err m. (Environment Name e, MonadError err m, MonadGen m)
-  => Range -> CheckInterp m err e InternalCore -> e (Maybe InternalCore, InternalCore) -> ResolvedTel
-  -> m (InternalTel, e (Maybe InternalCore, InternalCore), e (Maybe InternalCore, InternalCore), e (Maybe InternalCore, InternalCore))
+infer_resolved_tel :: forall env err m. (MonadError err m, MonadGen m)
+  => Range -> CheckInterp m err env -> Env env m -> ResolvedTel
+  -> m (InternalTel, Env env m, Env env m, Env env m)
 infer_resolved_tel range interp@(CheckInterp {..}) env tel =
   let infer' = infer interp
       check' = check interp
-      normalize' = normalize (lift_err . flip NormErr range)
+      normalize' env = normalize (lift_err . flip NormErr range) (i_impl env)
       throwError' = throwError . lift_err . flip PrettyErr (Range Nothing)
 
       infer_tel [] tel_in env_l env_r env_m = pure (tel_in, env_l, env_r, env_m) 
@@ -508,11 +523,12 @@ infer_resolved_tel range interp@(CheckInterp {..}) env tel =
         v1_norm <- normalize' env_l ty_norm_l v1'
         v2_norm <- normalize' env_r ty_norm_r v2'
 
+        env_l' <- insert n (Just v1_norm, ty_norm_l) env_l
+        env_r' <- insert n (Just v2_norm, ty_norm_r) env_r
+        env_m' <- insert n (Nothing, ty_norm_m) env_m
         infer_tel tel
           (tel_in <> [(AnnBind (n, (ty_m, v1', v2')), prf')])
-          (insert n (Just v1_norm, ty_norm_l) env_l)
-          (insert n (Just v2_norm, ty_norm_r) env_r)
-          (insert n (Nothing, ty_norm_m) env_m)
+          env_l' env_r' env_m'
       infer_tel _ _ _ _ _ = throwError' "Error in inferring tel: optbind not implemented"
       -- infer_tel ((OptBind (Just n, Just (ty, v1, v2)), prf) : tel) tel_in env_l env_r env_m = 
       --   (prfl, kind_l) <- infer' env_l ty
@@ -525,9 +541,8 @@ infer_resolved_tel range interp@(CheckInterp {..}) env tel =
 
   
 
-check_entry :: (Environment Name e, MonadError err m, MonadGen m)
-  => CheckInterp m err e InternalCore
-  -> e (Maybe InternalCore, InternalCore) -> ResolvedEntry -> m InternalEntry
+check_entry :: (MonadError err m, MonadGen m)
+  => CheckInterp m err env -> Env env m -> ResolvedEntry -> m InternalEntry
 check_entry interp@(CheckInterp {..}) env mod =
   let infer' = infer interp
       check' = check interp
@@ -537,7 +552,7 @@ check_entry interp@(CheckInterp {..}) env mod =
       case bind of 
         OptBind (Just n, Just a) -> do
           (a_typd, a_ty) <- infer' env a
-          a_normal <- normalize (lift_err . flip NormErr (range a)) env a_ty a_typd
+          a_normal <- normalize (lift_err . flip NormErr (range a)) (i_impl env) a_ty a_typd
           val' <- check' env val a_normal
           pure (Singleχ () (AnnBind (n, a_typd)) val')
         OptBind (Just n, Nothing) -> do
@@ -546,9 +561,8 @@ check_entry interp@(CheckInterp {..}) env mod =
         OptBind (Nothing, _) -> throwError' $ "Expecting Single definition to have a name"
 
 
-check_module :: (Environment Name e, MonadError err m, MonadGen m)
-  => CheckInterp m err e InternalCore
-  -> e (Maybe InternalCore, InternalCore) -> ResolvedModule -> m InternalModule
+check_module :: (MonadError err m, MonadGen m)
+  => CheckInterp m err env -> Env env m -> ResolvedModule -> m InternalModule
 check_module interp@(CheckInterp {..}) env mod = do
   defs' <- check_entries env (mod^.module_entries)
   pure $ set module_entries defs' mod 
@@ -559,25 +573,26 @@ check_module interp@(CheckInterp {..}) env mod = do
       case d' of
         Singleχ () (AnnBind (n, ty)) val -> do
           ty' <- eval_ty env ty
-          val' <- eval env ty val
-          let env' = insert n (Just val', ty') env
+          val' <- eval (i_impl env) ty val
+          env' <- insert n (Just val', ty') env
           ds' <- check_entries env' ds
           pure (d' : ds')
   
     eval = normalize (lift_err . flip NormErr (Range Nothing))
     eval_ty env ty = do 
       (_, sort) <- infer interp env ty   
-      eval env sort ty
+      eval (i_impl env) sort ty
 
 -- TODO: replace with check_sub (?)
 --check_eq _ _ = undefined
-check_eq :: (MonadError err m, Pretty a) => Range -> (CheckInterp m err e a) -> e (Maybe a, a) -> a -> a -> a -> m ()
+check_eq :: (MonadError err m) => Range -> (CheckInterp m err env) -> Env env m -> InternalCore -> InternalCore -> InternalCore -> m ()
 check_eq range (CheckInterp {..}) env ty l r = 
-  αβη_eq (lift_err . flip NormErr range) env ty l r >>= \case
+  αβη_eq (lift_err . flip NormErr range) (i_impl env) ty l r >>= \case
     True -> pure ()
     False -> throwError $ lift_err $ PrettyErr ("not-equal:" <+> pretty l <+> "and" <+> pretty r) range
 
 -- TODO: bad for internal core?
+-- TODO: implicit vs explicit products
 check_prod :: (MonadError err m, Pretty (Core b n χ)) => (TCErr -> err) -> Core b n χ -> m (b n (Core b n χ), Core b n χ)
 check_prod _ (Prdχ _ b ty) = pure (b, ty)
 check_prod lift_err term = throwError $ lift_err $ PrettyErr ("expected prod, got:" <+> pretty term) (Range Nothing)

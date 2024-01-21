@@ -34,19 +34,16 @@ import Prettyprinter.Render.Sigil
 import qualified Brick.Types as T
 
 import Sigil.Abstract.Names
-import Sigil.Abstract.Environment
 import Sigil.Abstract.Syntax
 import Sigil.Interpret.Interpreter
 import Sigil.Parse.Lexer
-import Sigil.Concrete.Internal (InternalCore)
 
 import InterpretUtils
 import qualified Actions.Package as Package
 import Tui.Types
 
-eval_text :: forall m e s t f id. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-                    Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
-          -> (InteractiveState s -> Text) -> T.EventM id (InteractiveState s) ()
+eval_text :: forall m env s id. (MonadError SigilDoc m, MonadGen m)
+  => Interpreter m SigilDoc env s -> (InteractiveState s -> Text) -> T.EventM id (InteractiveState s) ()
 eval_text interpreter getText = do
   istate <- use interpreterState
   this <- get
@@ -59,8 +56,8 @@ eval_text interpreter getText = do
                                  , "type:" <+> nest 2 (pretty ty) ])
     Left err -> outputState .= show err
 
-query_text :: forall m e s t f id. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-                    Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
+query_text :: forall m env s id. (MonadError SigilDoc m, MonadGen m) =>
+                    Interpreter m SigilDoc env s
           -> (InteractiveState s -> Text) -> T.EventM id (InteractiveState s) ()
 query_text interpreter getText = do
   istate <- use interpreterState
@@ -73,9 +70,8 @@ query_text interpreter getText = do
       outputState .= (show $ vsep ["Solved with:", indent 2 (pretty subst)])
     Left err -> outputState .= show err
 
-load_file :: forall m e s t f id. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-                    Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
-          -> T.EventM id (InteractiveState s) ()
+load_file :: forall m env s id. (MonadError SigilDoc m, MonadGen m)
+  => Interpreter m SigilDoc env s -> T.EventM id (InteractiveState s) ()
 load_file interpreter = do
   focus .= Palette
   paletteAction .= (\filename -> do
@@ -86,7 +82,7 @@ load_file interpreter = do
       Right text -> do
         (result, istate') <- liftIO $ (run interpreter) istate $ do
           mod <- eval_mod interpreter pkg_name filename text
-          (intern_module interpreter) pkg_name (mod^.module_header) mod
+          (intern_module interpreter) (mod^.module_header) mod
           pure mod
         case result of
           Left err -> do
@@ -123,7 +119,7 @@ pImport = do
   l <- sep anyvar (C.char '.' <* sc)
   path <- case l of 
     [] -> fail "import path must be nonempty"
-    (x:xs) -> pure (Path $ x:|xs)
+    (x:xs) -> pure (x:|xs)
   modifier <- pModifier <|> pure ImSingleton
   pure $ Im (path, modifier)
 
@@ -132,10 +128,8 @@ pModifier =
   const ImWildcard <$> (lexeme (C.char '.') *> symbol "(…)")
 
 
--- add_package_import :: forall m e s t f id. (MonadError SigilDoc m, MonadGen m, Environment Name e)
---   => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
-add_package_import :: forall m e s t f id.Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
-  -> T.EventM id (InteractiveState s) ()
+add_package_import :: forall m env s id.
+  Interpreter m SigilDoc env s -> T.EventM id (InteractiveState s) ()
 add_package_import interp = do
   focus .= Palette
   paletteAction .= (\import_statement -> 
@@ -156,9 +150,8 @@ add_package_import interp = do
     else outputState .= "Package name must not contain whitespace")
   
 
-load_package :: forall m e s t f id. (MonadError SigilDoc m, MonadGen m, Environment Name e)
-  => Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
-  -> T.EventM id (InteractiveState s) ()
+load_package :: forall m env s id. (MonadError SigilDoc m, MonadGen m)
+  => Interpreter m SigilDoc env s -> T.EventM id (InteractiveState s) ()
 load_package interpreter = do
   focus .= Palette
   paletteAction .= (\filename -> do
@@ -173,9 +166,8 @@ load_package interpreter = do
           Left err -> outputState .= show err
       Left err -> outputState .= show err)
 
-set_package :: forall m e s t f id. 
-  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
-  -> Text -> T.EventM id (InteractiveState s) ()
+set_package :: forall m env s id. 
+  Interpreter m SigilDoc env s -> Text -> T.EventM id (InteractiveState s) ()
 set_package interpreter pkg_name = do
   -- (possibly replace location with (Package, Either Module Imports)
   -- Location _1 = Package, _2 = Module, _3 = Imports 

@@ -28,9 +28,7 @@ import Prettyprinter.Render.Sigil
 
 import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
-import Sigil.Abstract.Environment
 import Sigil.Interpret.Interpreter
-import Sigil.Concrete.Internal (InternalCore)
 
 import qualified Tui.Editor as Editor
 import Tui.Types
@@ -41,8 +39,8 @@ data InteractiveTuiOpts = InteractiveTuiOpts
   deriving (Show, Read, Eq)
 
 
-interactive_tui :: forall m e s t f. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f -> InteractiveTuiOpts -> IO ()
+interactive_tui :: forall m env s. (MonadError SigilDoc m, MonadGen m) =>
+  Interpreter m SigilDoc env s -> InteractiveTuiOpts -> IO ()
 interactive_tui interpreter _ = do
   let app = App { appDraw = draw
                 , appChooseCursor  = choose_cursor
@@ -150,10 +148,10 @@ draw st =
       modulesList =
         if (st^.focus) == Navigation NavModule
         then zipWith (\s i -> (if i == st^.moduleIx then withAttr (A.attrName "selected")
-                                else (if Just s == fmap _module_header (st^.location._2) then withAttr (A.attrName "emphasis") else id))
+                                else (if Just s == fmap (snd . unPath . _module_header) (st^.location._2) then withAttr (A.attrName "emphasis") else id))
                               (str . ("  " <>) .  show . pretty $ s))
              (st^.availableModules) [0..]
-        else fmap (\s -> (if (Just s == fmap _module_header (st^.location._2)) then withAttr (A.attrName "emphasis") else id)
+        else fmap (\s -> (if (Just s == fmap (snd . unPath . _module_header) (st^.location._2)) then withAttr (A.attrName "emphasis") else id)
                     (str . ("  " <>) .  show . pretty $ s)) (st^.availableModules)
 
       importsWidget =
@@ -194,8 +192,8 @@ change_focus _ v = v
 choose_cursor :: InteractiveState s -> [T.CursorLocation ID] -> Maybe (T.CursorLocation ID)
 choose_cursor st locs = find (liftEq (==) (Just $ st^.focus) . T.cursorLocationName) locs
 
-app_handle_event :: forall m e s t f ev.
-  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
+app_handle_event :: forall m env s ev.
+  Interpreter m SigilDoc env s
   -> T.BrickEvent ID ev -> T.EventM ID (InteractiveState s) ()
 app_handle_event interp = \case
   (T.VtyEvent (V.EvKey V.KUp    [V.MCtrl])) -> focus %= change_focus DUp
@@ -211,8 +209,8 @@ app_handle_event interp = \case
       Navigation loc -> handle_nav_event interp loc ev
       _ -> pure ()
 
-handle_nav_event :: forall m e s t f ev.
-  Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f
+handle_nav_event :: forall m env s ev.
+  Interpreter m SigilDoc env s
   -> NavLoc -> T.BrickEvent ID ev -> T.EventM ID (InteractiveState s) ()
 handle_nav_event interp loc ev =
   let ix :: Lens' (InteractiveState s) Int

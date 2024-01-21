@@ -10,12 +10,11 @@ import Data.Text (pack)
 import Options.Applicative
 import Prettyprinter.Render.Sigil
 
-import Sigil.Abstract.Names (Name, MonadGen)
-import Sigil.Abstract.Unify (Formula)
-import Sigil.Abstract.Environment (Environment, Env)
+import Sigil.Abstract.Names (MonadGen)
 import Sigil.Interpret.Interpreter 
+import Sigil.Interpret.Canonical.Environment
+import Sigil.Interpret.Canonical.World
 import Sigil.Interpret.Canonical 
-import Sigil.Concrete.Internal
 import InteractiveTui
 import InteractiveCli
 import Server
@@ -111,10 +110,11 @@ main = do
 
 run_with_backend ::
   Backend
-  -> (forall m e s t f. (MonadError SigilDoc m, MonadGen m, Environment Name e) =>
-      Interpreter m SigilDoc (e (Maybe InternalCore, InternalCore)) s t f -> a -> IO ())
+  -> (forall m env s. (MonadError SigilDoc m, MonadGen m) =>
+      Interpreter m SigilDoc env s -> a -> IO ())
   -> a -> IO ()
 run_with_backend backend func val = case backend of
   Native -> func (canonical_interpreter spretty
-                  :: Interpreter (CanonM SigilDoc) SigilDoc (Env (Maybe InternalCore, InternalCore)) Context InternalCore (Formula Name InternalCore)) val
+                 :: Interpreter (CanonM SigilDoc) SigilDoc (CanonEnv (CanonM SigilDoc)) (World (CanonM SigilDoc))) val
+                 -- :: Interpreter (CanonM SigilDoc) SigilDoc (Env (Maybe InternalCore, InternalCore)) Context InternalCore (Formula Name InternalCore)) val
   b -> putStrLn $ pack ("Cannot run with backend:" <> show b)

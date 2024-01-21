@@ -1,5 +1,5 @@
 .stack-work/
-base/*
+**.sld
 scratch/*
 test.sl
 .hlint.yaml
