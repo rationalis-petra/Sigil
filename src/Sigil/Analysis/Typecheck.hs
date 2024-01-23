@@ -571,10 +571,12 @@ check_module interp@(CheckInterp {..}) env mod = do
     check_entries env (d:ds) = do
       d' <- check_entry interp env d
       case d' of
-        Singleχ () (AnnBind (n, ty)) val -> do
+        Singleχ () (AnnBind (Name n, ty)) val -> do
           ty' <- eval_ty env ty
           val' <- eval (i_impl env) ty val
-          env' <- insert n (Just val', ty') env
+          env' <- case n of 
+            Left qn -> insert_path qn (val', ty') env
+            Right _ -> throwError $ lift_err $ PrettyErr "Unexpected error: Module entry bound local name." (range d)
           ds' <- check_entries env' ds
           pure (d' : ds')
   

@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Sigil.Interpret.Canonical.Values
   ( Sem(..)
   , Neutral(..)
@@ -7,9 +8,12 @@ module Sigil.Interpret.Canonical.Values
   , SemPackage(..)
   , SemEnv
   , insert
+  , insert_path
   , path_lookup
   , lookup_err
   ) where
+
+import Data.Map.Internal.Debug as DMap
 
 import Control.Monad.Except (MonadError, throwError)
 import qualified Data.Map as Map
@@ -21,11 +25,14 @@ import Data.List (find)
 import Prettyprinter
 
 import Sigil.Abstract.Names  
-import Sigil.Abstract.Environment hiding (insert)
+import Sigil.Abstract.Environment hiding (insert, insert_path)
 import Sigil.Abstract.Syntax  
 import Sigil.Concrete.Decorations.Implicit (ArgType(..))
 
-type SemEnv m = (Map UniqueName (Sem m), Map Text (SemPackage m))
+instance (Pretty k, Pretty v) => Pretty (Map k v) where  
+  pretty m = pretty $ DMap.showTreeWith (\k a -> show $ pretty k <> ":" <+> pretty a) True True m
+
+type SemEnv m = (Map UniqueName (Sem m), Map Path (Sem m), Map Text (SemPackage m))
 
 data Sem m
   = SUni Integer
@@ -63,9 +70,13 @@ data SemPackage m = SemPackage
   }
 
 insert :: Name -> Sem m -> SemEnv m -> SemEnv m
-insert (Name n) val (e1, e2) = case n of
-  Right qn -> (Map.insert qn val e1, e2)
-  Left _ -> error "trying to insert unqualified name"
+insert (Name n) val (e1, e2, e3) = case n of
+  Right un -> (Map.insert un val e1, e2, e3)
+  Left _ -> error ("Implementation error in Canonical/Values.hs:insert: Trying to insert value at Path-name into Semantic Environment: "
+                   <> show (name_long (Name n)))
+
+insert_path :: Path -> Sem m -> SemEnv m -> SemEnv m
+insert_path qn val (e1, e2, e3) = (e1, Map.insert qn val e2, e3)
 
 path_lookup :: Path -> Map Text (SemPackage m) -> Maybe (Sem m)
 path_lookup (Path (package_name, path)) env = case Map.lookup package_name env of
@@ -82,13 +93,16 @@ path_lookup (Path (package_name, path)) env = case Map.lookup package_name env o
   _ -> Nothing
 
 lookup_err :: MonadError err m => (Doc ann -> err) -> Name -> SemEnv m -> m (Sem m)
-lookup_err lift_err n (e1, e2) =
+lookup_err lift_err n (e1, e2, e3) =
   let res = case n of
         Name (Right un) -> Map.lookup un e1
-        Name (Left qn) -> path_lookup qn e2
+        Name (Left qn) -> case Map.lookup qn e2 of 
+          Just v -> Just v
+          Nothing -> path_lookup qn e3
   in case res of
     Just v -> pure v
-    Nothing -> throwError $ lift_err $ "Couldn't find variable: " <+> pretty n
+    Nothing -> throwError $ lift_err $ "Implementation error at Canonical/Values.hs:lookup_err: unbound name"
+      <+> pretty (name_long n) <+> "in" <+> pretty e1
 
 {------------------------------- PRETTY INSTANCES ------------------------------}
 {- Pretty                                                                      -}

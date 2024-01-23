@@ -8,6 +8,7 @@ module Sigil.Abstract.Environment
   , Env(..)
   , insert
   , lookup
+  , insert_path
   ) where
 
 
@@ -79,6 +80,7 @@ get_paths (MTree subtree) = Map.foldrWithKey (go []) [] subtree
 data Env env m = Env
   { i_lookup :: Name -> env -> m (Maybe InternalCore)
   , i_insert :: Name -> (Maybe InternalCore, InternalCore) -> env -> m env 
+  , i_insert_path :: Path -> (InternalCore, InternalCore) -> env -> m env 
   , i_impl :: env
   }
 
@@ -86,5 +88,7 @@ lookup :: Name -> Env env m -> m (Maybe InternalCore)
 lookup n env = (i_lookup env) n (i_impl env)
 
 insert :: Functor m => Name -> (Maybe InternalCore, InternalCore) -> Env env m -> m (Env env m)
-insert n val env = Env (i_lookup env) (i_insert env) <$> (i_insert env) n val (i_impl env)
+insert n val env = Env (i_lookup env) (i_insert env) (i_insert_path env) <$> (i_insert env) n val (i_impl env)
 
+insert_path :: Functor m => Path -> (InternalCore, InternalCore) -> Env env m -> m (Env env m)
+insert_path n val env = Env (i_lookup env) (i_insert env) (i_insert_path env) <$> (i_insert_path env) n val (i_impl env)

@@ -3,6 +3,7 @@ module Sigil.Abstract.Names
   , Path(..)
   , Name(..)
   , name_text
+  , name_long
   , path_snoc
 
   , Binding(..)
@@ -59,6 +60,11 @@ newtype Name = Name (Either Path UniqueName)
 name_text :: Name -> Text
 name_text (Name (Left (Path (_, t :| ts)))) = last (t : ts)
 name_text (Name (Right (_, t))) = t
+
+name_long :: Name -> Text
+name_long (Name n) = case n of 
+  Left p -> (pack . show) p
+  Right (num, txt) -> "(" <> txt <> "/" <> (pack . show) num  <> ")"
 
 path_snoc :: Path -> Text -> Path
 path_snoc (Path (pkg, path)) name = Path (pkg, path <> (name :| []))

@@ -44,15 +44,6 @@ instance Show InternalCore where
 newtype CanonM err a = CannonM { unCanonM :: StateT (World (CanonM err)) (ExceptT err Gen) a }
   deriving (Functor, Applicative, Alternative, Monad, MonadState (World (CanonM err)), MonadError err, MonadGen)
 
--- Get an environment...
--- From a package + set of imports
-
--- from a module  
-
--- Evaluation 
---eval_module :: InternalModule -> 
-
-
 canonical_interpreter :: forall err. (Monoid err) => (InterpreterErr -> err)
   -> Interpreter (CanonM err) err (CanonEnv (CanonM err)) (World (CanonM err))
 canonical_interpreter lift_err = Interpreter
@@ -74,7 +65,7 @@ canonical_interpreter lift_err = Interpreter
         Just (SemPackage [] [] (MTree (Map.empty)), Package (PackageHeader package_name [] []) (MTree Map.empty))
 
   , intern_package = \package_name package -> do
-      env <- CanonEnv <$> use world_packages <*> pure Map.empty
+      env <- CanonEnv <$> use world_packages <*> pure Map.empty <*> pure Map.empty
       sem_package <- let ?lift_err = lift_err . EvalErr in eval_package (to_semenv env) package
       (world_packages.at package_name) .= Just (sem_package, package)
 
@@ -109,7 +100,7 @@ canonical_interpreter lift_err = Interpreter
   -- TODO: need to update properly if other modules depend on this one
   , intern_module = \(Path (package_name, module_name)) modul -> do
       packages <- use world_packages
-      let sem_env = to_semenv $ CanonEnv packages Map.empty 
+      let sem_env = to_semenv $ CanonEnv packages Map.empty Map.empty
       pkg_pr <- case Map.lookup package_name packages of 
         Just (sem_package, package) -> do
           sem_module <- let ?lift_err = lift_err . EvalErr in eval_module sem_env modul

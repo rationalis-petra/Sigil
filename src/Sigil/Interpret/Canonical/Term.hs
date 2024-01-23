@@ -9,7 +9,7 @@ module Sigil.Interpret.Canonical.Term
 import Prelude hiding (head, lookup)
 import Control.Monad((<=<))
 import Control.Monad.Except (MonadError, throwError)
-import Control.Lens(view, (^.))
+import Control.Lens(view, (^.), _1, _2, _3)
 
 import qualified Data.Map as Map
 import qualified Data.List.NonEmpty as NonEmpty
@@ -242,10 +242,11 @@ eval_package env package = do
       coll :: m (MTree (SemModule m)) -> InternalModule -> m (MTree (SemModule m))
       coll comp_mtree modul = do
         mtree <- comp_mtree
-        smodule <- eval_module ( fst env
+        smodule <- eval_module ( view _1 env
+                               , view _2 env
                                , Map.insert (package^.package_header.package_name)
                                  (SemPackage (package^.package_header.requires) (package^.package_header.provides) mtree)
-                                 (snd env) ) modul 
+                                 (view _3 env) ) modul 
         pure $ (insert_at_path (snd . unPath $ (modul^.module_header)) smodule mtree)
       
 
@@ -260,9 +261,11 @@ eval_package env package = do
 
 eval_module :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => SemEnv m -> InternalModule -> m (SemModule m)
 eval_module env modul = 
-  let go env (Singleχ _ (AnnBind (n, _)) val : es) = do
+  let go env (Singleχ _ (AnnBind (Name n, _)) val : es) = do
         val' <- eval val env
-        ((name_text n, val') :) <$> go (insert n val' env) es
+        case n of
+          Left qn -> ((name_text (Name n), val') :) <$> go (insert_path qn val' env) es
+          Right _ -> throw "Internal error: Bad name bind in eval_module"
       go _ [] = pure []
   in SemModule (modul^.module_imports) (modul^.module_exports)
       <$> go env (modul^.module_entries)

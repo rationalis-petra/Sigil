@@ -72,3 +72,6 @@ instance HasRange ResolvedCore where
     TrRχ r _ _ _ -> r
     LfLχ r _ _ _ -> r
     LfRχ r _ _ _ -> r
+
+instance HasRange ResolvedEntry where
+  range (Singleχ r _ _) = r
