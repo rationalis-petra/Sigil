@@ -24,7 +24,6 @@ import qualified Data.Map as Map
 
 import Control.Lens ((^.), (.=), (.~), (%~), use, at)
 import Prettyprinter
---import Topograph : todo: use for dependency analysis in evaluation
 
 import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax

@@ -11,6 +11,7 @@ import Control.Monad.Except (MonadError(..))
 import Control.Lens ((^.),makeLenses)
 import Control.Monad (join, forM)
 
+import Data.Maybe (catMaybes)
 import Data.Text (Text, pack)
 import qualified Data.Map as Map
 import Data.Map (Map)
@@ -25,7 +26,7 @@ import Sigil.Abstract.Names
 import Sigil.Abstract.Environment  
 
 import Sigil.Parse.Mixfix
-import Sigil.Concrete.Internal (InternalPackage)
+import Sigil.Concrete.Internal (InternalPackage, InternalModule)
 import Sigil.Interpret.Interpreter (InterpreterErr(..))
 import Sigil.Interpret.Canonical.Values  
 import Sigil.Interpret.Canonical.Environment  
@@ -111,23 +112,42 @@ canon_get_precs lift_err world package_name imports = do
 
 canon_get_resolve :: forall m err. MonadError err m => (InterpreterErr -> err) -> World m -> Text -> [ImportDef] -> m (Map Text Path)
 canon_get_resolve lift_err world package_name imports = do
-  -- Get all required packages
+  -- The current package
   package <- case Map.lookup package_name (world^.world_packages) of 
     Just (_, val) -> pure val
     Nothing -> throwError $ lift_err $ InternalErr ("Couldn't find package:" <+> pretty package_name)
+
+  -- Get all the required packages (i.e. packages whose modules this package has
+  --   access to)
   req_packages <- forM (package^.package_header^.requires) $ \name -> do
     case Map.lookup name (world^.world_packages) of 
       Just (_, val) -> pure $ val
       Nothing -> throwError $ lift_err $ InternalErr ("Couldn't find package:" <+> pretty name)
 
+  -- Given a qualified module name, search the set all modules in the required
+  --  packages. If there is precisely one package, return its' path. Otherwise,
+  --  siginal an error
+  let find_module :: NonEmpty Text -> m (Path, InternalModule)
+      find_module path = case catMaybes $ fmap (get_module path) (package : req_packages) of
+        [] -> throwError $ lift_err $ InternalErr $ "Found no modules matching path" <+> pretty path
+        [x] -> pure x
+        xs -> throwError $ lift_err $ InternalErr $ vsep [ "Found multiple modules matching path" <+> pretty path <> ":"
+                                                         , sep $ fmap pretty xs ] 
+
+      -- Get a module from a package (if exported)
+      get_module :: NonEmpty Text -> InternalPackage -> Maybe (Path, InternalModule)
+      get_module (top :| rest) (Package (PackageHeader pname provides _) mtree) = 
+        if top `elem` provides
+        then case get_modulo_path (top :| rest) mtree of
+          Just (a, []) -> Just (Path (pname, (top :| rest)), a)
+          Just (_, _) -> Nothing -- TODO: change to report error??
+          Nothing -> Nothing
+        else Nothing
+
   let get_imports :: Map Text Path -> [ImportDef] -> m (Map Text Path)
       get_imports gmap [] = pure gmap
       get_imports gmap (Im (path,im) : imports) = do
-        (mdle,p) <- case get_world_path req_packages package path of
-          Right (Just (v,p)) -> pure (v,p)
-          Right Nothing -> throwError $ lift_err $ InternalErr ("Can't find import path:" <+> pretty path)
-          Left name -> throwError$ lift_err $ InternalErr ("Name clash with package:" <+> pretty name)
-        if not (null p) then (throwError $ lift_err $ InternalErr "There was a modulo path; can't deal rn") else pure ()
+        (full_path, mdle) <- find_module path
         case im of
           ImWildcard ->
             foldl
@@ -135,7 +155,7 @@ canon_get_resolve lift_err world package_name imports = do
                  case entry of
                    Singleχ _ (AnnBind (n, _)) _ ->
                      Map.insert (name_text n)
-                                (path_snoc (Path (package_name, path)) (name_text n)) <$> mnd)
+                                (path_snoc full_path (name_text n)) <$> mnd)
               (get_imports gmap imports)
               (mdle^.module_entries)
           ImGroup set ->
@@ -144,7 +164,7 @@ canon_get_resolve lift_err world package_name imports = do
                  case entry of
                    Singleχ _ (AnnBind (n, _)) _
                      | Set.member (name_text n) set -> Map.insert (name_text n)
-                       (path_snoc (Path (package_name, path)) (name_text n)) <$> mnd
+                       (path_snoc full_path (name_text n)) <$> mnd
                      | otherwise -> mnd)
               (get_imports gmap imports)
               (mdle^.module_entries)

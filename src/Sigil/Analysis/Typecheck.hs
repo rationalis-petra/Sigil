@@ -78,9 +78,10 @@ instance Checkable InternalCore where
         throwError' = throwError . (lift_err . flip PrettyErr (range term) . ("throw-resolved" <+>))
 
         lookup_err' :: Name -> Env env m -> m InternalCore
-        lookup_err' n env = do { val <- lookup n env; maybe (throwError' $ "can't find variable:" <+> pretty n) pure val }
-    in 
-      case term of
+        lookup_err' n env = do
+          val <- lookup n env
+          maybe (throwError' $ "Implementation Error at Analysis/Typecheck:infer can't find variable:" <+> pretty n) pure val
+    in case term of
         Var n -> (term, ) <$> lookup_err' n env
         Uni j -> pure (term, Uni (j + 1))
         App l r -> do
@@ -243,7 +244,10 @@ instance Checkable ResolvedCore where
     let infer' = infer interp
         check' = check interp
         normalize' env = normalize (lift_err . flip NormErr (range term)) (i_impl env)
-        lookup_err' n env = do { val <- lookup n env; maybe (throwError' $ "can't find variable:" <+> pretty n) pure val }
+
+        lookup_err' n env = do
+          val <- lookup n env
+          maybe (throwError' $ "Implementation Error at Analysis/Typecheck:infer can't find variable:" <+> pretty n) pure val
 
         throwError' :: SigilDoc -> m a
         throwError' = throwError . lift_err . flip PrettyErr (range term)

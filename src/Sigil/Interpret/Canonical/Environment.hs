@@ -47,7 +47,7 @@ canon_lookup lift_err (Name name) canon = case name of
             Nothing -> pure Nothing
         Just (_, _) -> throwError $ lift_err $ "Can't reify a first-class module lookup"
         Nothing -> pure Nothing
-      Nothing -> throwError $ lift_err $ "unable to locate package:" <+> pretty package_name
+      Nothing -> throwError $ lift_err $ "Unable to locate package:" <+> pretty package_name
   Right unique -> case Map.lookup unique (local_env canon) of
     Just (_, _, ty) -> pure (Just ty)
     Nothing -> pure Nothing
