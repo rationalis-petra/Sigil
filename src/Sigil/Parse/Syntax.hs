@@ -22,7 +22,7 @@ import Sigil.Abstract.Syntax
 
 type RawTel = [(Maybe Text, Maybe (Syntax, Syntax, Syntax), Syntax)]
 
-data MixToken s = NamePart Text | Syn s
+data MixToken s = NamePart Range Text | Syn s
   deriving Show
 
 data Syntax
@@ -49,24 +49,28 @@ data SynEntry =
 
 instance Functor MixToken where
   fmap f = \case 
-    NamePart t -> NamePart t
+    NamePart r t -> NamePart r t
     Syn x -> Syn $ f x
 
 instance Eq (MixToken s) where  
-  (NamePart p) == (NamePart p') = p == p'
-  (Syn _) == (Syn _) = True -- s == s'
+  (NamePart _ p) == (NamePart _ p') = p == p'
+  (Syn _) == (Syn _) = True -- TODO: ??? -- s == s'
   _ == _ = False
 
 instance Ord (MixToken s) where  
-  compare (NamePart p) (NamePart p') = compare p p'
+  compare (NamePart _ p) (NamePart _ p') = compare p p'
   compare (Syn _) (Syn _) = EQ -- compare s s'
-  compare (Syn _) (NamePart _) = GT
-  compare (NamePart _) (Syn _) = LT
+  compare (Syn _) (NamePart _ _) = GT
+  compare (NamePart _ _) (Syn _) = LT
 
 instance Pretty s => Pretty (MixToken s) where
   pretty = \case
-    NamePart p -> "(np" <+> pretty p <> ")"
+    NamePart _ p -> "(np" <+> pretty p <> ")"
     Syn s -> "(sy" <+> pretty s <> ")"
+
+instance HasRange s => HasRange (MixToken s) where  
+  range (NamePart r _) = r
+  range (Syn s) = range s
 
 instance HasRange Syntax where
   range = \case 

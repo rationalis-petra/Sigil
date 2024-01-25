@@ -115,7 +115,7 @@ mix_core precs = \case
     let go [] = pure []
         go (c:cs) = case c of 
           Syn v -> (:) <$> (Syn <$> mix_core precs v) <*> go cs 
-          NamePart p -> (NamePart p :) <$> go cs
+          NamePart r p -> (NamePart r p :) <$> go cs
     vals' <- go vals
     parseMix (mixfix precs) vals'
   RUni rn n -> pure $ Uniχ rn n 

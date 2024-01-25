@@ -134,16 +134,18 @@ syn_entry = mutual
         tipe <- syn_core level
         pure $ Just (name, tipe))
         <||> pure Nothing
-      
-      let tofn [] v = v
-          tofn ((at, x):xs) v = RAbs mempty at (Just x) (Nothing) (tofn xs v)
+
+      let tofn _ [] v = v
+          tofn r ((at, x, r'):xs) v = RAbs (r <> r') at (Just x) (Nothing) (tofn r xs v)
 
       (name, def) <- L.nonIndented scn $ do
+        start <- getSourcePos
         name <- anyvar
-        args <- many (((Regular,) <$> anyvar) <||> between langle rangle ((Implicit,) <$> anyvar))
+        args <- many $ with_range (((Regular,,) <$> anyvar) <||> between langle rangle ((Implicit,,) <$> anyvar))
         symbol "≜"
         val <- syn_core level
-        let def =  RSingle mempty name (fmap snd ann) (tofn args val)
+        end <- getSourcePos
+        let def = RSingle (Range (Just (start, end))) name (fmap snd ann) (tofn (range val) args val)
         pure (name, def)
 
       case ann of
@@ -239,9 +241,9 @@ syn_core level = do
         ty_only = (\t -> (Regular, Nothing, Just t)) <$> choice' [plam, pexpr]
             
     pind :: ParserT m Syntax
-    pind = mkind --with_range (mkind)
+    pind = with_range mkind
       where 
-        mkind :: ParserT m Syntax
+        mkind :: ParserT m (Range -> Syntax)
         mkind = do
           symbol "μ"
           var <- anyvar 
@@ -249,7 +251,7 @@ syn_core level = do
           ty <- syn_core level
           symbol "."
           ctors <- many $ try pctor
-          pure $ RInd mempty var (Just ty) ctors
+          pure $ \r -> RInd r var (Just ty) ctors
 
         pctor :: ParserT m (Text, Syntax)
         pctor = do
@@ -260,7 +262,7 @@ syn_core level = do
           
 
     prec :: ParserT m Syntax
-    prec = mkrec
+    prec = with_range mkrec
       where 
         mkrec = do
           symbol "φ"
@@ -271,7 +273,7 @@ syn_core level = do
           val <- syn_core level
           symbol "."
           cases <- many $ try pcase
-          pure $ RRec mempty (Just var) (Just ty) val cases
+          pure $ \r -> RRec r (Just var) (Just ty) val cases
 
         pcase = do
           level' <- L.indentGuard scn GT level
@@ -294,7 +296,7 @@ syn_core level = do
           symbol "."
           RMix _ [ty, a, a'] <- syn_core level
           let syn = \case 
-                NamePart txt -> RMix mempty [NamePart txt]
+                NamePart r txt -> RMix r [NamePart r txt]
                 Syn core -> core
           pure $ (\r -> REql r tel (syn ty) (syn a) (syn a'))
 
@@ -318,7 +320,7 @@ syn_core level = do
           symbol "."
           RMix _ [ty, val] <- syn_core level
           let syn = \case 
-                NamePart txt -> RMix mempty [NamePart txt]
+                NamePart r txt -> RMix r [NamePart r txt]
                 Syn core -> core
           pure $ \r -> f r tel (syn ty) (syn val)
 
@@ -335,7 +337,7 @@ syn_core level = do
               symbol "≜"
               val <- syn_core level
               let syn = \case
-                    NamePart txt -> RMix mempty [NamePart txt]
+                    NamePart r txt -> RMix r [NamePart r txt]
                     Syn core -> core
               pure (arg, Just (syn ty, syn a, syn a'), val)
             '≜' -> do
@@ -349,11 +351,15 @@ syn_core level = do
         
 
     pexpr :: ParserT m Syntax
-    pexpr = do
-        RMix mempty <$>
-          (many1 $ Syn <$> (between lparen rparen (syn_core level) <|> patom)
-                   <|> NamePart <$> anyvar)
+    pexpr = with_range mkmix 
       where 
+        mkmix :: ParserT m (Range -> Syntax)
+        mkmix = flip RMix <$> many1 mix_token
+
+        mix_token :: ParserT m (MixToken Syntax)
+        mix_token = (Syn <$> (between lparen rparen (syn_core level) <|> patom))
+          <|> with_range (flip NamePart <$> anyvar)
+
         patom = puniv <|> pctor
 
     puniv :: ParserT m Syntax

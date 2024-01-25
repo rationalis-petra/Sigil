@@ -205,10 +205,12 @@ mixfix' (G {..}) = expr
     inner :: [Operator] -> MixT m (Telescope ParsedCore)
     inner [] = customFailure "inner ran out of operators"
     inner (op : ops) = choice'  
-      [ do args <-
+      [ do r1 <- range <$> lookAhead (satisfy (const True)) 
+           args <-
              betweenM
-             (fmap (\n -> satisfy (\case {NamePart n' -> n == n'; _ -> False})) $ op^.name_parts) expr
-           pure $ Tel (Var mempty (opName op)) args
+             (fmap (\n -> satisfy (\case {NamePart _ n' -> n == n'; _ -> False})) $ op^.name_parts) expr
+           --r2 <- range <$> lookAhead (satisfy (const True))
+           pure $ Tel (Var r1 (opName op)) args
       , inner ops ]
 
     -- Helper Functions: graph tools
@@ -231,7 +233,6 @@ unscope (Tel core l) = go core l where
   go :: ParsedCore -> [ParsedCore] -> ParsedCore
   go core [] = core 
   go core (c:cs) = go (App (range core <> range c) core c) cs 
-  
 
 
 run_precs :: MonadFail m => (forall i. PrecedenceGraph i -> m a) -> Precedences -> m a
