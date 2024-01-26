@@ -93,7 +93,7 @@ load_file interpreter = do
             interpreterState .= istate''
             case modules of
               Left err -> outputState %= (<> ("\n" <> show err)) -- TODO: change!!
-              Right val -> availableModules .= val
+              Right val -> outputState .= "Success" >> availableModules .= val
       Left e
         | isDoesNotExistError e -> outputState .= ("file does not exist: " <> unpack filename)
         | otherwise -> outputState .= "IO error encountered reading file: " <> unpack filename)
@@ -105,7 +105,7 @@ add_import = do
   paletteAction .= (\import_statement -> do
     case Megaparsec.runParser pImport "import" import_statement of
       Left _ -> outputState .= "import parser failure"
-      Right val -> (location._3) %= (val :))
+      Right val -> outputState .= "Success" >> (location._3) %= (val :))
 
 type TParser = Parsec Text Text
 
@@ -132,12 +132,12 @@ add_package_import :: forall m env s id.
   Interpreter m SigilDoc env s -> T.EventM id (InteractiveState s) ()
 add_package_import interp = do
   focus .= Palette
-  paletteAction .= (\import_statement -> 
+  paletteAction .= (\import_statement -> do
     let notWhitespace ' ' = False
         notWhitespace '\n' = False
         notWhitespace '\t' = False
         notWhitespace _ = True
-    in if all notWhitespace (unpack import_statement)
+    if all notWhitespace (unpack import_statement)
     then do
       -- TODO: We need to recheck the package with the new import
       packageImports %= (import_statement :)
@@ -146,6 +146,7 @@ add_package_import interp = do
       pkg <- use $ location._1
       (_, st') <- liftIO $ (run interp) (st) (set_package_imports interp pkg is)
       interpreterState .= st'
+      outputState .= "Success"
 
     else outputState .= "Package name must not contain whitespace")
   
@@ -162,7 +163,7 @@ load_package interpreter = do
         (mpkgs, istate'') <- liftIO $ (run interpreter) istate' (get_available_packages interpreter)
         interpreterState .= istate''
         case mpkgs of
-          Right pkgs -> loadedPackages .= pkgs
+          Right pkgs -> outputState .= "Success" >> loadedPackages .= pkgs
           Left err -> outputState .= show err
       Left err -> outputState .= show err)
 
