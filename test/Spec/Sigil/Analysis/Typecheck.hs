@@ -2,7 +2,7 @@
 module Spec.Sigil.Analysis.Typecheck (type_spec) where
 
 import Control.Monad.Except
-import Control.Lens (view, _1, _2)
+import Control.Lens (view, _1)
 import Data.Text (Text)
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -42,8 +42,8 @@ runCheckM = run_gen . runExceptT
 --   , lift_err :: TCErr -> err
 --   }
 
-type TestEnv = ( Map UniqueName (Sem CheckM, InternalCore, InternalCore)
-               , Map Path (Sem CheckM, InternalCore, InternalCore) )
+type TestEnv = ( Map UniqueName (Sem CheckM, InternalCore)
+               , Map Path (Sem CheckM, InternalCore) )
 
 to_semenv :: TestEnv -> SemEnv CheckM
 to_semenv (l1, l2) = (fmap (view _1) l1, fmap (view _1) l2, Map.empty)
@@ -58,21 +58,21 @@ test_interp = CheckInterp
 default_env :: Env TestEnv CheckM
 default_env = Env
   { i_lookup = \(Name n) (e1, e2) -> case n of
-      Right un -> pure $ fmap (view _2) (Map.lookup un e1)
-      Left qn -> pure $ fmap (view _2) (Map.lookup qn e2)
+      Right un -> pure $ fmap snd (Map.lookup un e1)
+      Left qn -> pure $ fmap snd (Map.lookup qn e2)
   , i_insert = \(Name n) (mval, ty) (e1, e2) -> case n of
       Left qn -> throwError $ ("Cannot insert qualified name:" <+> pretty qn)
       Right un -> do
-        let sem_env = (fmap (\(x,_,_) -> x) e1, fmap (\(x,_,_) -> x) e2, Map.empty)
-        (val', sem) <- case mval of
-          Just v -> (v, ) <$> let ?lift_err = id in Term.eval v sem_env
-          Nothing -> (Var (Name n), ) . flip Neutral (NeuVar (Name n)) <$> let ?lift_err = id in Term.eval ty sem_env
-        pure $ (Map.insert un (sem, val', ty) e1, e2)
+        let sem_env = (fmap fst e1, fmap fst e2, Map.empty)
+        sem <- case mval of
+          Just v -> let ?lift_err = id in Term.eval v sem_env
+          Nothing -> flip Neutral (NeuVar (Name n)) <$> let ?lift_err = id in Term.eval ty sem_env
+        pure $ (Map.insert un (sem, ty) e1, e2)
 
   , i_insert_path = \n (val, ty) (e1, e2) -> do
-      let sem_env = (fmap (\(x,_,_) -> x) e1, fmap (\(x,_,_) -> x) e2, Map.empty)
+      let sem_env = (fmap fst e1, fmap fst e2, Map.empty)
       sem <- let ?lift_err = id in Term.eval val sem_env
-      pure $ (e1, Map.insert n (sem, val, ty) e2)
+      pure $ (e1, Map.insert n (sem, ty) e2)
   , i_impl = (Map.empty, Map.empty)
   }
 
