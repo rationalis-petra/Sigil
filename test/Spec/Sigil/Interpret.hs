@@ -3,7 +3,7 @@ module Spec.Sigil.Interpret (interpret_spec) where
 import TestFramework
 
 import Spec.Sigil.Interpret.Substitution 
-import Spec.Sigil.Interpret.Term 
+import Spec.Sigil.Interpret.Canonical.Term 
 import Spec.Sigil.Interpret.Unify 
 
 interpret_spec :: TestGroup

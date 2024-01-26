@@ -1,7 +1,11 @@
+{-# LANGUAGE ImplicitParams #-}
 module Spec.Sigil.Analysis.Typecheck (type_spec) where
 
 import Control.Monad.Except
+import Control.Lens (view, _1, _2)
 import Data.Text (Text)
+import Data.Map (Map)
+import qualified Data.Map as Map
 
 import Prettyprinter
 import Prettyprinter.Render.Sigil
@@ -10,8 +14,9 @@ import Sigil.Abstract.Names
 import Sigil.Abstract.Environment
 import Sigil.Concrete.Internal
 import Sigil.Concrete.Decorations.Implicit
-import Sigil.Analysis.Typecheck hiding (normalize)
-import Sigil.Interpret.Term
+import Sigil.Analysis.Typecheck
+import qualified Sigil.Interpret.Canonical.Term as Term
+import Sigil.Interpret.Canonical.Values
 
 import TestFramework
 
@@ -26,13 +31,50 @@ check_spec = TestGroup "type-checking" $ Right check_tests
 infer_spec :: TestGroup
 infer_spec = TestGroup "type-inference" $ Right infer_tests
 
-type CheckM a = ExceptT (Doc SigilStyle) Gen a
+type CheckM = ExceptT (Doc SigilStyle) Gen
 
 runCheckM :: CheckM a -> Either (Doc SigilStyle) a
 runCheckM = run_gen . runExceptT 
+-- fmap (\(x,_) -> x) (global_env canon)
+-- data CheckInterp m err env = CheckInterp
+--   { normalize :: (SigilDoc -> err) -> env -> InternalCore -> InternalCore -> m InternalCore
+--   , αβη_eq :: (SigilDoc -> err) -> env -> InternalCore -> InternalCore -> InternalCore -> m Bool
+--   , lift_err :: TCErr -> err
+--   }
 
-default_env :: Env (Maybe InternalCore, InternalCore)
-default_env = env_empty
+type TestEnv = ( Map UniqueName (Sem CheckM, InternalCore, InternalCore)
+               , Map Path (Sem CheckM, InternalCore, InternalCore) )
+
+to_semenv :: TestEnv -> SemEnv CheckM
+to_semenv (l1, l2) = (fmap (view _1) l1, fmap (view _1) l2, Map.empty)
+
+test_interp :: CheckInterp CheckM SigilDoc TestEnv
+test_interp = CheckInterp
+  { normalize = \lift_err env -> Term.normalize lift_err (to_semenv env)
+  , αβη_eq = \lift_err env -> Term.equiv lift_err (to_semenv env)
+  , lift_err = spretty
+  }
+
+default_env :: Env TestEnv CheckM
+default_env = Env
+  { i_lookup = \(Name n) (e1, e2) -> case n of
+      Right un -> pure $ fmap (view _2) (Map.lookup un e1)
+      Left qn -> pure $ fmap (view _2) (Map.lookup qn e2)
+  , i_insert = \(Name n) (mval, ty) (e1, e2) -> case n of
+      Left qn -> throwError $ ("Cannot insert qualified name:" <+> pretty qn)
+      Right un -> do
+        let sem_env = (fmap (\(x,_,_) -> x) e1, fmap (\(x,_,_) -> x) e2, Map.empty)
+        (val', sem) <- case mval of
+          Just v -> (v, ) <$> let ?lift_err = id in Term.eval v sem_env
+          Nothing -> (Var (Name n), ) . flip Neutral (NeuVar (Name n)) <$> let ?lift_err = id in Term.eval ty sem_env
+        pure $ (Map.insert un (sem, val', ty) e1, e2)
+
+  , i_insert_path = \n (val, ty) (e1, e2) -> do
+      let sem_env = (fmap (\(x,_,_) -> x) e1, fmap (\(x,_,_) -> x) e2, Map.empty)
+      sem <- let ?lift_err = id in Term.eval val sem_env
+      pure $ (e1, Map.insert n (sem, val, ty) e2)
+  , i_impl = (Map.empty, Map.empty)
+  }
 
 check_tests :: [Test]     
 check_tests = 
@@ -58,7 +100,7 @@ check_tests =
   where 
     check_test :: Text -> InternalCore -> InternalCore -> Bool -> Test
     check_test name term ty succ = 
-      Test name $ case runCheckM $ check (CheckInterp normalize equiv spretty) default_env term ty of 
+      Test name $ case runCheckM $ check test_interp default_env term ty of 
         Right _
           | succ -> Nothing
           | otherwise -> Just "checker passed, expected to fail"
@@ -94,7 +136,7 @@ infer_tests =
   where
     infer_test :: Text -> InternalCore -> InternalCore -> Test
     infer_test name term ty = 
-      Test name $ case runCheckM $ infer (CheckInterp normalize equiv spretty) default_env term of 
+      Test name $ case runCheckM $ infer test_interp default_env term of 
         Right (_, ty')
           | ty == ty' -> Nothing
           | otherwise -> Just $ "expected type:" <+> pretty ty <+> "got" <+> pretty ty'
