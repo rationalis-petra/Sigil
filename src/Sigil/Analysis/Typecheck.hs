@@ -448,27 +448,31 @@ prod_out = \case
 
   -- TODO: get_universe is a likely source of bugs...
 get_universe :: MonadError err m => (TCErr -> err) -> Range -> Env env m -> InternalCore -> m Integer
-get_universe lift_error r env = go where
-  go = \case
+get_universe lift_error r env = go env where
+  go env = \case
     Var n -> do 
       res <- lookup n env
       case res of
-        Just ty -> go ty
-        Nothing -> throwError $ lift_error $ PrettyErr ("Couldn't resolve variable:" <+> pretty n) r
+        Just ty -> go env ty
+        Nothing -> throwError $ lift_error $ PrettyErr
+          ( "Implementation error at Typecheck/get_universe:"
+            <+> "Couldn't resolve variable:" <+> pretty n ) r
     
     -- Type Formers
     Uni i -> pure $ i + 1
-    Prd _ (AnnBind (_, a)) b -> max <$> go a <*> go b
-    Ind _ ty _ -> go ty
-    Eql _ ty _ _ -> go ty
+    Prd _ (AnnBind (n, a)) b -> do
+      env' <- insert n (Nothing, a) env
+      max <$> go env a <*> go env' b
+    Ind _ ty _ -> go env ty
+    Eql _ ty _ _ -> go env ty
     
     -- Eliminators
-    App l r -> max <$> go l <*> go r
-    Rec (AnnBind (_, ty)) _ _ -> go ty
+    App l r -> max <$> go env l <*> go env r
+    Rec (AnnBind (_, ty)) _ _ -> go env ty
     -- ETC _ -> 0
     -- CTE _ -> 0
     -- ??
-    TyCon ty _ _ -> go ty
+    TyCon ty _ _ -> go env ty
     
     -- Value Terms
     Abs _ _ _ -> pure 0
