@@ -34,8 +34,8 @@ check_scons interp@(CheckInterp {..}) env cons = case cons of
   (l :≗: r) -> do
     (l', lty) <- infer interp env l
     (r', rty) <- infer interp env r
-    (_, kind) <- infer interp env lty
-    check_eq mempty interp env kind lty rty
+    n <- get_universe lift_err (range l <> range r) env lty
+    check_eq mempty interp env (Uni n) lty rty
     l_norm <- normalize (lift_err . flip NormErr mempty) (i_impl env) lty l'
     r_norm <- normalize (lift_err . flip NormErr mempty) (i_impl env) rty r'
     pure $ (l_norm :≗: r_norm)

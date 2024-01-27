@@ -5,14 +5,17 @@ import Control.Monad.Except
 import Control.Lens (view, _1)
 import Data.Text (Text)
 import Data.Map (Map)
+import Data.Bifunctor (bimap)
 import qualified Data.Map as Map
 
 import Prettyprinter
 import Prettyprinter.Render.Sigil
 
 import Sigil.Abstract.Names
+import Sigil.Abstract.Syntax (Core(Uniχ, Varχ, Absχ, Prdχ))
 import Sigil.Abstract.Environment
 import Sigil.Concrete.Internal
+import Sigil.Concrete.Resolved (ResolvedCore)
 import Sigil.Concrete.Decorations.Implicit
 import Sigil.Analysis.Typecheck
 import qualified Sigil.Interpret.Canonical.Term as Term
@@ -78,27 +81,27 @@ default_env = Env
 
 check_tests :: [Test]     
 check_tests = 
-  [ check_test "universe-sub" (𝓊 0) (𝓊 1) True
-  , check_test "universe-super" (𝓊 2) (𝓊 1) False
+  [ check_test "universe-sub" (𝓊r 0) (𝓊 1) True
+  , check_test "universe-super" (𝓊r 2) (𝓊 1) False
 
   , check_test "id-eq"
-    ([(idn 0 "A", 𝓊 0), (idn 1 "x", idv 0 "A")] ⇒ (idv 1 "x"))
+    ([(idn 0 "A", 𝓊r 0), (idn 1 "x", idvr 0 "A")] +⇒ (idvr 1 "x"))
     ([(idn 0 "A", 𝓊 0), (idn 1 "x", idv 0 "A")] → (idv 0 "A"))
     True
 
   , check_test "id-αrenamed-eq"
-    ([(idn 0 "A", 𝓊 0), (idn 2 "x", idv 0 "A")] ⇒ (idv 2 "x"))
+    ([(idn 0 "A", 𝓊r 0), (idn 2 "x", idvr 0 "A")] +⇒ (idvr 2 "x"))
     ([(idn 0 "A", 𝓊 0), (idn 1 "x", idv 0 "A")] → (idv 0 "A"))
     True
 
   , check_test "id-2αrenamed-eq"
-    ([(idn 0 "A", 𝓊 0), (idn 2 "x", idv 0 "A")] ⇒ (idv 2 "x"))
+    ([(idn 0 "A", 𝓊r 0), (idn 2 "x", idvr 0 "A")] +⇒ (idvr 2 "x"))
     ([(idn 0 "A", 𝓊 0), (idn 1 "x", idv 0 "A")] → (idv 0 "A"))
     True
   ]
 
   where 
-    check_test :: Text -> InternalCore -> InternalCore -> Bool -> Test
+    check_test :: Text -> ResolvedCore -> InternalCore -> Bool -> Test
     check_test name term ty succ = 
       Test name $ case runCheckM $ check test_interp default_env term ty of 
         Right _
@@ -112,29 +115,31 @@ check_tests =
 infer_tests :: [Test]            
 infer_tests =
   [ -- 𝕌 : 𝕌1
-    infer_test "𝕌₀-𝕌₁" (𝓊 0) (𝓊 1)
+    infer_test "𝕌₀-𝕌₁" (𝓊r 0) (𝓊 1)
 
-  , infer_test "simple-lam" ([(idn 0 "A", 𝓊 0)] ⇒ idv 0 "A") ([(idn 0 "_", 𝓊 0)] → 𝓊 0)
+  , infer_test "simple-lam"
+    ([(idn 0 "A", 𝓊r 0)] +⇒ idvr 0 "A")
+    ([(idn 0 "_", 𝓊 0)] → 𝓊 0)
 
   , infer_test "multi-lam-1"
-    ([(idn 0 "A", 𝓊 0), (idn 1 "B", 𝓊 0)] ⇒ idv 1 "B")
+    ([(idn 0 "A", 𝓊r 0), (idn 1 "B", 𝓊r 0)] +⇒ idvr 1 "B")
     ([(idn 1 "_", 𝓊 0), (idn 0 "_", 𝓊 0)] → 𝓊 0)
 
   , infer_test "multi-lam-2"
-    ([(idn 0 "A", 𝓊 0), (idn 1 "B", 𝓊 0)] ⇒ idv 0 "A")
+    ([(idn 0 "A", 𝓊r 0), (idn 1 "B", 𝓊r 0)] +⇒ idvr 0 "A")
     ([(idn 1 "_", 𝓊 0), (idn 0 "_", 𝓊 0)] → 𝓊 0)
 
   , infer_test "dep-lam"
-    ([(idn 0 "A", 𝓊 0), (idn 1 "x", idv 0 "A")] ⇒ idv 1 "x")
+    ([(idn 0 "A", 𝓊r 0), (idn 1 "x", idvr 0 "A")] +⇒ idvr 1 "x")
     ([(idn 0 "A", 𝓊 0), (idn 0 "_", idv 0 "A")] → idv 0 "A")
 
   , infer_test "prd-cum"
-    ([(idn 0 "A", 𝓊 0)] → idv 0 "A")
+    ([(idn 0 "A", 𝓊r 0)] +→ idvr 0 "A")
     (𝓊 1)
   ]
   
   where
-    infer_test :: Text -> InternalCore -> InternalCore -> Test
+    infer_test :: Text -> ResolvedCore -> InternalCore -> Test
     infer_test name term ty = 
       Test name $ case runCheckM $ infer test_interp default_env term of 
         Right (_, ty')
@@ -144,12 +149,25 @@ infer_tests =
 
 -- var :: n -> Core b n UD
 -- var = Var void
+𝓊r :: Integer -> ResolvedCore
+𝓊r = Uniχ mempty
+
+(+⇒) :: [(Name, ResolvedCore)] -> ResolvedCore -> ResolvedCore
+args +⇒ body = foldr (\var body -> Absχ (mempty, Regular) (OptBind (bimap Just Just var)) body) body args
+
+(+→) :: [(Name, ResolvedCore)] -> ResolvedCore -> ResolvedCore
+args +→ body = foldr (\var body -> Prdχ (mempty, Regular) (OptBind (bimap Just Just var)) body) body args
+
+idvr :: Integer -> Text -> ResolvedCore
+idvr n t = Varχ mempty $ Name $ Right (n, t)
+
+--------------------------------------------------------------------------------  
 
 𝓊 :: Integer -> InternalCore
 𝓊 = Uni
 
-(⇒) :: [(Name, InternalCore)] -> InternalCore -> InternalCore
-args ⇒ body = foldr (\var body -> Abs Regular (AnnBind var) body) body args
+-- (⇒) :: [(Name, InternalCore)] -> InternalCore -> InternalCore
+-- args ⇒ body = foldr (\var body -> Abs Regular (AnnBind var) body) body args
 
 (→) :: [(Name, InternalCore)] -> InternalCore -> InternalCore
 args → body = foldr (\var body -> Prd Regular (AnnBind var) body) body args

@@ -5,6 +5,7 @@ module Sigil.Analysis.Typecheck
   , TCErr(..)
   , check_entry
   , check_module
+  , get_universe
   ) where
 
 
@@ -65,176 +66,6 @@ data CheckInterp m err env = CheckInterp
 class Checkable a where 
   infer :: (MonadError err m, MonadGen m) => CheckInterp m err env -> Env env m -> a -> m (InternalCore, InternalCore) -- ,[n]
   check :: (MonadError err m, MonadGen m) => CheckInterp m err env -> Env env m -> a -> InternalCore -> m InternalCore -- ,[n]
-
-instance Checkable InternalCore where 
-  infer :: forall err m env. (MonadError err m, MonadGen m)
-    => CheckInterp m err env -> Env env m -> InternalCore -> m (InternalCore, InternalCore)
-  infer interp@(CheckInterp {..}) env term =
-    let infer' = infer interp
-        check' = check interp
-        normalize' env = normalize (lift_err . flip NormErr (range term)) (i_impl env)
-
-        throwError' :: SigilDoc -> m a
-        throwError' = throwError . (lift_err . flip PrettyErr (range term) . ("throw-resolved" <+>))
-
-        lookup_err' :: Name -> Env env m -> m InternalCore
-        lookup_err' n env = do
-          val <- lookup n env
-          maybe (throwError' $ "Implementation Error at Analysis/Typecheck:infer can't find variable:" <+> pretty n) pure val
-    in case term of
-        Var n -> (term, ) <$> lookup_err' n env
-        Uni j -> pure (term, Uni (j + 1))
-        App l r -> do
-          (l', lty) <- infer' env l
-          (AnnBind (n, arg_ty), ret_ty) <- check_prod lift_err lty
-          r' <- check' env r arg_ty
-          pure (App l' r', subst (n ↦ r) ret_ty)
-      
-        Abs at (AnnBind (n, a)) body -> do
-          (a', aty) <- infer' env a
-          a_norm <- normalize' env aty a'
-     
-          env' <- insert n (Nothing, a_norm) env
-          (body', ret_ty) <- infer' env' body
-          n' <- if n `Set.member` free_vars ret_ty then pure n else fresh_var "_"
-     
-          pure (Abs at (AnnBind (n, a')) body', Prd at (AnnBind (n', a')) ret_ty)
-     
-        Prd at (AnnBind (n, a)) b -> do
-          (a', aty) <- infer' env a
-          a_norm <- normalize' env aty a'
-     
-          env' <- insert n (Nothing, a_norm) env
-          (b', bty) <- infer' env' b
-     
-          i <- check_lvl lift_err aty
-          j <- check_lvl lift_err bty
-          pure (Prd at (AnnBind (n, a')) b', Uni (max i j))
-      
-        Ind n a ctors -> do
-          (a', asort) <- infer' env a
-          anorm <- normalize' env asort a 
-          env' <- insert n (Just anorm, asort) env
-          ctors' <- forM ctors $ \(label, ty) -> do
-            ty' <- check' env' ty asort -- TODO: is this predicativity??
-            pure $ (label, ty')
-          pure $ (Ind n a' ctors', a')
-
-        Ctr label ty ->
-          case ty of
-            ind@(Ind n sort ctors) -> case find ((== label) . fst) ctors of
-              Just (_, val) -> do
-                check_eq (range term) interp env sort ty (subst (n ↦ ind) val)
-                pure $ (Ctr label ty, ty)
-              Nothing -> throwError' $ "Couln't find constructor" <+> pretty label
-            _ -> throwError' $ "Constructor" <+> pretty label <+> "must be labeled with inductive datatype, got:" <+> pretty ty
-  
-        Dap [] val -> do  
-          (val', val_ty) <- infer' env val
-          pure (Dap [] val', Eql [] val_ty val' val')
-
-        Eql tel ty v1 v2 -> do
-          let infer_tel [] tel_in env_l env_r env_m = pure (tel_in, env_l, env_r, env_m) 
-              infer_tel ((AnnBind (n, (ty, v1, v2)), prf) : tel) tel_in env_l env_r env_m = do
-                (ty_l, kind_l) <- infer' env_l ty
-                (ty_r, kind_r) <- infer' env_r ty
-                (ty_m, kind_m) <- infer' env_m ty
-
-                v1' <- check' env_l v1 ty_l
-                v2' <- check' env_r v2 ty_r
-
-                prf' <- check' env prf (Eql tel_in ty_m v1' v2')
-
-                ty_norm_l <- normalize' env_l kind_l ty_l
-                ty_norm_r <- normalize' env_r kind_r ty_r 
-                ty_norm_m <- normalize' env_m kind_m ty_m 
-
-                v1_norm <- normalize' env_l ty_norm_l v1' 
-                v2_norm <- normalize' env_r ty_norm_r v2'
-                env_l' <- insert n (Just v1_norm, ty_norm_l) env_l
-                env_r' <- (insert n (Just v2_norm, ty_norm_r) env_r)
-                env_m' <- (insert n (Nothing, ty_norm_m) env_m)
-                infer_tel tel
-                  (tel_in <> [(AnnBind (n, (ty_m, v1', v2')), prf')])
-                  env_l' env_r' env_m'
-         
-          (tel', env_l, env_r, env_m) <- infer_tel tel [] env env env
-
-          (ty_l, kind_l) <- infer' env_l ty
-          (ty_r, kind_r) <- infer' env_r ty
-          (ty_m, kind_m) <- infer' env_m ty
-          ty_norm_l <- normalize' env_l kind_l ty_l
-          ty_norm_r <- normalize' env_r kind_r ty_r
-          v1' <- check' env_l v1 ty_norm_l
-          v2' <- check' env_r v2 ty_norm_r
-          pure (Eql tel' ty_m v1' v2', kind_m)
-          
-        _ -> throwError' $ "infer not implemented for internal term:" <+> pretty term
-
-  
-  -- Note: types are expected to be in normal form
-  -- Note: environment is expected to contain types of terms!!
-
-  check :: forall err m env. (MonadError err m, MonadGen m)
-    => CheckInterp m err env -> Env env m -> InternalCore -> InternalCore -> m InternalCore
-  check interp@(CheckInterp {..}) env term ty =
-    let infer' = infer interp
-        check' = check interp
-
-        throwError' :: SigilDoc -> m a
-        throwError' = throwError . lift_err . flip PrettyErr (range term)
-    in 
-      case (term, ty) of
-        (Uni j, Uni k)
-          | j < k -> pure term
-          | otherwise -> throwError' "universe-level check failed"
-        
-        -- TODO: generalize to more bindings; notably untyped bindings!!
-        (Abs at₁ (AnnBind (n, a)) body, Prd at₂ (AnnBind (n',a')) ret_ty)
-          | at₁ == at₂ -> do
-              (_, kind) <- infer interp env a
-              check_eq (range term) interp env kind a a'
-              let ret_ty' = if (n == n') then ret_ty else subst (n' ↦ Var n) ret_ty
-              body' <- do { env' <- (insert n (Nothing, a) env); check' env' body ret_ty' }
-              pure $ Abs at₁ (AnnBind (n, a')) body'
-
-          -- Note: do we want to do this?
-          -- | at₁ == Regular -> do
-          --     -- therefore at₂ == Implicit
-          --     (_, kind) <- infer interp env a
-          --     check_eq (range term) interp env kind a a'
-          --     let ret_ty' = if (n == n') then ret_ty else subst (n' ↦ Var n) ret_ty
-          --     body' <- check'(insert n (Nothing, a) env) body ret_ty'
-          --     -- TODO: is this safe?! we are adding n' to the scope of function..
-          --     pure $ Abs at₂ (AnnBind (n', a')) (Abs at₁ (AnnBind (n, a')) body')
-          | otherwise -> throwError' $ "Implicit-Regular argument type mismatch" 
-
-        -- Note: do we want to do this?
-        -- Note: any type can have 'implicit product' type by extending it! 
-        -- (val, Prd Implicit (AnnBind (n',a')) ret_ty)
-  
-        (Abs _ _ _, _) -> throwError' $ "expected λ-term to have Π-type, got" <+> pretty ty
-        
-        (Prd at (AnnBind (n, a)) b, _) -> do -- TODO: universe check???
-          a' <- check' env a ty
-          b' <- do {env' <- (insert n (Nothing, a) env) ; check' env' b ty }
-          pure $ Prd at (AnnBind (n, a')) b'
-        
-        (Ctr label ity, ty) -> do
-          case prod_out ty of
-            ind@(Ind n sort ctors) -> case find ((== label) . fst) ctors of
-              Just (_, val) -> do
-                check_eq (range term) interp env sort ty (subst (n ↦ ind) val)
-                check_eq (range term) interp env sort ty ity
-                pure $ Ctr label ty
-              Nothing -> throwError' $ "Couln't find constructor" <+> pretty label
-            _ -> throwError' $ "Constructor" <+> pretty label <+> "must be annotated so as to produce an inductive datatype"
-
-        _ -> do
-          (term', ty') <- infer' env term
-          (_, kind) <- infer' env ty
-          _ <- check_eq (range term) interp env kind ty ty'
-          pure term'
 
 
 instance Checkable ResolvedCore where 
@@ -492,8 +323,8 @@ instance Checkable ResolvedCore where
         -- TODO: add cases for Eql and Dap
         _ -> do
           (term', ty') <- infer' env term
-          (_, kind) <- infer interp env ty
-          _ <- check_eq (range term) interp env kind ty ty'
+          n <- get_universe lift_err (range ty) env ty
+          _ <- check_eq (range term) interp env (Uni n) ty ty'
           pure term'
 
 -- Utility functions for Checking Resolved Terms, specifically for working with telescopes
@@ -586,8 +417,8 @@ check_module interp@(CheckInterp {..}) env mod = do
   
     eval = normalize (lift_err . flip NormErr (Range Nothing))
     eval_ty env ty = do 
-      (_, sort) <- infer interp env ty   
-      eval (i_impl env) sort ty
+      n <- get_universe lift_err (range ty) env ty
+      eval (i_impl env) (Uni n) ty
 
 -- TODO: replace with check_sub (?)
 --check_eq _ _ = undefined
@@ -614,6 +445,39 @@ prod_out :: Core b n χ -> Core b n χ
 prod_out = \case 
   Prdχ _ _ r -> prod_out r
   v -> v
+
+  -- TODO: get_universe is a likely source of bugs...
+get_universe :: MonadError err m => (TCErr -> err) -> Range -> Env env m -> InternalCore -> m Integer
+get_universe lift_error r env = go where
+  go = \case
+    Var n -> do 
+      res <- lookup n env
+      case res of
+        Just ty -> go ty
+        Nothing -> throwError $ lift_error $ PrettyErr ("Couldn't resolve variable:" <+> pretty n) r
+    
+    -- Type Formers
+    Uni i -> pure $ i + 1
+    Prd _ (AnnBind (_, a)) b -> max <$> go a <*> go b
+    Ind _ ty _ -> go ty
+    Eql _ ty _ _ -> go ty
+    
+    -- Eliminators
+    App l r -> max <$> go l <*> go r
+    Rec (AnnBind (_, ty)) _ _ -> go ty
+    -- ETC _ -> 0
+    -- CTE _ -> 0
+    -- ??
+    TyCon ty _ _ -> go ty
+    
+    -- Value Terms
+    Abs _ _ _ -> pure 0
+    Ctr _ _ ->   pure 0
+    Dap _ _ ->   pure 0
+    TrR _ _ _ -> pure 0
+    TrL _ _ _ -> pure 0
+    -- LfR _ _ _ -> 0
+    -- LfL _ _ _ -> 0
 
 -- Helpers for constructing the 1-1-Correspondence type
 -- sigma :: Binding b => Core b n χ -> n -> Core b n χ -> Core b n χ -> Core b n χ
