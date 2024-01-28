@@ -297,6 +297,14 @@ eval term env = case term of
     pure $ SInd inm ity' ctors'
 
   Ctr label ty -> SCtr label <$> (eval ty env) <*> pure []
+
+  -- Evaluate a recursive pattern-matching term
+  -- We use the recur helper funtion, which requires that each 
+  -- pattern-match case be expressed as a function which:
+  -- • Takes a value to match and returns either
+  --   • Nothing (if the match failed)
+  --   • Just val (if the match succeeded, where val is the evaluated case)
+
   Rec (AnnBind (rname, rty)) val cases -> do
     rty' <- eval rty env
     (at, pname, a, b) <- case rty' of 
@@ -310,10 +318,11 @@ eval term env = case term of
           , ((pat,) <$> (eval core =<< (insert rname (Neutral rty' (NeuVar rname)) <$> match_neu env pat a)))
           )
 
+        -- Responsible for producinga match
         match :: SemEnv m -> Pattern Name -> Sem m -> Maybe (SemEnv m)
         match env (PatVar n) v = Just $ insert n v env
         match env (PatCtr n subpats) (SCtr n' _ vals)
-          | n == n' = foldl (\menv (p, v) -> do -- TODO: check that foldl is corect!
+          | n == n' = foldl (\menv (p, v) -> do -- TODO: check that foldl is correct!
                                 env <- menv
                                 match env p v) (Just env) (zip subpats vals)
           | otherwise = Nothing
@@ -323,11 +332,12 @@ eval term env = case term of
         match_neu env (PatVar n) ty = pure $ insert n (Neutral ty (NeuVar n)) env
         match_neu env (PatCtr label subpats) (SInd _ _ ctors) = do
           -- args <- ty_args label ctors
-          let ty_args = \case -- TODO: borked! include name!
-                (SPrd _ _ a b) -> [a] <> ty_args b
-                _ -> []
+          let ty_args :: Sem m -> m [Sem m]
+              ty_args = \case -- TODO: borked! include name!
+                (SPrd _ n a b) -> (a :) <$> (ty_args =<< (b `app` (Neutral a (NeuVar n))))
+                _ -> pure []
           args <- case find ((== label) . fst) ctors of
-            Just (_, ty) -> ty_args <$> ty (Neutral rty' (NeuVar rname))
+            Just (_, ty) -> ty_args =<< ty (Neutral rty' (NeuVar rname))
             Nothing -> throw "bad pattern match"
           foldl (\m (pat, arg) -> m >>= \env -> match_neu env pat arg) (pure env) (zip subpats args)
         match_neu _ _ ty = throw ("bad type in match_neu:" <+> pretty ty)
@@ -537,11 +547,11 @@ dap env tel term = case term of
 
 recur :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err)
   => (SemEnv m) -> Name -> Sem m -> Sem m -> [(Sem m -> Maybe (m (Sem m)), m (Pattern Name, Sem m))] -> m (Sem m)
-recur _ rname rty@(SPrd _ _ _ b) val cases =
+recur _ rname rty@(SPrd _ _ a b) val cases =
     case val of 
       SCtr _ _ _ -> case find (isJust) (map (($ val) . fst) cases) of 
         Just (Just m) -> m
-        _ -> throw "failed to match"
+        _ -> throw ("Failed to match val:" <+> pretty val <+> "at type" <+> pretty a)
       Neutral _ neuval -> 
         Neutral <$> (b `app` val) <*> pure (NeuRec rname rty neuval cases)
       _ -> throw "recur must induct over a constructor"

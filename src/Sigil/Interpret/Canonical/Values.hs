@@ -101,12 +101,11 @@ lookup_err lift_err n (e1, e2, e3) =
           Nothing -> path_lookup qn e3
   in case res of
     Just v -> pure v
-    Nothing -> throwError $ lift_err $ "Implementation error at Canonical/Values.hs:lookup_err: unbound name"
-      <+> pretty (name_long n) <+> "in" <+> pretty e1
+    Nothing -> throwError $ lift_err $
+     "Implementation error at Canonical/Values.hs:lookup_err: unbound name" <+> pretty (name_long n)
 
 {------------------------------- PRETTY INSTANCES ------------------------------}
 {- Pretty                                                                      -}
-{-                                                                             -}
 {-------------------------------------------------------------------------------}
 
 

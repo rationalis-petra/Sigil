@@ -165,8 +165,8 @@ instance Checkable ResolvedCore where
                 PatCtr label subpatterns -> do
                   -- TODO: what about dependently-typed induction!
                   args <- get_args label inty 
-                  -- TODO: ensure same length for zipping!
-                  foldl (\m (inty, subpat) -> m >>= \env -> update_env env inty subpat) (pure env) (zip args subpatterns) 
+                  if (length args /= length subpatterns) then throwError' "Error: malformed pattern (bad number of arguments)" else pure ()
+                  foldl (\m (inty, subpat) -> m >>= \env -> update_env env inty subpat) (pure env) (zip args subpatterns)
 
               get_args label ty@(Ind rn _ ctors) = do
                 case find ((== label) . fst) ctors of 

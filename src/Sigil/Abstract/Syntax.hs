@@ -481,3 +481,12 @@ instance Pretty ExportDef where
     ExAsType -> "astype??" -- TODO what did I mean??
     ExSeal -> "↓"
     ExSingleton -> ""
+
+instance Pretty n => Pretty (Pattern n) where
+  pretty pat =
+    let pbracket p = case p of
+          PatCtr _ _ -> "(" <> pretty p <> ")"
+          PatVar _ -> pretty p
+    in case pat of
+      PatCtr n subpats -> pretty (":" <> n) <+> sep (map pbracket subpats)
+      PatVar n -> pretty n
