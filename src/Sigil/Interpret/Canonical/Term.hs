@@ -6,6 +6,7 @@ module Sigil.Interpret.Canonical.Term
   , eval_package
   ) where
 
+
 import Prelude hiding (head, lookup)
 import Control.Monad((<=<))
 import Control.Monad.Except (MonadError, throwError)
@@ -156,7 +157,7 @@ read_nf (Normal ty val) = case (ty, val) of
     case find ((== label) . fst) ctors of
       Just (_, cty) -> do
         cty' <- cty $ SInd nm ty ctors
-        recur (Ctr label ind_ty) cty' (reverse vals)
+        recur (Ctr label ind_ty) cty' vals
         where
           recur v _ [] = pure v
           recur v (SPrd _ _ a b) (val:vals) = do
@@ -164,7 +165,7 @@ read_nf (Normal ty val) = case (ty, val) of
             val' <- read_nf (Normal a val)
             recur (App v val') b' vals
           recur _ _ _ = throw "recur unequal!"
-      Nothing -> throw $ "Constructor cannot be found!"
+      Nothing -> throw $ "Constructor" <+> pretty label <+> "cannot be found in type" <+> pretty (SInd nm ty ctors)
         
   (_, Neutral _ e) -> read_ne e 
   (_, _) -> throw ("bad read_nf:" <+> pretty val <+> "⮜" <+> pretty ty)
@@ -322,7 +323,7 @@ eval term env = case term of
         match :: SemEnv m -> Pattern Name -> Sem m -> Maybe (SemEnv m)
         match env (PatVar n) v = Just $ insert n v env
         match env (PatCtr n subpats) (SCtr n' _ vals)
-          | n == n' = foldl (\menv (p, v) -> do -- TODO: check that foldl is correct!
+          | n == n' = foldr (\(p, v) menv -> do -- TODO: check that foldl is correct!
                                 env <- menv
                                 match env p v) (Just env) (zip subpats vals)
           | otherwise = Nothing
@@ -518,7 +519,7 @@ eval_neusem env neu = case neu of
 app :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => (Sem m) -> (Sem m) -> m (Sem m)
 app (SAbs _ _ fnc) val = fnc val
 app (SCtr label ty vals) v =
-  pure $ SCtr label ty (v : vals)
+  pure $ SCtr label ty (vals <> [v])
 app (Neutral (SPrd _ _ a b) neu) v =
   Neutral <$> (b `app` v) <*> pure (NeuApp neu (Normal a v))
 app l r = throw ("bad args to app:" <+> pretty l <+> "and" <+> pretty r) 
