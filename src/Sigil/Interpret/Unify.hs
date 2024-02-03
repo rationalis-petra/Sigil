@@ -75,6 +75,7 @@ import Sigil.Abstract.Substitution hiding (empty, lookup, insert)
 
 import Sigil.Concrete.Internal
 import Sigil.Concrete.Decorations.Implicit
+import Sigil.Interpret.Canonical.Values
 --import Sigil.Interpret.Term
 
 
@@ -207,11 +208,12 @@ instance AlphaEq Name a => AlphaEq Name (Atom Name a) where
 {-------------------------------------------------------------------------------}
 
 
-solve :: forall err ann m. (MonadError err m, MonadGen m, Alternative m) => (Doc ann -> err) -> Formula' -> m Substitution'
-solve liftErr = let ?lift_err = liftErr in solve'
+solve :: forall err ann m. (MonadError err m, MonadGen m, Alternative m) => (Doc ann -> err) -> SemEnv m -> Formula' -> m Substitution'
+solve liftErr env = let ?lift_err = liftErr in solve' env
 
-solve' :: forall err ann m. (MonadError err m, MonadGen m, Alternative m, ?lift_err :: (Doc ann -> err)) => Formula' -> m Substitution'
-solve' = fmap fst . (\v -> uni_while (v^.binds) mempty (v^.constraints)) . flatten where
+solve' :: forall err ann m. (MonadError err m, MonadGen m, Alternative m, ?lift_err :: (Doc ann -> err))
+  => SemEnv m -> Formula' -> m Substitution'
+solve' _ = fmap fst . (\v -> uni_while (v^.binds) mempty (v^.constraints)) . flatten where
 
   uni_while :: Binds' -> Substitution' -> [SingleConstraint'] -> m (Substitution', [SingleConstraint'])
   uni_while quant_vars sub cs = 

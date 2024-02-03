@@ -3,6 +3,7 @@ module Spec.Sigil.Interpret.Unify (unify_spec) where
 import Prelude hiding (lookup)
 import Control.Monad.Except
 import Data.Text (Text)
+import qualified Data.Map as Map
 
 import Prettyprinter
 import Prettyprinter.Render.Sigil
@@ -114,7 +115,7 @@ unify_tests =
   where 
     eq_test :: Text -> InternalCore -> InternalCore -> Bool -> Test
     eq_test name l r b = 
-      Test name $ case runUnifyM 10 $ solve id (Conj [l :≗: r]) of 
+      Test name $ case runUnifyM 10 $ solve id (Map.empty, Map.empty, Map.empty) (Conj [l :≗: r]) of 
         Right _ | b == True -> Nothing
                 | otherwise -> Just "unify-eq succeded when expecting fail"
         Left e  | b == False -> Nothing
@@ -122,7 +123,7 @@ unify_tests =
 
     can_solve_test :: Text -> Formula Name InternalCore -> Bool -> Test
     can_solve_test name formula b =
-      Test name $ case runUnifyM 10 $ solve id formula of 
+      Test name $ case runUnifyM 10 $ solve id (Map.empty, Map.empty, Map.empty) formula of 
         Right _ | b == True -> Nothing
                 | otherwise -> Just "unify-eq succeded when expecting fail"
         Left e  | b == False -> Nothing
@@ -130,7 +131,7 @@ unify_tests =
 
     solve_test :: Text -> Formula Name InternalCore -> [(Name, InternalCore)] -> Test
     solve_test name formula sub =
-      Test name $ case runUnifyM 10 $ solve id formula of 
+      Test name $ case runUnifyM 10 $ solve id (Map.empty, Map.empty, Map.empty) formula of 
         Right s
           | s `has` sub -> Nothing
           | otherwise -> Just $ vsep ["Incorrect substitution.", "Got:" <+> pretty s, "Expecting it to have:" <+> pretty sub]

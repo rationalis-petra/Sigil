@@ -23,6 +23,7 @@ module Sigil.Abstract.Names
 
 
 import Prelude hiding (head, lookup)
+import Control.Monad.Writer (WriterT(..))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Except (ExceptT)
 import Control.Monad.State (State, StateT, runState, get, modify)
@@ -148,6 +149,10 @@ instance MonadGen m => MonadGen (StateT e m) where
 
 instance MonadGen m => MonadGen (ReaderT e m) where
   fresh_id = lift fresh_id
+
+instance (Monoid w, MonadGen m) => MonadGen (WriterT w m) where
+  fresh_id = lift fresh_id
+
 
 run_gen :: Gen a -> a
 run_gen = fst . flip runState 0 . ungen

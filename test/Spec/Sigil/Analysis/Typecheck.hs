@@ -19,6 +19,7 @@ import Sigil.Concrete.Resolved (ResolvedCore)
 import Sigil.Concrete.Decorations.Implicit
 import Sigil.Analysis.Typecheck
 import qualified Sigil.Interpret.Canonical.Term as Term
+import qualified Sigil.Interpret.Unify as Unify
 import Sigil.Interpret.Canonical.Values
 
 import TestFramework
@@ -55,6 +56,7 @@ test_interp :: CheckInterp CheckM SigilDoc TestEnv
 test_interp = CheckInterp
   { normalize = \lift_err env -> Term.normalize lift_err (to_semenv env)
   , αβη_eq = \lift_err env -> Term.equiv lift_err (to_semenv env)
+  , solve = \lift_err env -> Unify.solve lift_err (to_semenv env)
   , lift_err = spretty
   }
 
@@ -103,7 +105,7 @@ check_tests =
   where 
     check_test :: Text -> ResolvedCore -> InternalCore -> Bool -> Test
     check_test name term ty succ = 
-      Test name $ case runCheckM $ check test_interp default_env term ty of 
+      Test name $ case runCheckM $ check_core test_interp default_env term ty of 
         Right _
           | succ -> Nothing
           | otherwise -> Just "checker passed, expected to fail"
@@ -141,7 +143,7 @@ infer_tests =
   where
     infer_test :: Text -> ResolvedCore -> InternalCore -> Test
     infer_test name term ty = 
-      Test name $ case runCheckM $ infer test_interp default_env term of 
+      Test name $ case runCheckM $ infer_core test_interp default_env term of 
         Right (_, ty')
           | ty == ty' -> Nothing
           | otherwise -> Just $ "expected type:" <+> pretty ty <+> "got" <+> pretty ty'

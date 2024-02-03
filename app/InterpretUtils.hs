@@ -36,7 +36,7 @@ eval_expr (Interpreter {..}) package_name imports line = do
   parsed <- core precs "playground" line  -- TODO: eof??
   resolved <- resolve_closed (("unbound name" <+>) . pretty) resolution parsed
     `catchError` (throwError . (<+>) "Resolution:")
-  (term, ty) <- infer (CheckInterp eval norm_eq spretty) env resolved
+  (term, ty) <- infer_core (CheckInterp eval norm_eq solve_formula spretty) env resolved
     `catchError` (throwError . (<+>) "Inference:")
   norm <- eval id (i_impl env) ty term
     `catchError` (throwError . (<+>) "Normalization:")
@@ -56,7 +56,7 @@ eval_mod (Interpreter {..}) package_name filename modul_text = do
     `catchError` (throwError . (<+>) "Resolution:")
 
   env <- get_env
-  check_module (CheckInterp eval norm_eq spretty) env resolved
+  check_module (CheckInterp eval norm_eq solve_formula spretty) env resolved
     `catchError` (throwError . (<+>) "Inference:")
 
   
@@ -69,7 +69,7 @@ eval_formula (Interpreter {..}) package_name imports line = do
   parsed <- formula precs "playground" line  -- TODO: eof??
   resolved <- resolve_closed (("unbound name" <+>) . pretty) resolution parsed
     `catchError` (throwError . (<+>) "Resolution:")
-  checked <- check_formula (CheckInterp eval norm_eq spretty) env resolved
+  checked <- check_formula (CheckInterp eval norm_eq solve_formula spretty) env resolved
     `catchError` (throwError . (<+>) "Inference:")
   (Substitution solution) <- solve_formula id (i_impl env) checked
     `catchError` (throwError . (<+>) "Unification:")
@@ -79,21 +79,3 @@ eval_formula (Interpreter {..}) package_name imports line = do
       go (And l r) = go l <> go r
       go (Conj _) = Set.empty
   pure $ Substitution $ Map.filterWithKey (\k _ -> Set.member k exs) solution
-
--- Internal Use only 
--- interp_eval :: forall m env s. (MonadError SigilDoc m) =>
---           Interpreter m SigilDoc env s
---             -> (SigilDoc -> SigilDoc) -> Env env m -> InternalCore -> InternalCore -> m InternalCore
--- interp_eval (Interpreter {..}) f env = eval f (i_impl env)
-    
-
--- interp_solve :: forall m env s. (MonadError SigilDoc m) =>
---           Interpreter m SigilDoc env s
---             -> (SigilDoc -> SigilDoc) -> Env env m -> Formula Name InternalCore -> m (Substitution Name InternalCore)
--- interp_solve (Interpreter {..}) f env = solve_formula f (i_impl env)
-
--- interp_eq :: forall m env s. (MonadError SigilDoc m) =>
---           Interpreter m SigilDoc env s
---             -> (SigilDoc -> SigilDoc) -> Env env m -> InternalCore -> InternalCore -> InternalCore -> m Bool
--- interp_eq (Interpreter {..}) f env = norm_eq f (i_impl env)
-

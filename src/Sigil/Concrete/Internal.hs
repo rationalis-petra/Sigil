@@ -2,6 +2,7 @@ module Sigil.Concrete.Internal
   ( Internal
   , InternalTel
   , InternalCore
+  , InternalFormula
   , InternalEntry
   , InternalModule
   , InternalPackage
@@ -27,6 +28,7 @@ import Prettyprinter
 
 import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
+import Sigil.Abstract.Unify (Formula)
 import Sigil.Concrete.Decorations.Implicit
 import Sigil.Concrete.Decorations.Range
 
@@ -51,6 +53,8 @@ type instance TyConχ Internal = ()
 type instance Singleχ Internal = ()
 
 type InternalCore = Core AnnBind Name Internal
+  
+type InternalFormula = Formula Name (Core AnnBind Name Internal)
 
 type InternalTel = Tel AnnBind Name InternalCore
 

@@ -41,6 +41,15 @@ data Formula n a
   | Bind Quant n a (Formula n a) -- Quantified (∀/∃) formulas
   deriving (Eq)
 
+instance Semigroup (Formula n a) where
+  l <> r = case (l, r) of 
+    (Conj [], b)  -> b
+    (a , Conj []) -> a
+    (Conj a, Conj b) -> Conj $ a <> b
+    (a, b) -> And a b
+
+instance Monoid (Formula n a) where
+  mempty = Conj []
 
 instance Functor SingleConstraint where  
   fmap f con = case con of 
