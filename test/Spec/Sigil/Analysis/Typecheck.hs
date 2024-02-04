@@ -21,6 +21,7 @@ import Sigil.Analysis.Typecheck
 import qualified Sigil.Interpret.Canonical.Term as Term
 import qualified Sigil.Interpret.Unify as Unify
 import Sigil.Interpret.Canonical.Values
+import Sigil.Interpret.Canonical.Environment hiding (to_semenv)
 
 import TestFramework
 
@@ -56,7 +57,7 @@ test_interp :: CheckInterp CheckM SigilDoc TestEnv
 test_interp = CheckInterp
   { normalize = \lift_err env -> Term.normalize lift_err (to_semenv env)
   , αβη_eq = \lift_err env -> Term.equiv lift_err (to_semenv env)
-  , solve = \lift_err env -> Unify.solve lift_err (to_semenv env)
+  , solve = \lift_err env -> Unify.solve lift_err (CanonEnv Map.empty (fst env) (snd env))
   , lift_err = spretty
   }
 

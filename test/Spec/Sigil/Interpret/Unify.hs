@@ -15,9 +15,13 @@ import Sigil.Abstract.Substitution
 import Sigil.Concrete.Internal
 import Sigil.Concrete.Decorations.Implicit
 import Sigil.Interpret.Unify
+import Sigil.Interpret.Canonical.Environment (CanonEnv(..))
 
 import TestFramework
 
+
+canon_empty :: CanonEnv m 
+canon_empty = CanonEnv Map.empty Map.empty Map.empty
 
 unify_spec :: TestGroup
 unify_spec = TestGroup "unify" $ Right unify_tests
@@ -115,7 +119,7 @@ unify_tests =
   where 
     eq_test :: Text -> InternalCore -> InternalCore -> Bool -> Test
     eq_test name l r b = 
-      Test name $ case runUnifyM 10 $ solve id (Map.empty, Map.empty, Map.empty) (Conj [l :≗: r]) of 
+      Test name $ case runUnifyM 10 $ solve id canon_empty (Conj [l :≗: r]) of 
         Right _ | b == True -> Nothing
                 | otherwise -> Just "unify-eq succeded when expecting fail"
         Left e  | b == False -> Nothing
@@ -123,7 +127,7 @@ unify_tests =
 
     can_solve_test :: Text -> Formula Name InternalCore -> Bool -> Test
     can_solve_test name formula b =
-      Test name $ case runUnifyM 10 $ solve id (Map.empty, Map.empty, Map.empty) formula of 
+      Test name $ case runUnifyM 10 $ solve id canon_empty formula of 
         Right _ | b == True -> Nothing
                 | otherwise -> Just "unify-eq succeded when expecting fail"
         Left e  | b == False -> Nothing
@@ -131,7 +135,7 @@ unify_tests =
 
     solve_test :: Text -> Formula Name InternalCore -> [(Name, InternalCore)] -> Test
     solve_test name formula sub =
-      Test name $ case runUnifyM 10 $ solve id (Map.empty, Map.empty, Map.empty) formula of 
+      Test name $ case runUnifyM 10 $ solve id canon_empty formula of 
         Right s
           | s `has` sub -> Nothing
           | otherwise -> Just $ vsep ["Incorrect substitution.", "Got:" <+> pretty s, "Expecting it to have:" <+> pretty sub]
