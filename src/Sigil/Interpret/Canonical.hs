@@ -57,7 +57,7 @@ canonical_interpreter lift_err = Interpreter
   -- TODO: add environment to unification!!
   -- solve_formula :: (err -> err) -> env -> Formula t -> m (Substitution t)
   , solve_formula = \f env formula ->
-      solve (f . lift_err . EvalErr) (to_semenv env) formula
+      solve (f . lift_err . EvalErr) env formula
 
   , make_package = \package_name -> do
       (world_packages.at package_name) .=

@@ -18,9 +18,9 @@ module Sigil.Analysis.Typecheck
 {-------------------------------------------------------------------------------}
 
 import Prelude hiding (lookup)
+import Control.Monad (forM, unless)
 import Control.Monad.Except (MonadError, throwError)
 import Control.Lens
-import Control.Monad (forM)
 import Control.Monad.Writer.Lazy (WriterT, lift, runWriterT, tell, censor)
 import Data.Foldable
 import qualified Data.Set as Set
@@ -75,9 +75,9 @@ infer_core interp@CheckInterp{..} env term = do
   sub <- solve (lift_err . SolveErr (range term)) (i_impl env) formula
   let term'' = subst sub term'
       ty' = subst sub ty
-  lvl <- get_universe lift_err (range term) env ty
-  ty'' <- normalize (lift_err . NormErr (range term)) (i_impl env) (Uni lvl) ty' 
-  pure $ (term'', ty'')
+  --lvl <- get_universe lift_err (range term) env ty'
+  --ty'' <- normalize (lift_err . NormErr (range term)) (i_impl env) (Uni lvl) ty' 
+  pure $ (term'', ty')
 
 check_core :: (MonadError err m, MonadGen m) => CheckInterp m err env -> Env env m -> ResolvedCore -> InternalCore -> m InternalCore
 check_core interp@CheckInterp{..} env term ty = do
@@ -107,22 +107,37 @@ infer interp@(CheckInterp {..}) env term =
       Uniχ _ j -> pure (Uni j, Uni (j + 1))
       Appχ _ l r -> do
         (l', lty) <- infer' env l
-        (AnnBind (n, arg_ty), ret_ty) <- check_prod lift_err lty
+        lvl <- lift $ get_universe lift_err (range l) env lty
+        lty_norm <- normalize' env (Uni lvl) lty
+  
+        (AnnBind (n, arg_ty), ret_ty) <- check_prod lift_err lty_norm
         r' <- check' env r arg_ty
         rnorm <- normalize' env arg_ty r'
         pure (App l' r', subst (n ↦ rnorm) ret_ty)
       
-      Absχ (_,at) (OptBind (mn, Just a)) body -> do
-        (a', asort) <- infer' env a
-        a_norm <- normalize' env asort a'
-      
-        env' <- maybe (pure env) (\n -> lift $ insert n (Nothing, a_norm) env) mn
-        (body', ret_ty) <- infer' env' body
-        (n,n') <- case mn of
-          Just n -> if n `Set.member` free_vars ret_ty then pure (n, n) else (n,) <$> fresh_var "_"
-          Nothing -> (\v -> (v,v)) <$> fresh_var "_"
-      
-        pure (Abs at (AnnBind (n, a')) body', Prd at (AnnBind (n', a')) ret_ty)
+      Absχ (_,at) (OptBind (mn, ma)) body -> 
+        case ma of 
+          Just a -> do
+            (a', asort) <- infer' env a
+            a_norm <- normalize' env asort a'
+            
+            env' <- maybe (pure env) (\n -> lift $ insert n (Nothing, a_norm) env) mn
+            (body', ret_ty) <- infer' env' body
+            (n,n') <- case mn of
+              Just n -> if n `Set.member` free_vars ret_ty then pure (n, n) else (n,) <$> fresh_var "_"
+              Nothing -> (\v -> (v,v)) <$> fresh_var "_"
+            
+            pure (Abs at (AnnBind (n, a')) body', Prd at (AnnBind (n', a')) ret_ty)
+          Nothing -> do
+            n <- case mn of
+              Just n -> pure n
+              Nothing -> fresh_var "_"
+            ex <- fresh_var "@inf"
+            env' <- lift $ insert n (Nothing, Var ex) =<< insert ex (Nothing, Uni 0) env
+            -- TODO: how to get universe level??
+            censor (Bind Exists ex (Uni 0)) $ do
+              (body', ret_ty) <- infer' env' body
+              pure $ (Abs at (AnnBind (n, Var ex)) body', Prd at (AnnBind (n, Var ex)) ret_ty)
       
       Prdχ (_,at) (OptBind (maybe_n, Just a)) b -> do
         (a', aty) <- infer' env a
@@ -279,7 +294,7 @@ check interp@(CheckInterp {..}) env term ty =
                 e <- fresh_var "abs-ex"
                 v <- fresh_var ""
                 -- TODO: check ty is well-formed and inhabits some universe
-                -- ∃ e ⮜ (a → 𝕌 n). 
+                -- ∃ e ⮜ (a → 𝕌 n)
                 lvl <- lift $ get_universe lift_err (range ty) env ty 
                 censor (Bind Exists e (Prd Regular (AnnBind (v, a_normal)) (Uni lvl))) $ do
                   Prd Regular (AnnBind (n₁, a_normal)) (App (Var e) (Var n₁)) ≗ ty
@@ -297,8 +312,10 @@ check interp@(CheckInterp {..}) env term ty =
 
       (Indχ _ n (Just a) ctors, ty) -> do
         (a', asort) <- infer' env a
-        lift $ check_eq (range term) interp env asort a' ty
         anorm <- normalize' env asort a'
+        anorm ≗ ty
+        --lift $ check_eq (range term) interp env asort a' ty
+
         env' <- lift $ insert n (Just anorm, asort) env
         ctors' <- forM ctors $ \(label, ty) -> do
           -- TODO: level check??
@@ -315,25 +332,28 @@ check interp@(CheckInterp {..}) env term ty =
             (ity, sort) <- infer' env ty'
             nty <- normalize' env sort ity
             case nty of 
-              ind@(Ind n sort ctors) -> case find ((== label) . fst) ctors of
+              ind@(Ind n _ ctors) -> case find ((== label) . fst) ctors of
                 Just (_, val) -> do
-                  lift $ check_eq (range term) interp env sort ty (subst (n ↦ ind) val)
+                  ty ≗ (subst (n ↦ ind) val)
+                  --lift $ check_eq (range term) interp env sort ty (subst (n ↦ ind) val)
                 Nothing -> throwError' $ "Couln't find constructor" <+> pretty label
               _ -> throwError' $ "Constructor" <+> pretty label <+> "must be projected from inductive type"
           _ -> pure ()
 
         case prod_out ty of
-          ind@(Ind n sort ctors) -> case find ((== label) . fst) ctors of
+          ind@(Ind n _ ctors) -> case find ((== label) . fst) ctors of
             Just (_, val) -> do
-              lift $ check_eq (range term) interp env sort ty (subst (n ↦ ind) val)
+              ty ≗ (subst (n ↦ ind) val)
+              --lift $ check_eq (range term) interp env sort ty (subst (n ↦ ind) val)
               pure $ Ctr label ty
             Nothing -> throwError' $ "Couln't find constructor" <+> pretty label
           _ -> throwError' $ "Constructor" <+> pretty label <+> "must be annotated so as to produce an inductive datatype"
       -- TODO: add cases for Eql and Dap
       _ -> do
         (term', ty') <- infer' env term
-        n <- lift $ get_universe lift_err (range ty) env ty
-        _ <- lift $ check_eq (range term) interp env (Uni n) ty ty'
+        --n <- lift $ get_universe lift_err (range ty) env ty
+        --_ <- lift $ check_eq (range term) interp env (Uni n) ty ty'
+        ty ≗ ty'
         pure term'
 
 -- Utility functions for Checking Resolved Terms, specifically for working with telescopes
@@ -429,14 +449,14 @@ check_module interp@(CheckInterp {..}) env mod = do
 
 -- TODO: replace with check_sub (?)
 --check_eq _ _ = undefined
-check_eq :: (MonadError err m) => Range -> (CheckInterp m err env) -> Env env m -> InternalCore -> InternalCore -> InternalCore -> m ()
-check_eq range (CheckInterp {..}) env ty l r = 
-  αβη_eq (lift_err . NormErr range) (i_impl env) ty l r >>= \case
-    True -> pure ()
-    False -> throwError $ lift_err $ PrettyErr range ("not-equal:" <+> pretty l <+> "and" <+> pretty r) 
+-- check_eq :: (MonadError err m) => Range -> (CheckInterp m err env) -> Env env m -> InternalCore -> InternalCore -> InternalCore -> m ()
+-- check_eq range (CheckInterp {..}) env ty l r = 
+--   αβη_eq (lift_err . NormErr range) (i_impl env) ty l r >>= \case
+--     True -> pure ()
+--     False -> throwError $ lift_err $ PrettyErr range ("not-equal:" <+> pretty l <+> "and" <+> pretty r) 
 
 (≗) :: Monad m => InternalCore -> InternalCore -> WriterT InternalFormula m ()
-l ≗ r = tell $ Conj [l :≗: r]
+l ≗ r = unless (l == r) $ tell (Conj [l :≗: r])
 
 -- (∈) :: Monad m => InternalCore -> InternalCore -> WriterT InternalFormula m ()
 -- l ∈ r = tell $ Conj [l :∈: r]

@@ -66,6 +66,7 @@ import qualified Data.List as List
 import Data.Foldable (asum)
 
 import Prettyprinter
+import Prettyprinter.Render.Sigil (SigilDoc)
 
 import Sigil.Abstract.Unify
 import Sigil.Abstract.AlphaEq
@@ -75,8 +76,7 @@ import Sigil.Abstract.Substitution hiding (empty, lookup, insert)
 
 import Sigil.Concrete.Internal
 import Sigil.Concrete.Decorations.Implicit
-import Sigil.Interpret.Canonical.Values
---import Sigil.Interpret.Term
+import Sigil.Interpret.Canonical.Environment
 
 
 {----------------------------- INTERNAL DATATYPES ------------------------------}
@@ -208,16 +208,16 @@ instance AlphaEq Name a => AlphaEq Name (Atom Name a) where
 {-------------------------------------------------------------------------------}
 
 
-solve :: forall err ann m. (MonadError err m, MonadGen m, Alternative m) => (Doc ann -> err) -> SemEnv m -> Formula' -> m Substitution'
+solve :: forall err m. (MonadError err m, MonadGen m, Alternative m) => (SigilDoc -> err) -> CanonEnv m -> Formula' -> m Substitution'
 solve liftErr env = let ?lift_err = liftErr in solve' env
 
-solve' :: forall err ann m. (MonadError err m, MonadGen m, Alternative m, ?lift_err :: (Doc ann -> err))
-  => SemEnv m -> Formula' -> m Substitution'
+solve' :: forall err m. (MonadError err m, MonadGen m, Alternative m, ?lift_err :: (SigilDoc -> err))
+  => CanonEnv m -> Formula' -> m Substitution'
 solve' _ = fmap fst . (\v -> uni_while (v^.binds) mempty (v^.constraints)) . flatten where
 
   uni_while :: Binds' -> Substitution' -> [SingleConstraint'] -> m (Substitution', [SingleConstraint'])
   uni_while quant_vars sub cs = 
-    let -- uni_with :: (MonadError (Doc ann) m, MonadReader (Env' χ) m) => (SingleConstraint' χ -> ContT b m (UnifyResult' χ))
+    let -- uni_with :: (MonadError (SigilDoc) m, MonadReader (Env' χ) m) => (SingleConstraint' χ -> ContT b m (UnifyResult' χ))
         --   -> (Substitution' χ, [SingleConstraint' χ]) -> m (Substitution' χ, [SingleConstraint' χ])
         uni_with f backup = search_in cs []
           where
@@ -292,14 +292,14 @@ solve' _ = fmap fst . (\v -> uni_while (v^.binds) mempty (v^.constraints)) . fla
 {-------------------------------------------------------------------------------}
 
 
-unify_eq :: forall m ann err. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) =>
+unify_eq :: forall m err. (MonadError err m, MonadGen m, ?lift_err :: SigilDoc -> err) =>
   Binds' -> InternalCore -> InternalCore -> m UnifyResult'
 unify_eq quant_vars a b = case (a, b) of 
   -- (Coreχ χ, Coreχ χ') ->
   --   if χ == χ' then
   --     pure $ Just (quant_vars, mempty, [])
   --   else
-  --     throwError ("unequal Coreχ values" :: Doc ann)
+  --     throwError ("unequal Coreχ values" :: SigilDoc)
   (Uni n, Uni n') ->
     if n == n' then
       pure $ Just (quant_vars, mempty, [])
@@ -685,7 +685,7 @@ unify_eq quant_vars a b = case (a, b) of
 -- this is because we do not have any notion of /constants/ which can be
 -- assigned types / type families
   
-right_search :: forall m ann err r. (MonadError err m, MonadGen m, Alternative m, ?lift_err :: Doc ann -> err) =>
+right_search :: forall m err r. (MonadError err m, MonadGen m, Alternative m, ?lift_err :: SigilDoc -> err) =>
   Binds' -> InternalCore -> InternalCore -> ContT r m UnifyResult'
 right_search quant_vars val goal cont = 
   case goal of 
@@ -792,7 +792,7 @@ right_search quant_vars val goal cont =
 -- "If A inhabits T then B inhabits T'"
 -- these constraints are generated as part of the right_search, but are not
 -- directly available in formulas.
-left_search :: forall m ann err. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) =>
+left_search :: forall m err. (MonadError err m, MonadGen m, ?lift_err :: SigilDoc -> err) =>
   Binds' -> (InternalCore, InternalCore) -> (InternalCore, InternalCore) -> m (Binds', [SingleConstraint'])
 left_search quant_vars (x, target) (m, goal) = left_cont quant_vars x target
   where
@@ -814,11 +814,11 @@ left_search quant_vars (x, target) (m, goal) = left_cont quant_vars x target
 {- add : Add a binding at the lowest level                                     -}
 {-------------------------------------------------------------------------------}
 
-(!) :: (MonadError err m, ?lift_err :: Doc ann -> err) => Name -> Binds a -> m (FBind a)
-name ! (b:bs) 
+(!) :: (MonadError err m, ?lift_err :: SigilDoc -> err) => Name -> (Binds InternalCore) -> m (FBind InternalCore)
+name ! (b:bs)
   | b^.elem_name == name = pure $ b
   | otherwise = name ! bs
-name ! [] = throw $ "couldn't find binding: " <+> pretty name
+name ! [] = throw $ "Couldn't find binding: " <+> pretty name
 
 get_exists_after :: Name -> (Binds a) -> [Name]
 get_exists_after name binds =
@@ -926,10 +926,10 @@ unatom atom = case atom of
   AInd nm kind ctors -> Ind nm kind ctors
 
 
-get_elem :: (MonadError err m, ?lift_err :: Doc ann -> err) =>
+get_elem :: (MonadError err m, ?lift_err :: SigilDoc -> err) =>
   Atom' -> Binds' -> m (Either FBind' InternalCore)
-get_elem atom qvars = case atom of
-  AVar n -> Left <$> n ! qvars 
+get_elem atom quant_vars = case atom of
+  AVar n -> Left <$> n ! quant_vars
   AUni n -> pure $ Right (Uni (n+1))
   AInd _ k _ -> pure $ Right k
   ACtr label ty -> case ty of
@@ -978,7 +978,7 @@ get_base _ a = a
 
 {------------------------------- MISC. INSTANCES -------------------------------}
 
-throw :: (MonadError err m, ?lift_err :: Doc ann -> err) => Doc ann -> m a
+throw :: (MonadError err m, ?lift_err :: SigilDoc -> err) => SigilDoc -> m a
 throw doc = throwError $ ?lift_err doc
 
 -- Helper functions that maybe can be moved to another file??  

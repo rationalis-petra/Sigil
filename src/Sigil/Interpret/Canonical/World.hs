@@ -42,7 +42,7 @@ $(makeLenses ''World)
 
 canon_get_env :: (MonadError err m, MonadGen m) => (InterpreterErr -> err) -> World m -> Env (CanonEnv m) m
 canon_get_env lift_err world = Env
-  { i_lookup = canon_lookup (lift_err . InternalErr)
+  { i_lookup = \nm env -> fmap snd <$> canon_lookup (lift_err . InternalErr) nm env
   , i_insert = (\n v env -> canon_insert (lift_err . InternalErr) n v env)
   , i_insert_path = canon_insert_path (lift_err . InternalErr)
   , i_impl = CanonEnv (world^.world_packages) Map.empty Map.empty
