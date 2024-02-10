@@ -105,15 +105,14 @@ infer interp@(CheckInterp {..}) env term =
         ty <- lookup_err' n env
         pure (Var n, ty)
       Uniχ _ j -> pure (Uni j, Uni (j + 1))
-      Appχ _ l r -> do
+      Appχ (_, at) l r -> do
         (l', lty) <- infer' env l
-        lvl <- lift $ get_universe lift_err (range l) env lty
-        lty_norm <- normalize' env (Uni lvl) lty
+        lty_norm <- lift $ norm_ty interp (range term) env lty
   
-        (AnnBind (n, arg_ty), ret_ty) <- check_prod lift_err lty_norm
+        (AnnBind (n, arg_ty), ret_ty) <- check_prod lift_err at lty_norm
         r' <- check' env r arg_ty
         rnorm <- normalize' env arg_ty r'
-        pure (App l' r', subst (n ↦ rnorm) ret_ty)
+        pure (App at l' r', subst (n ↦ rnorm) ret_ty)
       
       Absχ (_,at) (OptBind (mn, ma)) body -> 
         case ma of 
@@ -132,7 +131,7 @@ infer interp@(CheckInterp {..}) env term =
             n <- case mn of
               Just n -> pure n
               Nothing -> fresh_var "_"
-            ex <- fresh_var "@inf"
+            ex <- fresh_varn "#inf"
             env' <- lift $ insert n (Nothing, Var ex) =<< insert ex (Nothing, Uni 0) env
             -- TODO: how to get universe level??
             censor (Bind Exists ex (Uni 0)) $ do
@@ -266,12 +265,14 @@ check interp@(CheckInterp {..}) env term ty =
       throwError' :: SigilDoc -> WriterT InternalFormula m a
       throwError' = throwError . lift_err . PrettyErr (range term)
   in
-    case (term, ty) of
-      (Uniχ _ j, Uni k) 
-        | j < k -> pure (Uni j)
-        | otherwise -> throwError' "universe-level check failed"
+    case term of
+      Uniχ _ j -> case ty of 
+        Uni k
+          | j < k -> pure (Uni j)
+          | otherwise -> throwError' "Universe-level check failed"
+        _ -> throwError' "Univserse must have universe as type"
 
-      (Absχ (_,Regular) (OptBind (Just n₁, maty)) body, _) ->
+      Absχ (_,Regular) (OptBind (Just n₁, maty)) body ->
         case ty of 
           Prd Regular (AnnBind (n₂, a₂)) ret_ty -> do
             case maty of 
@@ -291,26 +292,60 @@ check interp@(CheckInterp {..}) env term ty =
               Just a₁ ->  do
                 (a_typd, a_kind) <- infer' env a₁
                 a_normal <- normalize' env a_kind a_typd
-                e <- fresh_var "abs-ex"
-                v <- fresh_var ""
+                e <- fresh_varn "abs-ex"
+                v <- fresh_var "_"
                 -- TODO: check ty is well-formed and inhabits some universe
                 -- ∃ e ⮜ (a → 𝕌 n)
                 lvl <- lift $ get_universe lift_err (range ty) env ty 
                 censor (Bind Exists e (Prd Regular (AnnBind (v, a_normal)) (Uni lvl))) $ do
-                  Prd Regular (AnnBind (n₁, a_normal)) (App (Var e) (Var n₁)) ≗ ty
+                  Prd Regular (AnnBind (n₁, a_normal)) (App Regular (Var e) (Var n₁)) ≗ ty
                   env' <- lift $ insert n₁ (Nothing, a_normal) env
-                  Abs Regular (AnnBind (n₁, a_normal)) <$> check' env' body (App (Var e) (Var n₁))
+                  Abs Regular (AnnBind (n₁, a_normal)) <$> check' env' body (App Regular (Var e) (Var n₁))
               Nothing -> throwError' "TODO: No type annotation for checked type!"
     
-      (Prdχ (_,at) (OptBind (mn, Just a)) b, _) -> do
+      Prdχ (_,at) (OptBind (mn, Just a)) b -> do
         a' <- check' env a ty
         a_normal <- normalize' env ty a'
         n <- maybe (fresh_var "_") pure mn
         b' <- do { env' <- lift $ insert n (Nothing, a_normal) env; check' env' b ty }
         pure $ Prd at (AnnBind (n, a')) b'
 
+      -- TODO: make apps able to be implicit!
+      Appχ (_, at) l r ->
+        let (head, args) = unroll (l, [(at, r)])
+            chop env mty = \case 
+              [] -> do
+                ty ≗ mty
+                pure []
+              ((at, arg):args) -> case mty of 
+                -- Ascribe
+                Prd at' (AnnBind (n, a)) b
+                  | at == at' -> do
+                      arg' <- check' env arg a
+                      b' <- lift $ norm_ty interp (range arg) env (subst (n ↦ arg') b)
+                      ((at, arg'):) <$> chop env b' args
+                  | at' == Implicit -> do
+                      arg' <- check' env arg a
+                      x <- fresh_varn "#imp-in"
+                      censor (Bind Exists x a) $ do
+                        env' <- lift $ insert x (Nothing, a) env
+                        Var x ∈ a
+                        ((Implicit, arg'):) <$> chop env' (subst (n ↦ Var x) b) args
+                  | otherwise -> throwError' "implicit application to non-implicit product"
+                _ -> throwError' "TODO: chop not implemented for non-Prd mty"
 
-      (Indχ _ n (Just a) ctors, ty) -> do
+            unroll ((Appχ (_, at) l r), args) = unroll (l, ((at, r):args))
+            unroll (head, args) = (head, args)
+
+            roll head [] = head
+            roll head ((at, arg) : args) = roll (App at head arg) args
+         in do
+           (head', ty) <- infer' env head
+           ty' <- lift $ norm_ty interp (range head) env ty
+           roll head' <$> chop env ty' args
+
+
+      Indχ _ n (Just a) ctors -> do
         (a', asort) <- infer' env a
         anorm <- normalize' env asort a'
         anorm ≗ ty
@@ -323,10 +358,10 @@ check interp@(CheckInterp {..}) env term ty =
           (ty', _) <- infer' env' ty
           pure $ (label, ty')
         pure $ Ind n a' ctors'
-      (Indχ _ _ Nothing _, _) -> do
+      Indχ _ _ Nothing _ -> do
         throwError' $ "Inductive datatype definition must bind recursive type (solution WIP)"
                               
-      (Ctrχ _ label mty, ty) -> do
+      Ctrχ _ label mty -> do
         _ <- case mty of
           Just ty' -> do
             (ity, sort) <- infer' env ty'
@@ -434,7 +469,7 @@ check_module interp@(CheckInterp {..}) env mod = do
       d' <- check_entry interp env d
       case d' of
         Singleχ () (AnnBind (Name n, ty)) val -> do
-          ty' <- eval_ty env ty
+          ty' <- norm_ty interp (range ty) env ty
           val' <- eval (i_impl env) ty val
           env' <- case n of 
             Left qn -> insert_path qn (val', ty') env
@@ -443,9 +478,6 @@ check_module interp@(CheckInterp {..}) env mod = do
           pure (d' : ds')
   
     eval = normalize (lift_err . NormErr (Range Nothing))
-    eval_ty env ty = do 
-      n <- get_universe lift_err (range ty) env ty
-      eval (i_impl env) (Uni n) ty
 
 -- TODO: replace with check_sub (?)
 --check_eq _ _ = undefined
@@ -458,14 +490,16 @@ check_module interp@(CheckInterp {..}) env mod = do
 (≗) :: Monad m => InternalCore -> InternalCore -> WriterT InternalFormula m ()
 l ≗ r = unless (l == r) $ tell (Conj [l :≗: r])
 
--- (∈) :: Monad m => InternalCore -> InternalCore -> WriterT InternalFormula m ()
--- l ∈ r = tell $ Conj [l :∈: r]
+(∈) :: Monad m => InternalCore -> InternalCore -> WriterT InternalFormula m ()
+l ∈ r = tell $ Conj [l :∈: r]
 
 -- TODO: bad for internal core?
 -- TODO: implicit vs explicit products
-check_prod :: (MonadError err m, Pretty (Core b n χ)) => (TCErr -> err) -> Core b n χ -> m (b n (Core b n χ), Core b n χ)
-check_prod _ (Prdχ _ b ty) = pure (b, ty)
-check_prod lift_err term = throwError $ lift_err $ PrettyErr (Range Nothing) ("expected prod, got:" <+> pretty term) 
+check_prod :: (MonadError err m) => (TCErr -> err) -> ArgType -> InternalCore -> m (AnnBind Name InternalCore, InternalCore)
+check_prod lift_err at term@(Prdχ at' b ty)
+  | at == at' = pure (b, ty)
+  | otherwise = throwError $ lift_err $ PrettyErr (Range Nothing) ("Implicit/Explicit prod mismatch:" <+> pretty term) 
+check_prod lift_err _ term = throwError $ lift_err $ PrettyErr (Range Nothing) ("Expected prod, got:" <+> pretty term) 
 
 -- check_lvl :: (MonadError err m, Binding b, Pretty (Core b n χ)) => (TCErr -> err) -> Core b n χ -> m Int
 check_lvl _ (Uniχ _ i) = pure i
@@ -479,6 +513,11 @@ prod_out = \case
   Prdχ _ _ r -> prod_out r
   v -> v
 
+norm_ty :: MonadError err m => CheckInterp m err env -> Range -> Env env m -> InternalCore -> m InternalCore
+norm_ty (CheckInterp {..}) range env ty = do
+  lvl <- get_universe lift_err range env ty
+  normalize (lift_err . NormErr range) (i_impl env) (Uni lvl) ty
+  
   -- TODO: get_universe is a likely source of bugs...
 get_universe :: MonadError err m => (TCErr -> err) -> Range -> Env env m -> InternalCore -> m Integer
 get_universe lift_error r env = go env where
@@ -500,12 +539,11 @@ get_universe lift_error r env = go env where
     Eql _ ty _ _ -> go env ty
     
     -- Eliminators
-    App l r -> max <$> go env l <*> go env r
+    App _ l r -> max <$> go env l <*> go env r
     Rec (AnnBind (_, ty)) _ _ -> go env ty
     -- ETC _ -> 0
     -- CTE _ -> 0
     -- ??
-    TyCon ty _ _ -> go env ty
     
     -- Value Terms
     Abs _ _ _ -> pure 0

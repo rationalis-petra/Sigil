@@ -21,7 +21,7 @@ type instance Varχ Resolved = Range
 type instance Uniχ Resolved = Range
 type instance Prdχ Resolved = (Range, ArgType)
 type instance Absχ Resolved = (Range, ArgType)
-type instance Appχ Resolved = Range
+type instance Appχ Resolved = (Range, ArgType)
 type instance Indχ Resolved = Range
 type instance Ctrχ Resolved = Range
 type instance Recχ Resolved = Range
@@ -60,7 +60,7 @@ instance HasRange ResolvedCore where
     Varχ r _ -> r
     Prdχ (r,_) _ _ -> r
     Absχ (r,_) _ _ -> r
-    Appχ r _ _ -> r
+    Appχ (r,_) _ _ -> r
     Indχ r _ _ _ -> r
     Ctrχ r _ _ -> r
     Recχ r _ _ _ -> r

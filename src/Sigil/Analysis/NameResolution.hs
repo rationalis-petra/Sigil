@@ -59,7 +59,7 @@ instance ResolveTo ParsedCore ResolvedCore where
         vars' = maybe vars (\t -> insert t (Left id) vars) t
       ty' <- mapM (resolve lift_err vars) ty
       Absχ (rn,at) (OptBind (n, ty')) <$> resolve lift_err vars' e
-    App rn l r -> Appχ rn <$> resolve lift_err vars l <*> resolve lift_err vars r
+    App rn at l r -> Appχ (rn,at) <$> resolve lift_err vars l <*> resolve lift_err vars r
     Ind rn text msort ctors -> do
       id <- fresh_id 
       let n = Name $ Right (id, text)

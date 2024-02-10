@@ -158,7 +158,7 @@ args ⇒ body = foldr (\var body -> Abs Regular (AnnBind var) body) body args
 args → body = foldr (\var body -> Prd Regular (AnnBind var) body) body args
 
 (⋅) :: InternalCore -> InternalCore -> InternalCore
-(⋅) = App
+(⋅) = App Regular
 
 idv :: Integer -> Text -> InternalCore
 idv n t = Var $ Name $ Right (n, t)

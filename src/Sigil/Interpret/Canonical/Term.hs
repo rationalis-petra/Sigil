@@ -31,6 +31,7 @@ import Sigil.Abstract.Syntax (Entry(..), MTree(..)
                              , ImportDef(..) )
 import Sigil.Abstract.Environment (insert_at_path, get_modulo_path)
 import Sigil.Abstract.AlphaEq
+import Sigil.Concrete.Decorations.Implicit
 import Sigil.Concrete.Internal
 import Sigil.Interpret.Canonical.Values
   
@@ -110,7 +111,7 @@ read_nf (Normal ty val) = case (ty, val) of
       lvl = uni_level a
 
     a' <- read_nf $ Normal (SUni lvl) a
-    f' <- read_nf =<< (Normal <$> (b `app` neua) <*> (f `app` neua))
+    f' <- read_nf =<< (Normal <$> (app at b neua) <*> (app at f neua))
     pure $ Abs at (bind name a') f'
 
   -- TODO: figure out what to do with SDap telescope?!
@@ -130,7 +131,7 @@ read_nf (Normal ty val) = case (ty, val) of
     let neua :: Sem m
         neua = Neutral a $ NeuVar name
     a' <- (read_nf $ Normal (SUni k) a)
-    b' <- (read_nf =<< Normal (SUni k) <$> (b `app` neua))
+    b' <- (read_nf =<< Normal (SUni k) <$> (app at b neua))
     pure $ Prd at (bind name a') b'
   (SUni k, SEql tel ty a a') -> do
     let read_nf_tel _ out [] = pure out
@@ -160,10 +161,10 @@ read_nf (Normal ty val) = case (ty, val) of
         recur (Ctr label ind_ty) cty' vals
         where
           recur v _ [] = pure v
-          recur v (SPrd _ _ a b) (val:vals) = do
-            b' <- b `app` val
+          recur v (SPrd at _ a b) (val:vals) = do
+            b' <- app at b val
             val' <- read_nf (Normal a val)
-            recur (App v val') b' vals
+            recur (App at v val') b' vals
           recur _ _ _ = throw "recur unequal!"
       Nothing -> throw $ "Constructor" <+> pretty label <+> "cannot be found in type" <+> pretty (SInd nm ty ctors)
         
@@ -174,7 +175,7 @@ read_nf (Normal ty val) = case (ty, val) of
 read_ne :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Neutral m -> m InternalCore
 read_ne neu = case neu of 
   NeuVar name -> pure $ Var name
-  NeuApp l r -> App <$> (read_ne l) <*> (read_nf r)
+  NeuApp at l r -> App at <$> (read_ne l) <*> (read_nf r)
   NeuDap tel val -> Dap <$> read_tel tel <*> read_ne val
     where
       read_tel = mapM (\(nm, (ty, l, r), prf) -> do
@@ -185,10 +186,10 @@ read_ne neu = case neu of
                           pure $ (AnnBind (nm, (ity, il, ir)), iprf))
   NeuRec nm ty val cases -> do
     ty' <- read_nf (Normal (SUni $ uni_level ty) ty)
-    (_, a, b) <- case ty of
-      SPrd _ rnm a b -> pure (rnm, a, b)
+    (at, a, b) <- case ty of
+      SPrd at _ a b -> pure (at, a, b)
       _ -> throw "bad read_ne in recursive"
-    b' <- b `app` a
+    b' <- app at b a
     val'<- read_ne val
     let read_case (_, m) = do
           (ptn, core) <- m
@@ -284,10 +285,10 @@ eval term env = case term of
     nme <- fromMaybe (throw "Abs must bind a name") (fmap pure $ name bnd)
     ty <- fromMaybe (throw "Abs must bind a type") (fmap pure $ tipe bnd)
     SAbs nme <$> eval ty env <*> pure (\val -> eval body (insert nme val env))
-  App l r -> do
+  App at l r -> do
     l' <- (eval l env)
     r' <- (eval r env)
-    app l' r'
+    app at l' r'
 
   Ind inm ity ctors -> do 
     ity' <- eval ity env
@@ -335,7 +336,7 @@ eval term env = case term of
           -- args <- ty_args label ctors
           let ty_args :: Sem m -> m [Sem m]
               ty_args = \case -- TODO: borked! include name!
-                (SPrd _ n a b) -> (a :) <$> (ty_args =<< (b `app` (Neutral a (NeuVar n))))
+                (SPrd at n a b) -> (a :) <$> (ty_args =<< (app at b (Neutral a (NeuVar n))))
                 _ -> pure []
           args <- case find ((== label) . fst) ctors of
             Just (_, ty) -> ty_args =<< ty (Neutral rty' (NeuVar rname))
@@ -379,7 +380,6 @@ eval term env = case term of
   -- LfL tel ty val -> eval_over env LfL tel ty val
   -- LfR tel ty val -> eval_over env LfR tel ty val
   -- Implicit terms 
-  TyCon _ _ _ -> throw "don't know how to eval tycon"
 
 {-------------------------------------------------------------------------------}
 {-                                                                             -}
@@ -391,7 +391,7 @@ eval_over :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc a
 eval_over env ctor tel ty val = do
   -- reduce over type families
   case ty of 
-    SPrd _ name a fnc -> do
+    SPrd at name a fnc -> do
       u <- fresh_varn "u"
       v <- fresh_varn "v"
       id <- fresh_varn "id"
@@ -404,8 +404,8 @@ eval_over env ctor tel ty val = do
                (\vval -> 
                   pure $ SAbs id (SEql [] a uval vval)
                   (\idval -> do
-                     ty' <- fnc `app` (Neutral a (NeuVar name))
-                     val' <- val `app` (Neutral a (NeuVar name))
+                     ty' <- app at fnc (Neutral a (NeuVar name))
+                     val' <- app at val (Neutral a (NeuVar name))
                      eval_over (insert id idval . insert v vval . insert u uval $ env)
                        ctor (tel <> [(name, (a, uval, vval), idval)])
                        ty' val'))))
@@ -475,7 +475,7 @@ eval_sem env term = case term of
   SUni n -> pure $ SUni n
   SPrd at n a b -> do
     a' <- eval_sem env a
-    pure $ SPrd at n a' $ SAbs n a' (eval_sem env <=< app b)
+    pure $ SPrd at n a' $ SAbs n a' (eval_sem env <=< app at b)
   SAbs n a f -> do
     a' <- eval_sem env a
     pure $ SAbs n a' (eval_sem env <=< f)
@@ -504,10 +504,10 @@ eval_sem env term = case term of
 eval_neusem :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => (SemEnv m) -> (Neutral m) -> m (Sem m)
 eval_neusem env neu = case neu of 
   NeuVar n -> lookup_err ?lift_err n env
-  NeuApp l (Normal _ r) -> do
+  NeuApp at l (Normal _ r) -> do
     l' <- eval_neusem env l
     r' <- eval_sem env r
-    l' `app` r'
+    app at l' r'
   -- TODO: eval_neutel
   NeuDap tel v -> dap env tel =<< eval_neusem env v
   NeuRec name ty neu cases -> do 
@@ -516,13 +516,13 @@ eval_neusem env neu = case neu of
     recur env name ty' neu' cases -- TODO: cases'
       
 
-app :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => (Sem m) -> (Sem m) -> m (Sem m)
-app (SAbs _ _ fnc) val = fnc val
-app (SCtr label ty vals) v =
+app :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => ArgType -> (Sem m) -> (Sem m) -> m (Sem m)
+app _ (SAbs _ _ fnc) val = fnc val
+app _ (SCtr label ty vals) v =
   pure $ SCtr label ty (vals <> [v])
-app (Neutral (SPrd _ _ a b) neu) v =
-  Neutral <$> (b `app` v) <*> pure (NeuApp neu (Normal a v))
-app l r = throw ("bad args to app:" <+> pretty l <+> "and" <+> pretty r) 
+app _ (Neutral (SPrd at _ a b) neu) v =
+  Neutral <$> (app at b v) <*> pure (NeuApp at neu (Normal a v))
+app _ l r = throw ("bad args to app:" <+> pretty l <+> "and" <+> pretty r) 
 
 dap :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => (SemEnv m) -> SemTel m -> (Sem m) -> m (Sem m)
 dap env tel term = case term of
@@ -548,13 +548,13 @@ dap env tel term = case term of
 
 recur :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err)
   => (SemEnv m) -> Name -> Sem m -> Sem m -> [(Sem m -> Maybe (m (Sem m)), m (Pattern Name, Sem m))] -> m (Sem m)
-recur _ rname rty@(SPrd _ _ a b) val cases =
+recur _ rname rty@(SPrd at _ a b) val cases =
     case val of 
       SCtr _ _ _ -> case find (isJust) (map (($ val) . fst) cases) of 
         Just (Just m) -> m
         _ -> throw ("Failed to match val:" <+> pretty val <+> "at type" <+> pretty a)
       Neutral _ neuval -> 
-        Neutral <$> (b `app` val) <*> pure (NeuRec rname rty neuval cases)
+        Neutral <$> (app at b val) <*> pure (NeuRec rname rty neuval cases)
       _ -> throw "recur must induct over a constructor"
 recur _ _ _ _ _ = throw "recur expects recursive type to be fn" 
 
@@ -576,9 +576,9 @@ eql env tel tipe v1 v2 = case tipe of
                eqty <- (eql (insert u uval . insert v vval $ env) tel a uval vval)
                pure $ SPrd at id eqty (SAbs id eqty
                  (\idval -> do
-                     b <- fnc `app` (Neutral a (NeuVar name)) -- TODO: I think this is wrong?
-                     v1' <- v1 `app` uval
-                     v2' <- v2 `app` vval 
+                     b <- app at fnc (Neutral a (NeuVar name)) -- TODO: I think this is wrong?
+                     v1' <- app at v1 uval
+                     v2' <- app at v2 vval 
                      eql (insert u uval . insert v vval . insert id idval . insert name (Neutral a (NeuVar name)) $ env)
                       (tel <> [(name, (a, uval, vval), idval)])
                       b v1' v2')))))

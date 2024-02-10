@@ -472,7 +472,7 @@ pv = PatVar
 -- 𝓊c = Uniχ mempty
   
 (⋅) :: ParsedCore -> ParsedCore -> ParsedCore
-(⋅) = Appχ mempty
+(⋅) = Appχ (mempty, Regular)
 
 var :: Text -> ParsedCore  
 var = Varχ mempty

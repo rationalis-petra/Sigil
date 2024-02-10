@@ -59,7 +59,7 @@ type instance Varχ Parsed = Range
 type instance Uniχ Parsed = Range
 type instance Prdχ Parsed = (Range, ArgType)
 type instance Absχ Parsed = (Range, ArgType)
-type instance Appχ Parsed = Range
+type instance Appχ Parsed = (Range, ArgType)
 type instance Indχ Parsed = Range
 type instance Ctrχ Parsed = Range
 type instance Recχ Parsed = Range
@@ -102,9 +102,9 @@ pattern Abs :: Range -> ArgType -> OptBind Text ParsedCore -> ParsedCore -> Pars
 pattern Abs r ty b e <- Absχ (r,ty) b e
   where Abs r ty b e = Absχ (r,ty) b e
 
-pattern App :: Range -> ParsedCore -> ParsedCore -> ParsedCore
-pattern App r a b <- Appχ r a b
-  where App r a b = Appχ r a b
+pattern App :: Range -> ArgType -> ParsedCore -> ParsedCore -> ParsedCore
+pattern App r t a b <- Appχ (r,t) a b
+  where App r t a b = Appχ (r,t) a b
 
 pattern Ind :: Range -> Text -> Maybe ParsedCore -> [(Text, ParsedCore)] -> ParsedCore
 pattern Ind r name msort ctors <- Indχ r name msort ctors
@@ -157,7 +157,7 @@ instance HasRange ParsedCore where
     Var r _ -> r
     Prd r _ _ _ -> r
     Abs r _ _ _ -> r
-    App r _ _ -> r
+    App r _ _ _ -> r
     Ind r _ _ _ -> r
     Ctr r _ _ -> r
     Rec r _ _ _ -> r

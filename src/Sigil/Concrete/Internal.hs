@@ -15,7 +15,6 @@ module Sigil.Concrete.Internal
   , pattern Ind
   , pattern Ctr
   , pattern Rec
-  , pattern TyCon
   , pattern Eql
   , pattern Dap
   , pattern TrL
@@ -35,12 +34,12 @@ import Sigil.Concrete.Decorations.Range
 data Internal
 
 type instance Functorχ Internal = Identity
-type instance Coreχ AnnBind Name Internal = TyCon AnnBind Name Internal
+type instance Coreχ AnnBind Name Internal = ()
 type instance Varχ Internal = ()
 type instance Uniχ Internal = ()
 type instance Prdχ Internal = ArgType
 type instance Absχ Internal = ArgType
-type instance Appχ Internal = ()
+type instance Appχ Internal = ArgType
 type instance Indχ Internal = ()
 type instance Ctrχ Internal = ()
 type instance Recχ Internal = ()
@@ -48,7 +47,6 @@ type instance Eqlχ Internal = ()
 type instance Dapχ Internal = ()
 type instance TrLχ Internal = ()
 type instance TrRχ Internal = ()
-type instance TyConχ Internal = ()
 
 type instance Singleχ Internal = ()
 
@@ -64,7 +62,7 @@ type InternalModule = Module AnnBind Name Internal
 
 type InternalPackage = Package InternalModule
 
-{-# COMPLETE Uni, Var, Prd, Abs, App, Ind, Ctr, Rec, Eql, Dap, TrL, TrR, TyCon #-}
+{-# COMPLETE Uni, Var, Prd, Abs, App, Ind, Ctr, Rec, Eql, Dap, TrL, TrR #-}
 
 pattern Uni :: Integer -> InternalCore
 pattern Uni n <- Uniχ () n
@@ -82,9 +80,9 @@ pattern Abs :: ArgType -> AnnBind Name InternalCore -> InternalCore -> InternalC
 pattern Abs at b e <- Absχ at b e 
   where Abs at b e = Absχ at b e
 
-pattern App :: InternalCore -> InternalCore -> InternalCore
-pattern App l r <- Appχ () l r
-  where App l r = Appχ () l r
+pattern App :: ArgType -> InternalCore -> InternalCore -> InternalCore
+pattern App at l r <- Appχ at l r
+  where App at l r = Appχ at l r
 
 pattern Ind :: Name -> InternalCore -> [(Text, InternalCore)] -> InternalCore
 pattern Ind name sort ctors <- Indχ () name (Identity sort) ctors
@@ -122,10 +120,6 @@ pattern TrR tel ty val <- TrRχ () tel ty val
 -- pattern IAbs b ty <- Coreχ (IAbsχ () b ty)
 --   where IAbs b ty = Coreχ (IAbsχ () b ty)
 
-pattern TyCon :: InternalCore -> Name -> InternalCore -> InternalCore
-pattern TyCon e n t <- Coreχ (TyConχ () e n t)  
-  where TyCon e n t = Coreχ (TyConχ () e n t)
-
 
 instance Pretty InternalCore where
   pretty c = case c of
@@ -151,7 +145,7 @@ instance Pretty InternalCore where
   
     Abs _ _ _ -> pretty_abs_like c
 
-    App l r -> sep $ fmap bracket $ unwind (App l r)
+    App at l r -> sep $ unwind (App at l r)
 
     Ind name sort ctors -> vsep
       [ "μ" <+> pretty name <+> "⮜" <+> pretty sort <> "."
@@ -174,8 +168,6 @@ instance Pretty InternalCore where
     TrL tel ty val -> ("⍃" <+> pretty_tel tel <+> "." <+> pretty ty <+> pretty val)
     TrR tel ty val -> ("⍄" <+> pretty_tel tel <+> "." <+> pretty ty <+> pretty val)
 
-    TyCon e n t -> pretty e <+> "⦃" <> pretty n <+> "⮜" <+> pretty t <> "⦄"
-  
     where 
       pretty_prd_like e =
         align $ sep $ head tel : map ("→" <+>) (tail tel)
@@ -223,13 +215,11 @@ instance Pretty InternalCore where
       iscore (Ctr _ _) = True
       iscore _ = False
 
-      unwind (App l r) = unwind l <> [r]
-      unwind t = [t]
+      unwind (App at l r) = unwind l <> case at of
+        Regular -> unwind l <> [bracket r]
+        Implicit -> unwind l <> ["⟨" <> pretty r <> "⟩"]
+      unwind t = [bracket t]
   
-
-instance Pretty (TyCon AnnBind Name Internal) where
-  pretty ic = case ic of 
-    TyConχ _ e n body -> pretty e <+> "⦃" <> pretty n <+> "⮜" <+> pretty body <> "⦄"   -- Constrains named type n  
 
 instance Pretty InternalEntry where
   pretty = pretty_entry_builder name pretty pretty pretty

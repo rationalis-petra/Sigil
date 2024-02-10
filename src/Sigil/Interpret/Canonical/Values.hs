@@ -48,7 +48,7 @@ data Sem m
 
 data Neutral m
   = NeuVar Name
-  | NeuApp (Neutral m) (Normal m)
+  | NeuApp ArgType (Neutral m) (Normal m)
   | NeuDap (SemTel m) (Neutral m) -- A neutral explicit substitution, must be empty!
   | NeuRec Name (Sem m) (Neutral m)
     [(Sem m -> Maybe (m (Sem m)), m (Pattern Name, Sem m))]
@@ -153,7 +153,9 @@ instance Pretty (Sem m) where
 instance Pretty (Neutral m) where
   pretty neu = case neu of
     NeuVar n -> pretty n
-    NeuApp l r -> pretty l <+> pretty r
+    NeuApp at l r -> case at of
+      Regular -> pretty l <+> pretty r
+      Implicit -> "⟨" <> pretty l <> "⟩" <+> pretty r
     NeuDap _ val -> "ρ …." <+> pretty val
     NeuRec name rty val _ ->
       vsep [ "φ" <+> pretty name <+> "⮜" <+> pretty rty <> "," <+> pretty val <> "."

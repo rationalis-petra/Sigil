@@ -61,6 +61,7 @@ import Text.Megaparsec
 import Prettyprinter hiding (lparen, rparen)
 import Topograph
 
+import Sigil.Concrete.Decorations.Implicit
 import Sigil.Concrete.Decorations.Range
 import Sigil.Concrete.Parsed
 import Sigil.Parse.Syntax
@@ -154,7 +155,7 @@ mixfix' :: forall i m. Monad m => PrecedenceGraph i -> MixT m ParsedCore
 mixfix' (G {..}) = expr
   where
     expr :: MixT m ParsedCore
-    expr = foldl (\l r-> App (range l <> range r) l r) <$> precs gVertices <*> many (precs gVertices)
+    expr = foldl (\l r-> App (range l <> range r) Regular l r) <$> precs gVertices <*> many (precs gVertices)
     
     precs :: [i] -> MixT m ParsedCore
     precs (p:ps) = prec p <||> precs ps
@@ -232,7 +233,7 @@ unscope :: Telescope ParsedCore -> ParsedCore
 unscope (Tel core l) = go core l where
   go :: ParsedCore -> [ParsedCore] -> ParsedCore
   go core [] = core 
-  go core (c:cs) = go (App (range core <> range c) core c) cs 
+  go core (c:cs) = go (App (range core <> range c) Regular core c) cs 
 
 
 run_precs :: MonadFail m => (forall i. PrecedenceGraph i -> m a) -> Precedences -> m a

@@ -79,8 +79,8 @@ tests =
     (-→) :: (Prdχ χ ~ (Range, ArgType)) => [(n, Core OptBind n χ)] -> Core OptBind n χ -> Core OptBind n χ
     args -→ body = foldr (\b body -> Prdχ (mempty, Regular) (OptBind $ bimap Just Just b) body) body args
 
-    (⋅) :: Monoid (Appχ χ) => Core b n χ -> Core b n χ -> Core b n χ
-    (⋅) = Appχ mempty
+    (⋅) :: (Appχ χ ~ (Range, ArgType)) => Core b n χ -> Core b n χ -> Core b n χ
+    (⋅) = Appχ (mempty, Regular)
 
     idv :: Monoid (Varχ χ) => Integer -> Text -> Core OptBind Name χ
     idv n t = Varχ mempty $ Name $ Right (n, t)
