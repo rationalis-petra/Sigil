@@ -216,8 +216,8 @@ instance Pretty InternalCore where
       iscore _ = False
 
       unwind (App at l r) = unwind l <> case at of
-        Regular -> unwind l <> [bracket r]
-        Implicit -> unwind l <> ["⟨" <> pretty r <> "⟩"]
+        Regular -> [bracket r]
+        Implicit -> ["⟨" <> pretty r <> "⟩"]
       unwind t = [bracket t]
   
 
