@@ -20,6 +20,7 @@ import Sigil.Interpret.Canonical.Environment (CanonEnv(..))
 import TestFramework
 
 
+
 canon_empty :: CanonEnv m 
 canon_empty = CanonEnv Map.empty Map.empty Map.empty
 
@@ -98,10 +99,10 @@ unify_tests =
         [(idn 0 "x", Ctr "zero" nat)]
 
   -- ∃ x ⮜ ℕ. two + x ≅ four
-  -- , let nat = Ind (idn 1 "N") (𝓊 0) [("zero", idv 1 "N"), ("succ", [(idn 2 "_", idv 1 "N")] → idv 1 "N")]
-  --   in solve_test "ex-add"
-  --       (Bind Exists (idn 0 "n") nat $ Conj [idv 0 "n" :∈: nat])
-  --       (idn 0 "n" ↦ Ctr "zero" nat)
+  , let nat = Ind (idn 1 "N") (𝓊 0) [("zero", idv 1 "N"), ("succ", [(idn 2 "_", idv 1 "N")] → idv 1 "N")]
+    in solve_test "ex-add"
+        (Bind Exists (idn 0 "n") nat $ Conj [idv 0 "n" :∈: nat])
+        [(idn 0 "n", Ctr "zero" nat)]
   -- TODO: add test testing this:
   -- ∃ x ⮜ ℕ. two + x ≅ four
 

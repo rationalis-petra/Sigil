@@ -134,6 +134,7 @@ data Atom n a = AVar Name | AUni Integer | ACtr Text a | AInd n a [(Text, a)] --
 
 data Spine n a = Spine (Atom n a) [(ArgType, a)]
 
+
 type Atom'             = Atom Name InternalCore
 type Spine'            = Spine Name InternalCore
 type Binds'            = Binds InternalCore
@@ -156,6 +157,9 @@ instance (Subst Name s a) => Subst Name s (FBind a) where
 
   free_vars (FBind _ nm et) = Set.delete nm $ free_vars et 
     
+instance (Pretty n, Pretty a) => Pretty (Spine n a) where
+  pretty (Spine a vs) = pretty a <+> "|" <+> pretty vs
+
 instance Pretty a => Pretty (FBind a) where
   pretty (FBind q n ty) = pretty q <+> pretty n <+> "⮜" <+> pretty ty
 
@@ -351,7 +355,7 @@ unify_eq quant_vars a b = case (a, b) of
             case mbind' of 
               Right ty' ->
                 if all_elements_are_consts fors (fmap snd terms)
-                then gvar_const (var, terms, ty) (atom', terms', ty') -- TODO: what if length terms /= length terms'
+                then gvar_const (var, terms, ty) (atom', terms', ty')
                 else pure Nothing
               Left (FBind { _elem_quant=Forall, _elem_type=ty', _elem_name=var' })
                 | (not $ elem (Var var) (fmap snd terms)) && Set.member var' fors ->
@@ -618,7 +622,7 @@ unify_eq quant_vars a b = case (a, b) of
 
       let to_l_term term = case term of
               Prd at bind body -> Abs at bind $ to_l_term body
-              _ -> foldl (flip $ uncurry app) (action $ fmap (view _2) aₙₛ) $ fmap (\(x,_,y) -> (x,y)) xₘₛ
+              _ -> foldl (\v' (at, v) -> app at v' v) (action $ fmap (view _2) aₙₛ) $ fmap (\(x,_,y) -> (x,y)) xₘₛ
           -- The term L, which we will substitute for x
           l = to_l_term ty
 
@@ -946,15 +950,15 @@ get_elem atom quant_vars = case atom of
     _ -> throw "constructor should have inductive type"
 
 unwind :: InternalCore -> Maybe Spine'
-unwind core = fmap (uncurry Spine . (_2 %~ reverse)) (go core)
+unwind core = fmap (uncurry Spine) (go [] core)
   where 
-    go :: InternalCore -> Maybe (Atom', [(ArgType, InternalCore)])
-    go = \case
-      App at l r -> (_2 %~ ((at, r) :)) <$> (go l)
-      Var n -> Just (AVar n, [])
-      Uni n -> Just (AUni n, [])
-      Ctr label ty -> Just (ACtr label ty, [])
-      Ind nm kind ctors -> Just (AInd nm kind ctors, [])
+    go :: [(ArgType, InternalCore)] -> InternalCore -> Maybe (Atom', [(ArgType, InternalCore)])
+    go as = \case
+      App at l r -> go ((at,r):as) l
+      Var n -> Just (AVar n, as)
+      Uni n -> Just (AUni n, as)
+      Ctr label ty -> Just (ACtr label ty, as)
+      Ind nm kind ctors -> Just (AInd nm kind ctors, as)
       _ -> Nothing
 
 wind :: Spine' -> InternalCore
