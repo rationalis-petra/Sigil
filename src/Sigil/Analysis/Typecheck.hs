@@ -375,6 +375,7 @@ check interp@(CheckInterp {..}) env term ty =
                       censor (Bind Exists x a) $ do
                         env' <- lift $ insert x (Nothing, a) env
                         Var x ∈ a
+                        -- TODO: replace the subst here with a normalizing substitution
                         ((Implicit, Var x):) <$> chop env' (subst (n ↦ Var x) b) ((at, arg):args)
                   | otherwise -> throwError' "implicit application to non-implicit product"
                 _ -> throwError' "TODO: chop not implemented for non-Prd mty"

@@ -68,6 +68,7 @@ import Data.Kind
 import Data.List (intersperse)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
+import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Set (Set)
 import Data.Foldable
@@ -221,6 +222,11 @@ $(makeLenses ''Package)
 
 instance Functor MTree where
   fmap f (MTree wmap) = MTree $ fmap (bimap (fmap f) (fmap (fmap f))) wmap
+
+instance Pretty m => Pretty (MTree m) where
+  pretty = pmap . untree 
+    where 
+      pmap = vsep . Map.foldrWithKey (\k v l -> ((pretty k <+> pretty v):l)) []
 
 {---------------------------------- MODULE TYPE ----------------------------------}
 {-                                                                               -}

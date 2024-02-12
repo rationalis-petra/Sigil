@@ -55,6 +55,7 @@ get_world_path world package path =
       exported_modules = (package^.package_modules) : (fmap get_exports world)
       get_exports package = MTree $ Map.filterWithKey (\k _ -> elem k (package^.package_header.provides)) $ untree $ package^.package_modules
 
+  -- TODO: if we attempt to import from private module, make that a more explicit error?
   in if sum (fmap (Map.size . untree) exported_modules) == Map.size (untree merged_world)
   then Right $ get_modulo_path path merged_world
   else Left $ pack $ show $ fmap fst $ Map.toList $ untree merged_world
