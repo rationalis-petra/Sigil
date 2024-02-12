@@ -105,14 +105,39 @@ infer interp@(CheckInterp {..}) env term =
         ty <- lookup_err' n env
         pure (Var n, ty)
       Uniχ _ j -> pure (Uni j, Uni (j + 1))
-      Appχ (_, at) l r -> do
-        (l', lty) <- infer' env l
-        lty_norm <- lift $ norm_ty interp (range term) env lty
-  
-        (AnnBind (n, arg_ty), ret_ty) <- check_prod lift_err at lty_norm
-        r' <- check' env r arg_ty
-        rnorm <- normalize' env arg_ty r'
-        pure (App at l' r', subst (n ↦ rnorm) ret_ty)
+
+      Appχ (_, at) l r ->
+        let (head, args) = unroll (l, [(at, r)])
+            chop env mty = \case 
+              [] -> do
+                pure ([], mty)
+              ((at, arg):args) -> case mty of 
+                -- Ascribe
+                Prd at' (AnnBind (n, a)) b
+                  | at == at' -> do
+                      arg' <- check' env arg a
+                      b' <- lift $ norm_ty interp (range arg) env (subst (n ↦ arg') b)
+                      (_1 %~ ((at, arg'):)) <$> chop env b' args
+                  | at' == Implicit -> do
+                      x <- fresh_varn "#imp-in"
+                      censor (Bind Exists x a) $ do
+                        env' <- lift $ insert x (Nothing, a) env
+                        Var x ∈ a
+                        -- TODO: do normalizing substitution here!
+                        (_1 %~ ((Implicit, Var x):)) <$> chop env' (subst (n ↦ Var x) b) ((at, arg):args)
+                  | otherwise -> throwError' "implicit application to non-implicit product"
+                _ -> throwError' "TODO: chop not implemented for non-Prd mty"
+
+            unroll ((Appχ (_, at) l r), args) = unroll (l, ((at, r):args))
+            unroll (head, args) = (head, args)
+
+            roll head [] = head
+            roll head ((at, arg) : args) = roll (App at head arg) args
+         in do
+           (head', ty) <- infer' env head
+           ty' <- lift $ norm_ty interp (range head) env ty
+           (args', ret_ty) <- chop env ty' args
+           pure $ (roll head' args', ret_ty)
       
       Absχ (_,at) (OptBind (mn, ma)) body -> 
         case ma of 
@@ -302,6 +327,27 @@ check interp@(CheckInterp {..}) env term ty =
                   env' <- lift $ insert n₁ (Nothing, a_normal) env
                   Abs Regular (AnnBind (n₁, a_normal)) <$> check' env' body (App Regular (Var e) (Var n₁))
               Nothing -> throwError' "TODO: No type annotation for checked type!"
+      Absχ (_,Implicit) (OptBind (Just n₁, maty)) body ->
+        case ty of 
+          Prd Implicit (AnnBind (n₂, a₂)) ret_ty -> do
+            case maty of 
+              Just a₁ -> do
+                (a_typd, a_kind) <- infer' env a₁
+                a_normal <- normalize' env a_kind a_typd
+                a_normal ≗ a₂ -- Assume a₂ is already normal
+              Nothing -> pure ()
+            let ret_ty' = if (n₁ == n₂) then ret_ty else subst (n₂ ↦ Var n₁) ret_ty
+            censor (Bind Forall n₁ a₂) $ do
+              env' <- lift $ insert n₁ (Nothing, a₂) env
+              body' <- check' env' body ret_ty'
+              pure $ Abs Regular (AnnBind (n₁, a₂)) body'
+          _ -> do
+            throwError' "TODO: implicit-lambda with non-implicit type check should be implemented"
+            -- e <- getNewWith "@e"
+            -- tyA <- checkType b tyA tipe
+            -- addToEnv (∃) e (forall "" tyA tipe) $ do
+            --   forall x tyA (Spine e [var x]) ≐ ty
+            --   Abs x tyA <$> addToEnv (.∀) x tyA (checkType b sp $ Spine e [var x])
     
       Prdχ (_,at) (OptBind (mn, Just a)) b -> do
         a' <- check' env a ty
@@ -325,12 +371,11 @@ check interp@(CheckInterp {..}) env term ty =
                       b' <- lift $ norm_ty interp (range arg) env (subst (n ↦ arg') b)
                       ((at, arg'):) <$> chop env b' args
                   | at' == Implicit -> do
-                      arg' <- check' env arg a
                       x <- fresh_varn "#imp-in"
                       censor (Bind Exists x a) $ do
                         env' <- lift $ insert x (Nothing, a) env
                         Var x ∈ a
-                        ((Implicit, arg'):) <$> chop env' (subst (n ↦ Var x) b) args
+                        ((Implicit, Var x):) <$> chop env' (subst (n ↦ Var x) b) ((at, arg):args)
                   | otherwise -> throwError' "implicit application to non-implicit product"
                 _ -> throwError' "TODO: chop not implemented for non-Prd mty"
 
@@ -392,9 +437,6 @@ check interp@(CheckInterp {..}) env term ty =
         pure term'
 
 -- Utility functions for Checking Resolved Terms, specifically for working with telescopes
-
--- infer :: forall e err m. (MonadError err m, MonadGen m)
---   => CheckInterp m err e InternalCore -> e (Maybe InternalCore,InternalCore) -> ResolvedCore -> m (InternalCore, InternalCore)
 infer_resolved_tel :: forall env err m. (MonadError err m, MonadGen m)
   => Range -> CheckInterp m err env -> Env env m -> ResolvedTel
   -> WriterT InternalFormula m (InternalTel, Env env m, Env env m, Env env m)
@@ -429,17 +471,9 @@ infer_resolved_tel range interp@(CheckInterp {..}) env tel =
           (tel_in <> [(AnnBind (n, (ty_m, v1', v2')), prf')])
           env_l' env_r' env_m'
       infer_tel _ _ _ _ _ = throwError' "Error in inferring tel: optbind not implemented"
-      -- infer_tel ((OptBind (Just n, Just (ty, v1, v2)), prf) : tel) tel_in env_l env_r env_m = 
-      --   (prfl, kind_l) <- infer' env_l ty
-      --   (ty_r, kind_r) <- infer' env_r ty
-      --   (ty_m, kind_m) <- infer' env_m ty
   in infer_tel tel [] env env env
 
--- check_resolved_tel ::
--- check_resolved_tel = 
-
   
-
 check_entry :: (MonadError err m, MonadGen m)
   => CheckInterp m err env -> Env env m -> ResolvedEntry -> m InternalEntry
 check_entry interp@(CheckInterp {..}) env mod =
@@ -479,27 +513,11 @@ check_module interp@(CheckInterp {..}) env mod = do
   
     eval = normalize (lift_err . NormErr (Range Nothing))
 
--- TODO: replace with check_sub (?)
---check_eq _ _ = undefined
--- check_eq :: (MonadError err m) => Range -> (CheckInterp m err env) -> Env env m -> InternalCore -> InternalCore -> InternalCore -> m ()
--- check_eq range (CheckInterp {..}) env ty l r = 
---   αβη_eq (lift_err . NormErr range) (i_impl env) ty l r >>= \case
---     True -> pure ()
---     False -> throwError $ lift_err $ PrettyErr range ("not-equal:" <+> pretty l <+> "and" <+> pretty r) 
-
 (≗) :: Monad m => InternalCore -> InternalCore -> WriterT InternalFormula m ()
 l ≗ r = unless (l == r) $ tell (Conj [l :≗: r])
 
 (∈) :: Monad m => InternalCore -> InternalCore -> WriterT InternalFormula m ()
 l ∈ r = tell $ Conj [l :∈: r]
-
--- TODO: bad for internal core?
--- TODO: implicit vs explicit products
-check_prod :: (MonadError err m) => (TCErr -> err) -> ArgType -> InternalCore -> m (AnnBind Name InternalCore, InternalCore)
-check_prod lift_err at term@(Prdχ at' b ty)
-  | at == at' = pure (b, ty)
-  | otherwise = throwError $ lift_err $ PrettyErr (Range Nothing) ("Implicit/Explicit prod mismatch:" <+> pretty term) 
-check_prod lift_err _ term = throwError $ lift_err $ PrettyErr (Range Nothing) ("Expected prod, got:" <+> pretty term) 
 
 -- check_lvl :: (MonadError err m, Binding b, Pretty (Core b n χ)) => (TCErr -> err) -> Core b n χ -> m Int
 check_lvl _ (Uniχ _ i) = pure i
@@ -553,23 +571,5 @@ get_universe lift_error r env = go env where
     TrL _ _ _ -> pure 0
     -- LfR _ _ _ -> 0
     -- LfL _ _ _ -> 0
-
--- Helpers for constructing the 1-1-Correspondence type
--- sigma :: Binding b => Core b n χ -> n -> Core b n χ -> Core b n χ -> Core b n χ
--- sigma u nm a b = Indχ ? 
-
--- is_contr :: (MonadGen m, Binding b) => Core b n χ -> Core b n χ
--- is_contr uni val = do
---   var <- fresh_var 
---   sigma (Idχ _ )
-
--- -- 
--- -- Given a type (in universe 𝕌)
--- correspondence :: (MonadGen m, Binding b) => Core b n χ -> Core b n χ -> Core b n χ
--- correspondence 
-
--- -- Make a pair at Σ-type
--- pr :: Binding b => Core b n χ -> Core b n χ -> Core b n χ -> Core b n χ
--- pr ty x y = Appχ (Appχ (Ctrχ _ "," ty) x) y
 
 
