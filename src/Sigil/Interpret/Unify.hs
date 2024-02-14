@@ -329,11 +329,44 @@ unify_eq quant_vars a b = case (a, b) of
   (Abs i (AnnBind (n, ty)) body, Abs i' (AnnBind (n', ty')) body') | i == i' -> 
     pure $ Just (add_bind Forall n ty quant_vars, mempty, [(ty :≗: ty'), (body :≗: subst (n' ↦ Var n) body')])
 
+  -- Implicit Product Instantuation
+  (Prd Implicit (AnnBind (n, ty)) body, b) -> do
+    -- TODO: add condition that b is not an implicit abstraction!
+    nm <- fresh_varn "#ip-l-"
+    pure $ Just (add_bind Exists nm ty quant_vars, mempty, [subst (n ↦ Var nm) body :≗: b, Var nm :∈: ty])
+  (b, Prd Implicit (AnnBind (n, ty)) body) -> do
+    -- TODO: add condition that b is not an implicit abstraction!
+    nm <- fresh_varn "#ip-r-"
+    pure $ Just (add_bind Exists nm ty quant_vars, mempty, [b :≗: subst (n ↦ Var nm) body, Var nm :∈: ty])
+
+  -- Implicit Abstraction Instantuation
+  (Abs Implicit (AnnBind (n, ty)) body, b) -> do
+    -- TODO: add condition that b is not an implicit abstraction!
+    nm <- fresh_varn "iaL-"
+    pure $ Just (add_bind Exists nm ty quant_vars, mempty, [subst (n ↦ Var nm) body :≗: b, Var nm :∈: ty])
+  (b, Abs Implicit (AnnBind (n, ty)) body) -> do
+    -- TODO: add condition that b is not an implicit abstraction!
+    nm <- fresh_varn "iaR-"
+    pure $ Just (add_bind Exists nm ty quant_vars, mempty, [b :≗: subst (n ↦ Var nm) body, Var nm :∈: ty])
+
   -- Case Lam-Any (both left and right variants)
   (s, Abs Regular (AnnBind (n, ty)) body) -> 
     pure $ Just (add_bind Forall n ty quant_vars, mempty, [s :≗: app Regular body (Var n)])
   (Abs Regular (AnnBind (n, ty)) body, s) -> 
     pure $ Just (add_bind Forall n ty quant_vars, mempty, [app Regular body (Var n) :≗: s])
+
+  -- Unifying two inductive types
+  -- 1. Check to make sure their constructors have the same name
+  -- 2. If this is the case, generate the constraint that all constructors are equal
+  (Ind n ty ctors, Ind n' ty' ctors') -> 
+    if List.sort (fmap fst ctors) == List.sort (fmap fst ctors') then
+      pure $ Just ( add_bind Forall n ty quant_vars
+                  , mempty
+                  , ((ty :≗: ty')
+                     : zipWith (\(_,l) (_,r) -> l :≗: (subst (n' ↦ Var n) r))
+                       (List.sortOn fst ctors) (List.sortOn fst ctors')))
+    else
+      throw "Mismatched constructor names"
 
 
   -- Note: original was matching with spine, meaning it may include more than
@@ -407,7 +440,7 @@ unify_eq quant_vars a b = case (a, b) of
       
           constraints <- match terms terms'
           pure $ Just (quant_vars, mempty, constraints)
-        _ -> throw ("can't unify a ∀-var against a term")
+        _ -> throw ("Can't unify a ∀-var against a term")
 
   where
 

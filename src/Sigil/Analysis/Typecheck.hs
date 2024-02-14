@@ -119,12 +119,13 @@ infer interp@(CheckInterp {..}) env term =
                       b' <- lift $ norm_ty interp (range arg) env (subst (n ↦ arg') b)
                       (_1 %~ ((at, arg'):)) <$> chop env b' args
                   | at' == Implicit -> do
-                      x <- fresh_varn "#imp-in"
+                      x <- fresh_varn "#imp-in-"
                       censor (Bind Exists x a) $ do
                         env' <- lift $ insert x (Nothing, a) env
                         Var x ∈ a
                         -- TODO: do normalizing substitution here!
-                        (_1 %~ ((Implicit, Var x):)) <$> chop env' (subst (n ↦ Var x) b) ((at, arg):args)
+                        b' <- lift $ norm_ty interp (range b) env' (subst (n ↦ Var x) b)
+                        (_1 %~ ((Implicit, Var x):)) <$> chop env' b' ((at, arg):args)
                   | otherwise -> throwError' "implicit application to non-implicit product"
                 _ -> throwError' "TODO: chop not implemented for non-Prd mty"
 
@@ -306,8 +307,10 @@ check interp@(CheckInterp {..}) env term ty =
                 a_normal <- normalize' env a_kind a_typd
                 a_normal ≗ a₂ -- Assume a₂ is already normal
               Nothing -> pure ()
-            let ret_ty' = if (n₁ == n₂) then ret_ty else subst (n₂ ↦ Var n₁) ret_ty
             censor (Bind Forall n₁ a₂) $ do
+              ret_ty' <- if (n₁ == n₂)
+                then pure ret_ty
+                else lift $ norm_ty interp (range body) env (subst (n₂ ↦ Var n₁) ret_ty)
               env' <- lift $ insert n₁ (Nothing, a₂) env
               body' <- check' env' body ret_ty'
               pure $ Abs Regular (AnnBind (n₁, a₂)) body'
@@ -371,12 +374,13 @@ check interp@(CheckInterp {..}) env term ty =
                       b' <- lift $ norm_ty interp (range arg) env (subst (n ↦ arg') b)
                       ((at, arg'):) <$> chop env b' args
                   | at' == Implicit -> do
-                      x <- fresh_varn "#imp-in"
+                      x <- fresh_varn "#imp-in-"
                       censor (Bind Exists x a) $ do
                         env' <- lift $ insert x (Nothing, a) env
                         Var x ∈ a
                         -- TODO: replace the subst here with a normalizing substitution
-                        ((Implicit, Var x):) <$> chop env' (subst (n ↦ Var x) b) ((at, arg):args)
+                        b' <- lift $ norm_ty interp (range b) env' (subst (n ↦ Var x) b)
+                        ((Implicit, Var x):) <$> chop env' b' ((at, arg):args)
                   | otherwise -> throwError' "implicit application to non-implicit product"
                 _ -> throwError' "TODO: chop not implemented for non-Prd mty"
 
@@ -432,9 +436,8 @@ check interp@(CheckInterp {..}) env term ty =
       -- TODO: add cases for Eql and Dap
       _ -> do
         (term', ty') <- infer' env term
-        --n <- lift $ get_universe lift_err (range ty) env ty
-        --_ <- lift $ check_eq (range term) interp env (Uni n) ty ty'
-        ty ≗ ty'
+        ty_norm <- lift $ norm_ty interp (range term) env ty'
+        ty ≗ ty_norm
         pure term'
 
 -- Utility functions for Checking Resolved Terms, specifically for working with telescopes
