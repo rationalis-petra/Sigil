@@ -155,7 +155,6 @@ infer interp@(CheckInterp {..}) env term =
     case term of
       Varχ _ n -> do
         ty <- lookup_err' n env
-        --tm' <- check' env term ty
         pure (Var n, ty)
       Uniχ _ j -> pure (Uni j, Uni (j + 1))
 
@@ -165,7 +164,6 @@ infer interp@(CheckInterp {..}) env term =
               [] -> do
                 pure ([], mty)
               ((at, arg):args) -> case mty of 
-                -- Ascribe
                 Prd at' (AnnBind (n, a)) b
                   | at == at' -> do
                       arg' <- check' env arg a
@@ -487,8 +485,11 @@ check interp@(CheckInterp {..}) env term ty =
       _ -> do
         (term', ty') <- infer' env term
         ty_norm <- lift $ norm_ty interp (range term) env ty'
-        ty ≗ ty_norm
-        pure term'
+        iterm <- implicit_cons_eq interp (range term) env ty ty_norm term'
+        -- TODO: This is a temporary hack that will break if the ∃ can't be instantiated! 
+        --       Should rectify/fix this later. 
+        -- Suggestions: Bubble the ∃ up the hierarchy (related to ascribe?)
+        pure iterm
 
 -- Utility functions for Checking Resolved Terms, specifically for working with telescopes
 infer_resolved_tel :: forall env err m. (MonadError err m, MonadGen m)
@@ -626,4 +627,19 @@ get_universe lift_error r env = go env where
     -- LfR _ _ _ -> 0
     -- LfL _ _ _ -> 0
 
+implicit_cons_eq :: (MonadGen m, MonadError err m) => (CheckInterp m err env) -> Range -> Env env m
+  -> InternalCore -> InternalCore -> InternalCore -> WriterT InternalFormula m InternalCore
+implicit_cons_eq interp range env ety ty val = go env ty val
+  where go env ty val = case ty of
+          Prd Implicit (AnnBind (n, a)) b -> do
+            e <- fresh_varn "#iex-"
+            censor (Bind Exists e a) $ do
+              env' <- lift $ insert e (Nothing, a) env
+              Var e ∈ a
+              b' <- lift $ norm_ty interp range env' (subst (n ↦ Var e) b)
+              go env' b' (App Implicit val (Var e))
+    
+          _ -> do 
+            ety ≗ ty
+            pure val
 

@@ -1,6 +1,6 @@
-# sigil Directory
+# Sigil Directory
 
-This directory contains an implementations of all major components of the sigil
+This directory contains an implementations of all major components of the Sigil
 langauge. It is divided into 6 subcomponents:
 
 + **Abstract** : Contains a description of the abstract syntax tree and
@@ -9,8 +9,8 @@ langauge. It is divided into 6 subcomponents:
   for manipulating terms like substitution and alpha equality.
 + **Concrete** : Concrete contains a small number of files which instantiate the
   abstract syntax tree for various purposes, e.g. parsing
-+ **Parse** : Contains the parser for sigil
-+ **Analysis** : Various algorithms which analyse and/or transform the sigil
++ **Parse** : Contains the parser for Sigil
++ **Analysis** : Various algorithms which analyse and/or transform the Sigil
   Syntax tree (e.g. typechecking, name resolution or totality checking).
 + **Interpret** : This module contains an abstract description of an
   interpreter, which is capable of evaluating a syntax tree and solving a
@@ -24,6 +24,6 @@ langauge. It is divided into 6 subcomponents:
   then be serialized-deserialized via an `image` file, enabling individuals to
   halt & resume sessions/programs.
 
-Note that each sigil mode (compilation/interactive/server) ties these components
+Note that each Sigil mode (compilation/interactive/server) ties these components
 together differently.
 

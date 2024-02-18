@@ -112,14 +112,6 @@ pattern TrR :: [(AnnBind Name (InternalCore, InternalCore, InternalCore), Intern
 pattern TrR tel ty val <- TrRχ () tel ty val
   where TrR tel ty val = TrRχ () tel ty val
 
--- pattern IPrd :: AnnBind Name InternalCore -> InternalCore -> InternalCore
--- pattern IPrd b ty <- Coreχ (IPrdχ () b ty)
---   where IPrd b ty = Coreχ (IPrdχ () b ty)
-
--- pattern IAbs :: AnnBind Name InternalCore -> InternalCore -> InternalCore
--- pattern IAbs b ty <- Coreχ (IAbsχ () b ty)
---   where IAbs b ty = Coreχ (IAbsχ () b ty)
-
 
 instance Pretty InternalCore where
   pretty c = case c of
@@ -167,6 +159,7 @@ instance Pretty InternalCore where
     Dap tel val -> ("ρ" <+> pretty_tel tel <+> "." <+> pretty val)
     TrL tel ty val -> ("⍃" <+> pretty_tel tel <+> "." <+> pretty ty <+> pretty val)
     TrR tel ty val -> ("⍄" <+> pretty_tel tel <+> "." <+> pretty ty <+> pretty val)
+
 
     where 
       pretty_prd_like e =
