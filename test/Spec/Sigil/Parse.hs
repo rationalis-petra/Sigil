@@ -456,7 +456,7 @@ np :: Text -> MixToken s
 np = NamePart mempty
 
 sy :: s -> MixToken s
-sy = Syn
+sy = Syn Regular
 
 pc :: Text -> [Pattern Text] -> Pattern Text
 pc = PatCtr
@@ -540,7 +540,7 @@ syn_eq l r = case (l, r) of
 tok_eq :: (Syntax -> Syntax -> Bool) -> MixToken Syntax -> MixToken Syntax -> Bool
 tok_eq f l r = case (l, r) of  
   (NamePart _ p, NamePart _ p') -> p == p'
-  (Syn s, Syn s')           -> f s s'
+  (Syn i s, Syn i' s')           -> i == i' && f s s'
   _                         -> False
 
 syn_ent_eq :: SynEntry -> SynEntry -> Bool
