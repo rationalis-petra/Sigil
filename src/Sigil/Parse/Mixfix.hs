@@ -316,10 +316,10 @@ update_precs args g = foldl' add_op g ((join . map to_node) args)
       Just ('_', _) -> True
       _ -> False
 
-    hide_pre arg = case (uncons arg) of
+    hide_post arg = case (uncons arg) of
       Just (part, rest) -> cons ("_" <> part) rest
       _ -> arg
-    hide_post arg = case (unsnoc arg) of
+    hide_pre arg = case (unsnoc arg) of
       Just (rest, part) -> snoc rest (part <> "_")
       _ -> arg
     hide_in = hide_pre . hide_post
