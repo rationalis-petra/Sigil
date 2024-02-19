@@ -297,7 +297,7 @@ syn_core level = do
           RMix _ [ty, a, a'] <- syn_core level
           let syn = \case 
                 NamePart r txt -> RMix r [NamePart r txt]
-                Syn core -> core
+                Syn _ core -> core -- TODO: report error on implicit?
           pure $ (\r -> REql r tel (syn ty) (syn a) (syn a'))
 
     pap :: ParserT m Syntax
@@ -321,7 +321,7 @@ syn_core level = do
           RMix _ [ty, val] <- syn_core level
           let syn = \case 
                 NamePart r txt -> RMix r [NamePart r txt]
-                Syn core -> core
+                Syn _ core -> core -- TODO: report error on implicit?
           pure $ \r -> f r tel (syn ty) (syn val)
 
     ptel :: ParserT m RawTel
@@ -338,7 +338,7 @@ syn_core level = do
               val <- syn_core level
               let syn = \case
                     NamePart r txt -> RMix r [NamePart r txt]
-                    Syn core -> core
+                    Syn _ core -> core -- TODO: report error on implicit?
               pure (arg, Just (syn ty, syn a, syn a'), val)
             '≜' -> do
               symbol "≜"
@@ -357,7 +357,8 @@ syn_core level = do
         mkmix = flip RMix <$> many1 mix_token
 
         mix_token :: ParserT m (MixToken Syntax)
-        mix_token = (Syn <$> (between lparen rparen (syn_core level) <|> patom))
+        mix_token = (Syn Regular <$> (between lparen rparen (syn_core level) <|> patom))
+          <|> (Syn Regular <$> (between langle rangle (syn_core level) <|> patom))
           <|> with_range (flip NamePart <$> anyvar)
 
         patom = puniv <|> pctor

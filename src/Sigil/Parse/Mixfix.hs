@@ -47,6 +47,7 @@ module Sigil.Parse.Mixfix
 import Prelude hiding (head, tail, last)
 
 import Control.Lens
+import Control.Monad (join)
 import Data.Foldable (foldl')
 import qualified Data.Vector as Vector
 import Data.Vector (Vector, head, tail, last)
@@ -179,7 +180,7 @@ mixfix' (G {..}) = expr
 
             inj Closed =
               if view _1 (gFromVertex node) == IsClosed then
-                flip Tel [] <$> token (\case {Syn s -> Just s; _ -> Nothing}) Set.empty 
+                flip Tel [] <$> token (\case {Syn _ s -> Just s; _ -> Nothing}) Set.empty 
               else
                 fail "not default"
             inj _ = fail "not default"
@@ -287,14 +288,21 @@ opName (Operator {..}) = case _fixity of
 
 
 update_precs :: [Text] -> Precedences -> Precedences
-update_precs args g = foldl' add_op g (map to_node args) 
+update_precs args g = foldl' add_op g ((join . map to_node) args) 
   where 
     to_node arg
-  -- TODO: currently, '_' is treated as infix!!
-      | is_infix arg   = Operator (Infix LeftAssociative) (to_parts arg)
-      | is_prefix arg  = Operator Prefix (to_parts arg)
-      | is_postfix arg = Operator Postfix (to_parts arg)
-      | otherwise      = Operator Closed (to_parts arg)
+      | is_empty arg   = []
+      | is_infix arg   = [ Operator (Infix LeftAssociative) (to_parts arg)
+                         , Operator Prefix  ((hide_post . to_parts) arg)
+                         , Operator Postfix ((hide_pre . to_parts) arg)
+                         , Operator Closed  ((hide_in. to_parts) arg) ]
+      | is_prefix arg  = [ Operator Prefix (to_parts arg)
+                         , Operator Closed ((hide_pre . to_parts) arg) ]
+      | is_postfix arg = [ Operator Postfix (to_parts arg) 
+                         , Operator Closed ((hide_post . to_parts) arg) ]
+      | otherwise      = [ Operator Closed (to_parts arg) ]
+
+    is_empty arg = arg == "_"
 
     is_infix arg = case (uncons arg, unsnoc arg) of 
       (Just ('_', _), Just (_, '_')) -> True
@@ -307,6 +315,14 @@ update_precs args g = foldl' add_op g (map to_node args)
     is_postfix arg = case uncons arg of    
       Just ('_', _) -> True
       _ -> False
+
+    hide_pre arg = case (uncons arg) of
+      Just (part, rest) -> cons ("_" <> part) rest
+      _ -> arg
+    hide_post arg = case (unsnoc arg) of
+      Just (rest, part) -> snoc rest (part <> "_")
+      _ -> arg
+    hide_in = hide_pre . hide_post
 
     to_parts :: Text -> Vector Text
     to_parts = Vector.fromList . filter (not . Text.null) . Text.splitOn "_" 

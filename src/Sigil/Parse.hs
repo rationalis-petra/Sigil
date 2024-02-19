@@ -114,7 +114,7 @@ mix_core precs = \case
   RMix _ vals -> do
     let go [] = pure []
         go (c:cs) = case c of 
-          Syn v -> (:) <$> (Syn <$> mix_core precs v) <*> go cs 
+          Syn i v -> (:) <$> (Syn i <$> mix_core precs v) <*> go cs 
           NamePart r p -> (NamePart r p :) <$> go cs
     vals' <- go vals
     parseMix (mixfix precs) vals'
