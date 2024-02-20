@@ -266,14 +266,16 @@ syn_core level = do
       where 
         mkrec = do
           symbol "φ"
-          var <- anyvar
-          symbol "⮜"
-          ty <- syn_core level
-          symbol ","
+          res <- (do var <- anyvar
+                     symbol "⮜"
+                     ty <- syn_core level
+                     symbol ","
+                     pure $ Just (var, ty))
+                 <||> pure Nothing
           val <- syn_core level
           symbol "."
           cases <- many $ try pcase
-          pure $ \r -> RRec r (Just var) (Just ty) val cases
+          pure $ \r -> RRec r (fmap fst res) (fmap snd res) val cases
 
         pcase = do
           level' <- L.indentGuard scn GT level
@@ -407,7 +409,7 @@ syn_formula level = do
 
     pconj :: ParserT m (Formula Text Syntax)
     pconj = do
-      forms <- sepBy (between lparen rparen $ syn_formula level) (symbol "∧" )
+      forms <- sepBy (between lparen rparen $ syn_formula level) (symbol "⩑" )
       case reverse forms of 
         (f : fs) -> pure $ foldr And f fs
         _ -> fail "empty formula conjugation"
@@ -422,7 +424,7 @@ syn_formula level = do
     psingle :: ParserT m (SingleConstraint Syntax)
     psingle = do
       core₁ <- syn_core level
-      f <- (const (:≗:) <$> symbol "≅") <|> (const (:∈:) <$> symbol "∈")
+      f <- (const (:≗:) <$> symbol "≗") <|> (const (:∈:) <$> symbol "⋵")
       core₂ <- syn_core level
       pure $ f core₁ core₂
 

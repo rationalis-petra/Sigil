@@ -253,43 +253,63 @@ infer interp@(CheckInterp {..}) env term =
           Nothing ->
             throwError' $ "Constructor" <+> pretty label <+> "was not provided a type"
 
-      Recχ _ (OptBind (Just rnm, Just rty)) val cases -> do
-        (rty', rsort) <- infer' env rty
-        rnorm <- normalize' env rsort rty'
-        (_, inty, out) <- case rnorm of
-          (Prd _ (AnnBind (nm, inty)) out) -> pure (nm, inty, out)
-          _ -> throwError' "Expecting recursive function have product type"
-        val' <- check' env val inty
+      Recχ _ (OptBind (m_rnm, m_rty)) val cases -> do
+        rnm <- case m_rnm of 
+          Just nm -> pure nm
+          Nothing -> fresh_varn "_-"
 
-        let check_case env inty (pat, core) = do
-              env' <- update_env env inty pat
-              core' <- check' env' core out
-              pure $ (pat, core')
+        case m_rty of 
+          Just rty -> do
+            (rty', rsort) <- infer' env rty
+            rnorm <- normalize' env rsort rty'
+            case rnorm of
+              (Prd _ (AnnBind (_, inty)) out) -> do -- TODO: use nm at
+                val' <- check' env val inty
+                cases' <- do
+                  env' <- lift $ insert rnm (Nothing, rnorm) env
+                  mapM (check_case env' out inty) cases
+                pure $ (Rec (AnnBind (rnm, rty')) val' cases', out)
+              _ -> throwError' "Expecting recursive function have product type"
+  
+          Nothing -> do
+            (val', inty) <- infer' env val
+            x <- fresh_varn "#ex-rec-"
+            arg <- fresh_varn "#rec-arg-"
+            -- TODO: universe level? (infer universes)
+            censor (Bind Exists x (Uni 0)) $ do
+              env' <- lift $ insert x (Nothing, Uni 0) env
+              Var x ∈ Uni 0
+              cases' <- do
+                env'' <- lift $ insert rnm (Nothing, Prd Regular (AnnBind (arg, inty)) (Var x)) env'
+                mapM (check_case env'' (Var x) inty) cases
+              pure $ (Rec (AnnBind (rnm, Prd Regular (AnnBind (arg, inty)) (Var x))) val' cases', Var x)
 
-            update_env :: Env env m -> InternalCore -> Pattern Name -> WriterT InternalFormula m (Env env m)
-            update_env env inty = \case 
-              PatVar n -> lift $ insert n (Nothing, inty) env 
-              PatCtr label subpatterns -> do
-                -- TODO: what about dependently-typed induction!
-                args <- get_args label inty 
-                if (length args /= length subpatterns) then throwError' "Error: malformed pattern (bad number of arguments)" else pure ()
-                foldl (\m (inty, subpat) -> m >>= \env -> update_env env inty subpat) (pure env) (zip args subpatterns)
 
-            get_args label ty@(Ind rn _ ctors) = do
-              case find ((== label) . fst) ctors of 
-                Just (_, cty) -> 
-                  let cty' = subst (rn ↦ ty) cty
-                      pargs (Prd Regular (AnnBind (_, a)) b) = [a] <> pargs b
-                      pargs (Prd Implicit (AnnBind (_, a)) b) = [a] <> pargs b
-                      pargs _ = []
-                  in pure $ pargs cty'
-                Nothing -> throwError' "Failed to find label for recursion"
-            get_args _ _ = throwError' "Can't pattern match on non-inductive type"
+        where
+          check_case env out inty (pat, core) = do
+            env' <- update_env env inty pat
+            core' <- check' env' core out
+            pure $ (pat, core')
 
-        cases' <- do
-          env' <- lift $ insert rnm (Nothing, rnorm) env
-          mapM (check_case env' inty) cases
-        pure $ (Rec (AnnBind (rnm, rty')) val' cases', out)
+          update_env :: Env env m -> InternalCore -> Pattern Name -> WriterT InternalFormula m (Env env m)
+          update_env env inty = \case 
+            PatVar n -> lift $ insert n (Nothing, inty) env 
+            PatCtr label subpatterns -> do
+              -- TODO: what about dependently-typed induction!
+              args <- get_args label inty 
+              if (length args /= length subpatterns) then throwError' "Error: malformed pattern (bad number of arguments)" else pure ()
+              foldl (\m (inty, subpat) -> m >>= \env -> update_env env inty subpat) (pure env) (zip args subpatterns)
+
+          get_args label ty@(Ind rn _ ctors) = do
+            case find ((== label) . fst) ctors of 
+              Just (_, cty) -> 
+                let cty' = subst (rn ↦ ty) cty
+                    pargs (Prd Regular (AnnBind (_, a)) b) = [a] <> pargs b
+                    pargs (Prd Implicit (AnnBind (_, a)) b) = [a] <> pargs b
+                    pargs _ = []
+                in pure $ pargs cty'
+              Nothing -> throwError' "Failed to find label for recursion"
+          get_args _ _ = throwError' "Can't pattern match on non-inductive type"
 
       Dapχ _ tel val -> do  
         (tel', env_l, env_r, env_m) <- infer_resolved_tel (range term) interp env tel
@@ -365,6 +385,17 @@ check interp@(CheckInterp {..}) env term ty =
               env' <- lift $ insert n₁ (Nothing, a₂) env
               body' <- check' env' body ret_ty'
               pure $ Abs Regular (AnnBind (n₁, a₂)) body'
+
+          -- Implicit product names are automatically instantiated
+          -- For example, if we have (λ x → x) ⮜ (⟨A ⮜ 𝕌⟩ → A → A), then we automatically
+          -- 'wrap' λ x → x by adding an extra implicit argument, i.e convert it
+          -- to λ ⟨A⟩ → (λ x → x)
+          Prd Implicit (AnnBind (n₂, a₂)) ret_ty -> do
+            -- TODO: freshen n₂?
+            env' <- lift $ insert n₂ (Nothing, a₂)  env
+            internal <- check' env' term ret_ty
+            pure $ Abs Implicit (AnnBind (n₂, a₂)) internal
+
     
           _ -> do
             case maty of 
@@ -481,6 +512,62 @@ check interp@(CheckInterp {..}) env term ty =
               pure $ Ctr label ty
             Nothing -> throwError' $ "Couln't find constructor" <+> pretty label
           _ -> throwError' $ "Constructor" <+> pretty label <+> "must be annotated so as to produce an inductive datatype"
+
+      Recχ _ (OptBind (m_rnm, m_rty)) val cases -> do
+        rnm <- case m_rnm of 
+          Just nm -> pure nm
+          Nothing -> fresh_varn "_-"
+
+        case m_rty of 
+          Just rty -> do
+            (rty', rsort) <- infer' env rty
+            rnorm <- normalize' env rsort rty'
+            case rnorm of
+              (Prd _ (AnnBind (_, inty)) out) -> do -- TODO: use nm at
+                out ≗ ty
+                val' <- check' env val inty
+                cases' <- do
+                  env' <- lift $ insert rnm (Nothing, rnorm) env
+                  mapM (check_case env' out inty) cases
+                pure $ Rec (AnnBind (rnm, rty')) val' cases'
+              _ -> throwError' "Expecting recursive function have product type"
+  
+          Nothing -> do
+            (val', inty) <- infer' env val
+            arg <- fresh_varn "#rec-arg-"
+            -- TODO: universe level? (infer universes)
+            cases' <- do
+              env' <- lift $ insert rnm (Nothing, Prd Regular (AnnBind (arg, inty)) ty) env
+              mapM (check_case env' ty inty) cases
+            pure $ Rec (AnnBind (rnm, Prd Regular (AnnBind (arg, inty)) ty)) val' cases'
+
+
+        where
+          check_case env out inty (pat, core) = do
+            env' <- update_env env inty pat
+            core' <- check' env' core out
+            pure $ (pat, core')
+
+          update_env :: Env env m -> InternalCore -> Pattern Name -> WriterT InternalFormula m (Env env m)
+          update_env env inty = \case 
+            PatVar n -> lift $ insert n (Nothing, inty) env 
+            PatCtr label subpatterns -> do
+              -- TODO: what about dependently-typed induction!
+              args <- get_args label inty 
+              if (length args /= length subpatterns) then throwError' "Error: malformed pattern (bad number of arguments)" else pure ()
+              foldl (\m (inty, subpat) -> m >>= \env -> update_env env inty subpat) (pure env) (zip args subpatterns)
+
+          get_args label ty@(Ind rn _ ctors) = do
+            case find ((== label) . fst) ctors of 
+              Just (_, cty) -> 
+                let cty' = subst (rn ↦ ty) cty
+                    pargs (Prd Regular (AnnBind (_, a)) b) = [a] <> pargs b
+                    pargs (Prd Implicit (AnnBind (_, a)) b) = [a] <> pargs b
+                    pargs _ = []
+                in pure $ pargs cty'
+              Nothing -> throwError' "Failed to find label for recursion"
+          get_args _ _ = throwError' "Can't pattern match on non-inductive type"
+
 
       _ -> do
         (term', ty') <- infer' env term
