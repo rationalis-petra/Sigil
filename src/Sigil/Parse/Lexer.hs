@@ -105,7 +105,7 @@ symchar '\n' = False
 symchar '\r' = False
 symchar '\t' = False
 -- Related to formula parsing: should be changed... 
-symchar '∧'  = False
-symchar '≅'  = False
-symchar '∈'  = False
+symchar '⩑'  = False
+symchar '≗'  = False
+symchar '⋵'  = False
 symchar _    = True

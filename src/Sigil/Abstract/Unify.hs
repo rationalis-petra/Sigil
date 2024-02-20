@@ -113,15 +113,15 @@ instance Pretty Quant where
 
 instance Pretty a => Pretty (SingleConstraint a) where  
   pretty s = case s of 
-    a :≗: b -> pretty a <+> "≅" <+> pretty b
-    a :∈: ty -> pretty a <+> "∈" <+> pretty ty
+    a :≗: b -> pretty a <+> "≗" <+> pretty b
+    a :∈: ty -> pretty a <+> "⋵" <+> pretty ty
 
 instance (Pretty a, Pretty n) => Pretty (Formula n a) where
   pretty f = case f of 
     Conj fs -> case fs of 
       [] -> "⊤"
-      _ -> (foldl (<+>) "" . List.intersperse "∧" . map pretty) fs
+      _ -> (foldl (<+>) "" . List.intersperse "⩑" . map pretty) fs
     And l r ->
-      "(" <> pretty l <+> "∧" <+> pretty r <> ")"
+      "(" <> pretty l <+> "⩑" <+> pretty r <> ")"
     Bind quant nm ty f' ->
       pretty quant <> pretty nm <> "⮜" <+> pretty ty <> "." <+> pretty f'
