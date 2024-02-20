@@ -261,7 +261,7 @@ instance ( Ord n
 
 instance Traversable (Functorχ χ) => Regen (Core OptBind Name χ) where 
   regen = go empty where
-    freshen_bind (OptBind (n, ty)) sub = do
+    freshen_bind sub (OptBind (n, ty)) = do
       n' <- mapM freshen n
       let sub' = maybe sub (flip (uncurry insert) sub) ((,) <$> n <*> n')
       ty' <- mapM (go sub) ty
@@ -287,10 +287,10 @@ instance Traversable (Functorχ χ) => Regen (Core OptBind Name χ) where
         Just n' -> pure $ Varχ χ n'
         Nothing -> pure term
       Prdχ χ bind ty -> do
-        (sub', bind') <- freshen_bind bind sub
+        (sub', bind') <- freshen_bind sub bind 
         Prdχ χ bind' <$> (go sub' ty)
       Absχ χ bind body -> do
-        (sub', bind') <- freshen_bind bind sub
+        (sub', bind') <- freshen_bind sub bind 
         Absχ χ bind' <$> (go sub' body)
       Appχ χ l r -> Appχ χ <$> go sub l <*> go sub r
       Indχ χ name fsort ctors -> do
@@ -301,7 +301,7 @@ instance Traversable (Functorχ χ) => Regen (Core OptBind Name χ) where
         pure $ Indχ χ name' fsort' ctors'
       Ctrχ χ label ty -> Ctrχ χ label <$> mapM (go sub) ty
       Recχ χ recur val cases -> do
-        (sub', bind') <- freshen_bind recur sub
+        (sub', bind') <- freshen_bind sub recur
         Recχ χ bind' <$> go sub' val <*> mapM (freshen_case sub') cases
         where 
           freshen_case sub (pat, val) = do
@@ -346,7 +346,7 @@ instance Traversable (Functorχ χ) => Regen (Core OptBind Name χ) where
 
 instance Traversable (Functorχ χ) => Regen (Core AnnBind Name χ) where 
   regen = go empty where
-    freshen_bind (AnnBind (n, ty)) sub = do
+    freshen_bind sub (AnnBind (n, ty)) = do
       n' <- freshen n
       let sub' = insert n n' sub
       ty' <- go sub' ty
@@ -372,10 +372,10 @@ instance Traversable (Functorχ χ) => Regen (Core AnnBind Name χ) where
         Just n' -> pure $ Varχ χ n'
         Nothing -> pure term
       Prdχ χ bind ty -> do
-        (sub', bind') <- freshen_bind bind sub
+        (sub', bind') <- freshen_bind sub bind
         Prdχ χ bind' <$> (go sub' ty)
       Absχ χ bind body -> do
-        (sub', bind') <- freshen_bind bind sub
+        (sub', bind') <- freshen_bind sub bind
         Absχ χ bind' <$> (go sub' body)
       Appχ χ l r -> Appχ χ <$> (go sub l) <*> (go sub r)
       Indχ χ name fsort ctors -> do
@@ -386,7 +386,7 @@ instance Traversable (Functorχ χ) => Regen (Core AnnBind Name χ) where
         pure $ Indχ χ name' fsort' ctors'
       Ctrχ χ label ty -> Ctrχ χ label <$> mapM (go sub) ty
       Recχ χ recur val cases -> do
-        (sub', bind') <- freshen_bind recur sub
+        (sub', bind') <- freshen_bind sub recur
         Recχ χ bind' <$> go sub' val <*> mapM (freshen_case sub') cases
         where 
           freshen_case sub (pat, val) = do
