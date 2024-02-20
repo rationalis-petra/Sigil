@@ -31,6 +31,9 @@ unicode_input_map =
   , ("sU", '𝕌')
   , ("sZ", 'ℤ')
 
+  -- Combinators/Function Operators
+  , ("o", '∘')
+
   -- numeric & algebraic operations 
   , (":-", '÷')
   , ("x" , '×')
@@ -67,11 +70,25 @@ unicode_input_map =
   , ("rr", 'ᛯ')
   , ("ri", 'ᛣ')
 
-  -- arraos
+  -- arrows
   , ("to", '→')
   , ("fm", '←')
   , ("up", '↑')
   , ("dn", '↓')
+
+  -- shapes/misc. operators
+  -- triangles
+  , ("|>" , '▷') 
+  , ("<|" , '◁') 
+  , ("|*>", '▶') 
+  , ("<*|", '◀') 
+  , ("<*" , '▸') 
+  , ("<*" , '◂') 
+  -- diamonds & squares
+  , ("<>" , '◇') 
+  , ("<*>", '◆') 
+  , ("[]" , '□') 
+  , ("[*]", '■') 
 
   -- Subscripts
   , ("_0", '₀')
