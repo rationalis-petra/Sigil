@@ -58,15 +58,15 @@ canon_insert lift_err (Name name) (mval, ty) canon = case name of
   Right unique -> do
     let sem_env = to_semenv canon
     sem <- case mval of
-      Just v -> let ?lift_err = lift_err in eval v sem_env
-      Nothing -> flip Neutral (NeuVar (Name name)) <$> let ?lift_err = lift_err in eval ty sem_env
+      Just v -> let ?lift_err = lift_err in eval sem_env v
+      Nothing -> flip Neutral (NeuVar (Name name)) <$> let ?lift_err = lift_err in eval sem_env ty
     
     pure $ CanonEnv (global_env canon) (Map.insert unique (sem, ty) (local_env canon)) (local_overrides canon)
 
 canon_insert_path :: (MonadError err m, MonadGen m) => (SigilDoc -> err) -> Path -> (InternalCore, InternalCore) -> CanonEnv m -> m (CanonEnv m)
 canon_insert_path lift_err unique (val, ty) canon = do
   let sem_env = to_semenv canon
-  sem <- let ?lift_err = lift_err in eval val sem_env
+  sem <- let ?lift_err = lift_err in eval sem_env val
   pure $ CanonEnv (global_env canon) (local_env canon) (Map.insert unique (sem, ty) (local_overrides canon))
 
 to_semenv :: CanonEnv m -> SemEnv m

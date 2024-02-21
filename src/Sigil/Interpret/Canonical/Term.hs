@@ -91,8 +91,8 @@ class Term a where
 instance Term InternalCore where
   normalize lift_error env ty term =
     let ?lift_err = lift_error in
-      let ty' = eval ty env
-          term' = eval term env
+      let ty' = eval env ty 
+          term' = eval env term 
       in read_nf =<< (Normal <$> ty' <*> term')
 
 
@@ -264,7 +264,7 @@ eval_package env package = do
 eval_module :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => SemEnv m -> InternalModule -> m (SemModule m)
 eval_module env modul = 
   let go env (Singleχ _ (AnnBind (Name n, _)) val : es) = do
-        val' <- eval val env
+        val' <- eval env val
         case n of
           Left qn -> ((name_text (Name n), val') :) <$> go (insert_path qn val' env) es
           Right _ -> throw "Internal error: Bad name bind in eval_module"
@@ -272,33 +272,33 @@ eval_module env modul =
   in SemModule (modul^.module_imports) (modul^.module_exports)
       <$> go env (modul^.module_entries)
 
-eval :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => InternalCore -> SemEnv m -> m (Sem m)
-eval term env = case term of
+eval :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => SemEnv m -> InternalCore -> m (Sem m)
+eval env term = case term of
   Uni n -> pure $ SUni n
   Prd at bnd b -> do
     nm <- fromMaybe (throw "Prd must bind a name") (fmap pure $ name bnd)
     a <- fromMaybe (throw "Prd must bind a type") (fmap pure $ tipe bnd)
-    a' <- eval a env
-    pure $ SPrd at nm a' $ SAbs nm a' (\val -> eval b (insert nm val env))
+    a' <- eval env a
+    pure $ SPrd at nm a' $ SAbs nm a' (\val -> eval (insert nm val env) b)
   Var name -> lookup_err ?lift_err name env
   Abs _ bnd body -> do
     nme <- fromMaybe (throw "Abs must bind a name") (fmap pure $ name bnd)
     ty <- fromMaybe (throw "Abs must bind a type") (fmap pure $ tipe bnd)
-    SAbs nme <$> eval ty env <*> pure (\val -> eval body (insert nme val env))
+    SAbs nme <$> eval env ty <*> pure (\val -> eval (insert nme val env) body)
   App at l r -> do
-    l' <- (eval l env)
-    r' <- (eval r env)
+    l' <- (eval env l)
+    r' <- (eval env r)
     app at l' r'
 
   Ind inm ity ctors -> do 
-    ity' <- eval ity env
+    ity' <- eval env ity
     -- let env' = 
     let ctors' = fmap (\(lbl, a) ->
-                       (lbl, (\val -> eval a (insert inm val env))))
+                       (lbl, (\val -> eval (insert inm val env) a)))
                 ctors
     pure $ SInd inm ity' ctors'
 
-  Ctr label ty -> SCtr label <$> (eval ty env) <*> pure []
+  Ctr label ty -> SCtr label <$> (eval env ty) <*> pure []
 
   -- Evaluate a recursive pattern-matching term
   -- We use the recur helper funtion, which requires that each 
@@ -308,7 +308,7 @@ eval term env = case term of
   --   • Just val (if the match succeeded, where val is the evaluated case)
 
   Rec (AnnBind (rname, rty)) val cases -> do
-    rty' <- eval rty env
+    rty' <- eval env rty
     (at, pname, a, b) <- case rty' of 
       SPrd at pname a b -> pure (at, pname, a, b)
       _ -> throw "Rec fn must have product type"
@@ -316,8 +316,8 @@ eval term env = case term of
         cases' = (map to_case_fn cases)
 
         to_case_fn (pat, core) =
-          ( \val -> fmap (\env' -> (eval core (insert rname rec_fn env'))) (match env pat val)
-          , ((pat,) <$> (eval core =<< (insert rname (Neutral rty' (NeuVar rname)) <$> match_neu env pat a)))
+          ( \val -> fmap (\env' -> (eval (insert rname rec_fn env') core)) (match env pat val)
+          , ((pat,) <$> (flip eval core =<< (insert rname (Neutral rty' (NeuVar rname)) <$> match_neu env pat a)))
           )
 
         -- Responsible for producinga match
@@ -343,7 +343,7 @@ eval term env = case term of
             Nothing -> throw "bad pattern match"
           foldl (\m (pat, arg) -> m >>= \env -> match_neu env pat arg) (pure env) (zip subpats args)
         match_neu _ _ ty = throw ("bad type in match_neu:" <+> pretty ty)
-    val' <- eval val env
+    val' <- eval env val
     recur env rname (SPrd at pname a b) val' cases' 
   
   Eql tel ty v1 v2 -> do
@@ -355,27 +355,27 @@ eval term env = case term of
     -- Extract reflections
     -- TODO: eliminate unused binds
     (tel_sem, env') <- eval_tel env tel
-    ty_sem <- eval ty env'
-    v1_sem <- eval v1 env'
-    v2_sem <- eval v2 env'
+    ty_sem <- eval env' ty
+    v1_sem <- eval env' v1
+    v2_sem <- eval env' v2
     eql env' tel_sem ty_sem v1_sem v2_sem
     -- TODO: phase 3!!
     -- pure $ SEql tel' ty' v1' v2'
 
   Dap tel val -> do
     (tel', env') <- eval_tel env tel
-    val' <- eval val env'
+    val' <- eval env' val
     dap env tel' val' 
 
   TrL tel ty val -> do
     (tel', env') <- eval_tel env tel
-    ty' <- eval ty env'
-    val' <- eval val env'
+    ty' <- eval env' ty
+    val' <- eval env' val
     eval_over env' (\tel -> if null tel then (\_ v -> v) else STrL tel) tel' ty' val'
   TrR tel ty val -> do
     (tel', env') <- eval_tel env tel
-    ty' <- eval ty env'
-    val' <- eval val env'
+    ty' <- eval env' ty
+    val' <- eval env' val
     eval_over env' (\tel -> if null tel then (\_ v -> v) else STrR tel) tel' ty' val'
   -- LfL tel ty val -> eval_over env LfL tel ty val
   -- LfR tel ty val -> eval_over env LfR tel ty val
@@ -420,16 +420,16 @@ eval_tel :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc an
 eval_tel env [] = pure ([], env)
 eval_tel env ((bnd, id) : tel) = do 
   name <- fromMaybe (throw "Eql Telescope must bind a name") (fmap pure $ name bnd)
-  id' <- eval id env
+  id' <- eval env id
   case id' of 
     -- TODO: what about when tel is non-empty??
     SDap [] val -> 
       eval_tel (insert name val env) tel
     _ -> do
       (ty, v1, v2) <- fromMaybe (throw "Eql Telescope must bind an equality") (fmap pure $ tipe bnd)
-      ty' <- eval ty env 
-      v1' <- eval v1 env 
-      v2' <- eval v2 env 
+      ty' <- eval env ty
+      v1' <- eval env v1
+      v2' <- eval env v2
 
       -- TODO: inserting neutral terms into environment may be bad!!
       --       (normally we only do this at the read_nf stage!)
