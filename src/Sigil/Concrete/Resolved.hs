@@ -13,10 +13,11 @@ import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
 import Sigil.Concrete.Decorations.Range
 import Sigil.Concrete.Decorations.Implicit
+import Sigil.Concrete.Decorations.Rational
 
 
 data Resolved
-type instance Coreχ OptBind Name Resolved = ()
+type instance Coreχ OptBind Name Resolved = PRational
 type instance Varχ Resolved = Range
 type instance Uniχ Resolved = Range
 type instance Prdχ Resolved = (Range, ArgType)
@@ -55,7 +56,7 @@ instance Pretty ResolvedEntry where
 
 instance HasRange ResolvedCore where
   range core = case core of
-    Coreχ _ -> mempty
+    Coreχ (PRational r _) -> r
     Uniχ r _ -> r
     Varχ r _ -> r
     Prdχ (r,_) _ _ -> r

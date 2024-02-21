@@ -167,6 +167,8 @@ mix_core precs = \case
     (tel', precs') <- mix_tel precs tel []
     LfRχ rn tel' <$> mix_core precs' ty <*> mix_core precs' val
 
+  RRat rn r -> pure $ Rat rn r
+
   where
     mix_tel :: Precedences
       -> [(Maybe Text, Maybe (Syntax, Syntax, Syntax), Syntax)]

@@ -3,8 +3,7 @@ module Sigil.Concrete.Parsed
   , ParsedCore
   , ParsedEntry
   , ParsedModule
-  , PUnit(..)
-  , pattern Core
+  , pattern Rat
   , pattern Uni
   , pattern Var
   , pattern Prd
@@ -40,21 +39,13 @@ import Prettyprinter
 
 import Sigil.Abstract.Names
 import Sigil.Abstract.Syntax
-import Sigil.Abstract.AlphaEq
 import Sigil.Concrete.Decorations.Range
 import Sigil.Concrete.Decorations.Implicit
-
-data PUnit = PUnit
-
-instance AlphaEq Text PUnit where   
-  αequal _ PUnit PUnit = True
-
-instance Pretty PUnit where   
-  pretty PUnit = ""
+import Sigil.Concrete.Decorations.Rational
 
 data Parsed
 type instance Functorχ Parsed = Maybe
-type instance Coreχ OptBind Text Parsed = PUnit
+type instance Coreχ OptBind Text Parsed = PRational
 type instance Varχ Parsed = Range
 type instance Uniχ Parsed = Range
 type instance Prdχ Parsed = (Range, ArgType)
@@ -80,12 +71,9 @@ type ParsedEntry = Entry OptBind Text Parsed
 
 type ParsedModule = Module OptBind Text Parsed
 
-{-# COMPLETE Core, Uni, Var, Prd, Abs, App, Ind, Ctr, Rec
- , Eql, ETC, CTE, Dap, TrL, TrR, LfL, LfR #-}
-pattern Core :: ParsedCore
-pattern Core <- Coreχ _
-  where Core = Coreχ PUnit
-  
+{-# COMPLETE Uni, Var, Prd, Abs, App, Ind, Ctr, Rec
+ , Eql, ETC, CTE, Dap, TrL, TrR, LfL, LfR
+ , Rat #-}
 pattern Uni :: Range -> Integer -> ParsedCore
 pattern Uni r n <- Uniχ r n
   where Uni r n = Uniχ r n
@@ -150,9 +138,13 @@ pattern LfR :: Range -> (Tel OptBind Text ParsedCore) -> ParsedCore -> ParsedCor
 pattern LfR r tel ty val <- LfRχ r tel ty val
   where LfR r tel ty val = LfRχ r tel ty val
 
+pattern Rat :: Range -> Rational -> ParsedCore  
+pattern Rat r n <- Coreχ (PRational r n)
+  where Rat r n = Coreχ (PRational r n)
+
 instance HasRange ParsedCore where
   range core = case core of
-    Core -> mempty
+    Rat r _ -> r
     Uni r _ -> r
     Var r _ -> r
     Prd r _ _ _ -> r

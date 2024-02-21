@@ -41,6 +41,8 @@ data Syntax
   | RTrR Range RawTel Syntax Syntax
   | RLfL Range RawTel Syntax Syntax
   | RLfR Range RawTel Syntax Syntax
+  -- Literals
+  | RRat Range Rational
 
 data SynModule = RModule (NonEmpty Text) [ImportDef] [ExportDef] [SynEntry]
 
@@ -92,6 +94,7 @@ instance HasRange Syntax where
     RTrR r _ _ _ -> r
     RLfL r _ _ _ -> r
     RLfR r _ _ _ -> r
+    RRat r _ -> r
 
 instance Pretty Syntax where
   pretty = \case 
@@ -143,6 +146,8 @@ instance Pretty Syntax where
     RTrR _ tel ty val -> "⍃" <+> pretty_tel tel  <+> pretty ty <+> pretty val
     RLfL _ tel ty val -> "⎕⍄" <+> pretty_tel tel <+> pretty ty <+> pretty val
     RLfR _ tel ty val -> "⎕⍃" <+> pretty_tel tel <+> pretty ty <+> pretty val
+
+    RRat _ r -> pretty $ show r
 
     where
       pretty_tel tel =

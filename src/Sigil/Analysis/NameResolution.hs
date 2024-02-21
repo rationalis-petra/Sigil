@@ -20,6 +20,7 @@ import Sigil.Abstract.Unify
 
 import Sigil.Concrete.Parsed
 import Sigil.Concrete.Resolved
+import Sigil.Concrete.Decorations.Rational
 
 
 {--------------------------------- RESOLUTION ----------------------------------}
@@ -40,7 +41,7 @@ instance ResolveTo a b => ResolveTo (a, a, a) (b, b, b) where
 
 instance ResolveTo ParsedCore ResolvedCore where
   resolve lift_err vars term = case term of 
-    Core -> pure $ Coreχ ()
+    Rat rn n -> pure $ Coreχ (PRational rn n)
     Uni rn n -> pure $ Uniχ rn n
     Var rn name -> case lookup name vars of
       Just (Left n) -> pure $ Varχ rn $ Name $ Right (n, name)
