@@ -32,6 +32,7 @@ import Sigil.Abstract.Syntax (Entry(..), MTree(..)
 import Sigil.Abstract.Environment (insert_at_path, get_modulo_path)
 import Sigil.Abstract.AlphaEq
 import Sigil.Concrete.Decorations.Implicit
+import Sigil.Concrete.Decorations.Native
 import Sigil.Concrete.Internal
 import Sigil.Interpret.Canonical.Values
   
@@ -104,6 +105,7 @@ instance Term InternalCore where
 
 read_nf :: forall err ann m. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Normal m -> m InternalCore
 read_nf (Normal ty val) = case (ty, val) of 
+  (SNat ty, SNat val) -> read_nat_nf ty val
   -- Values
   (SPrd at name a b, f) -> do
     let
@@ -173,7 +175,8 @@ read_nf (Normal ty val) = case (ty, val) of
 
 
 read_ne :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => Neutral m -> m InternalCore
-read_ne neu = case neu of 
+read_ne neu = case neu of
+  NeuNat n -> read_nat_ne n
   NeuVar name -> pure $ Var name
   NeuApp at l r -> App at <$> (read_ne l) <*> (read_nf r)
   NeuDap tel val -> Dap <$> read_tel tel <*> read_ne val
@@ -197,6 +200,16 @@ read_ne neu = case neu of
           pure $ (ptn, core')
     cases' <- mapM read_case cases
     pure $ Rec (AnnBind (nm, ty')) val' cases'
+
+read_nat_ne :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => (NeuNative (Neutral m)) -> m InternalCore
+read_nat_ne = \case
+  NeuNatSuccN n v -> Nat . NeuNative . NeuNatSuccN n <$> read_ne v
+
+read_nat_nf :: (MonadError err m, ?lift_err :: Doc ann -> err) => (NmNative (Sem m)) -> (NmNative (Sem m)) -> m InternalCore
+read_nat_nf ty val = case (ty, val) of 
+  (NativeType0 NatTy, NativeNat n) -> pure . Nat . NmNative . NativeNat $ n
+  _ -> throw ("bad read_nat_nf:" <+> pretty val <+> "⮜" <+> pretty ty)
+  
 
 eval_package :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => SemEnv m -> InternalPackage -> m (SemPackage m)
 eval_package env package = do
@@ -274,6 +287,7 @@ eval_module env modul =
 
 eval :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => SemEnv m -> InternalCore -> m (Sem m)
 eval env term = case term of
+  Nat n -> eval_nat env n
   Uni n -> pure $ SUni n
   Prd at bnd b -> do
     nm <- fromMaybe (throw "Prd must bind a name") (fmap pure $ name bnd)
@@ -381,6 +395,17 @@ eval env term = case term of
   -- LfR tel ty val -> eval_over env LfR tel ty val
   -- Implicit terms 
 
+eval_nat :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => SemEnv m -> Native InternalCore -> m (Sem m)
+eval_nat env term = case term of
+  NmNative (NativeType0 t) -> pure $ SNat $ NativeType0 $ t
+  NmNative (NativeNat n) -> pure $ SNat $ NativeNat $ n
+  NeuNative (NeuNatSuccN n v) -> do
+    res <- eval env v
+    case res of
+      SNat (NativeNat m) -> pure $ SNat $ NativeNat $ m + n
+      Neutral ty neu -> pure $ Neutral ty (NeuNat (NeuNatSuccN n neu))
+      _ -> throw "NeuNatSuccN expecting natural argument" 
+
 {-------------------------------------------------------------------------------}
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
@@ -472,6 +497,7 @@ eval_stel env tel = go env tel [] where
 
 eval_sem :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => (SemEnv m) -> (Sem m) -> m (Sem m)
 eval_sem env term = case term of
+  SNat n -> eval_semnat env n
   SUni n -> pure $ SUni n
   SPrd at n a b -> do
     a' <- eval_sem env a
@@ -503,6 +529,7 @@ eval_sem env term = case term of
 
 eval_neusem :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => (SemEnv m) -> (Neutral m) -> m (Sem m)
 eval_neusem env neu = case neu of 
+  NeuNat n -> eval_neunat env n
   NeuVar n -> lookup_err ?lift_err n env
   NeuApp at l (Normal _ r) -> do
     l' <- eval_neusem env l
@@ -515,6 +542,19 @@ eval_neusem env neu = case neu of
     neu' <- eval_neusem env neu
     recur env name ty' neu' cases -- TODO: cases'
       
+eval_semnat :: forall m. (Applicative m) => (SemEnv m) -> (NmNative (Sem m)) -> m (Sem m)
+eval_semnat _ nat = case nat of
+  NativeType0 _ -> pure $ SNat nat
+  NativeNat _ -> pure $ SNat nat
+
+eval_neunat :: forall m err ann. (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => (SemEnv m) -> (NeuNative (Neutral m)) -> m (Sem m)
+eval_neunat env neu = case neu of
+  NeuNatSuccN n neu -> do
+    val <- eval_neusem env neu
+    case val of
+      Neutral ty neu -> pure $ Neutral ty (NeuNat (NeuNatSuccN n neu))
+      SNat (NativeNat m) -> pure $ SNat $ NativeNat (m + n)
+      _ -> throw "Successor must be successor of natural number"
 
 app :: (MonadError err m, MonadGen m, ?lift_err :: Doc ann -> err) => ArgType -> (Sem m) -> (Sem m) -> m (Sem m)
 app _ (SAbs _ _ fnc) val = fnc val
@@ -589,6 +629,7 @@ eql env tel tipe v1 v2 = case tipe of
 -- TODO: fix this function - it is wrong!
 uni_level :: Sem m -> Integer
 uni_level sem = case sem of 
+  SNat _ -> 0
   SUni n -> n
   SPrd _ _ l r -> max (uni_level l) (uni_level r)
   SAbs _ _ _ -> 0

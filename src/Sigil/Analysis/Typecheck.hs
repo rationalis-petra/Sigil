@@ -682,6 +682,9 @@ norm_ty (CheckInterp {..}) range env ty = do
 get_universe :: MonadError err m => (TCErr -> err) -> Range -> Env env m -> InternalCore -> m Integer
 get_universe lift_error r env = go env where
   go env = \case
+    -- For now, native types are at L0, native values are
+    --   trivially at L0.
+    Nat _ -> pure 0
     Var n -> do 
       res <- lookup n env
       case res of

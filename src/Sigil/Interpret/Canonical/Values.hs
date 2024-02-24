@@ -28,6 +28,7 @@ import Sigil.Abstract.Names
 import Sigil.Abstract.Environment hiding (insert, insert_path)
 import Sigil.Abstract.Syntax  
 import Sigil.Concrete.Decorations.Implicit (ArgType(..))
+import Sigil.Concrete.Decorations.Native
 
 instance (Pretty k, Pretty v) => Pretty (Map k v) where  
   pretty m = pretty $ DMap.showTreeWith (\k a -> show $ pretty k <> ":" <+> pretty a) True True m
@@ -35,7 +36,8 @@ instance (Pretty k, Pretty v) => Pretty (Map k v) where
 type SemEnv m = (Map UniqueName (Sem m), Map Path (Sem m), Map Text (SemPackage m))
 
 data Sem m
-  = SUni Integer
+  = SNat (NmNative (Sem m))
+  | SUni Integer
   | SPrd ArgType Name (Sem m) (Sem m)
   | SAbs Name (Sem m) (Sem m -> m (Sem m))
   | SInd Name (Sem m) [(Text, Sem m -> m (Sem m))]
@@ -47,7 +49,8 @@ data Sem m
   | Neutral (Sem m) (Neutral m)
 
 data Neutral m
-  = NeuVar Name
+  = NeuNat (NeuNative (Neutral m))
+  | NeuVar Name
   | NeuApp ArgType (Neutral m) (Normal m)
   | NeuDap (SemTel m) (Neutral m) -- A neutral explicit substitution, must be empty!
   | NeuRec Name (Sem m) (Neutral m)
@@ -111,6 +114,7 @@ lookup_err lift_err n (e1, e2, e3) =
 
 instance Pretty (Sem m) where
   pretty sem = case sem of 
+    SNat n -> pretty n
     SUni n -> "𝕌" <> pretty_subscript n
       where
         pretty_subscript =
@@ -152,6 +156,7 @@ instance Pretty (Sem m) where
 
 instance Pretty (Neutral m) where
   pretty neu = case neu of
+    NeuNat n -> pretty n
     NeuVar n -> pretty n
     NeuApp at l r -> case at of
       Regular -> pretty l <+> pretty r

@@ -7,6 +7,7 @@ module Sigil.Concrete.Internal
   , InternalModule
   , InternalPackage
   , Pattern(..)
+  , pattern Nat
   , pattern Uni
   , pattern Var
   , pattern Prd
@@ -30,11 +31,12 @@ import Sigil.Abstract.Syntax
 import Sigil.Abstract.Unify (Formula)
 import Sigil.Concrete.Decorations.Implicit
 import Sigil.Concrete.Decorations.Range
+import Sigil.Concrete.Decorations.Native
 
 data Internal
 
 type instance Functorχ Internal = Identity
-type instance Coreχ AnnBind Name Internal = ()
+type instance Coreχ AnnBind Name Internal = Native (Core AnnBind Name Internal)
 type instance Varχ Internal = ()
 type instance Uniχ Internal = ()
 type instance Prdχ Internal = ArgType
@@ -62,7 +64,11 @@ type InternalModule = Module AnnBind Name Internal
 
 type InternalPackage = Package InternalModule
 
-{-# COMPLETE Uni, Var, Prd, Abs, App, Ind, Ctr, Rec, Eql, Dap, TrL, TrR #-}
+{-# COMPLETE Nat, Uni, Var, Prd, Abs, App, Ind, Ctr, Rec, Eql, Dap, TrL, TrR #-}
+
+pattern Nat :: Native InternalCore -> InternalCore
+pattern Nat nv <- Coreχ nv
+  where Nat nv = Coreχ nv
 
 pattern Uni :: Integer -> InternalCore
 pattern Uni n <- Uniχ () n
@@ -115,6 +121,7 @@ pattern TrR tel ty val <- TrRχ () tel ty val
 
 instance Pretty InternalCore where
   pretty c = case c of
+    Nat n -> pretty n
     Uni n -> "𝕌" <> pretty_subscript n
       where
         pretty_subscript =
