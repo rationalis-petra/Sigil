@@ -86,7 +86,6 @@ mod_header = L.nonIndented scn (L.indentBlock scn modul)
               , pure $ Im $ (,ImSingleton) $ var :| vars
               ]
 
-      
     exports :: ParserT m (L.IndentOpt (ParserT m) [Either ImportDef ExportDef] (Either ImportDef ExportDef))
     exports = do
      symbol "export"
@@ -363,12 +362,16 @@ syn_core level = do
           <|> (Syn Regular <$> (between langle rangle (syn_core level) <|> patom))
           <|> with_range (flip NamePart <$> anyvar)
 
-        patom = puniv <|> pctor
+        patom = puniv <|> prational <|> pctor
 
     puniv :: ParserT m Syntax
     puniv = with_range $
       (single '𝕌' *> (flip RUni <$> subscript_int))
        <||> const (flip RUni 0) <$> symbol "𝕌"
+    prational :: ParserT m Syntax
+    prational = with_range $ do
+      n <- rational
+      pure $ \r -> RRat r n
     pctor :: ParserT m Syntax
     pctor = with_range $ do
       label <- (single ':' *> anyvar)

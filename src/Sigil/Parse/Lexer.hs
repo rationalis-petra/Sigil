@@ -9,6 +9,7 @@ module Sigil.Parse.Lexer
   , rangle
   , anyvar
   , subscript_int
+  , rational
   ) where
 
 {-------------------------------- LEXING TOOLS ---------------------------------}
@@ -18,6 +19,7 @@ module Sigil.Parse.Lexer
 {-------------------------------------------------------------------------------}
 
 
+import Data.Ratio ((%))
 import Data.Text (Text)
 import Data.Functor (($>))
 import Control.Monad (void)
@@ -81,6 +83,48 @@ subscript_int = lexeme $ to_int 1 . reverse <$> many1 sub_numchar
       , satisfy (== '₈') $>  8  
       , satisfy (== '₉') $>  9
       ]
+
+rational :: (MonadParsec e Text m) => m Rational  
+rational = lexeme $ do
+  int_part <- to_int 1 10 . reverse <$> many1 numchar
+  next <- lookAhead (satisfy (const True))
+  case next of
+    '⁄' -> satisfy (const True) *> pfrac int_part
+    '.' -> satisfy (const True) *> pdec int_part
+    _ -> pure $ int_part % 1
+  
+  where
+    to_int _ _ [] = 0
+    to_int n b (x:xs) = n * x + to_int (n * b) b xs
+
+    --to_dec :: Rational -> Rational -> [Integer] -> Rational
+    to_dec _ _ [] = 0
+    to_dec n b (x:xs) = (x % n) + to_dec (n * b) b xs
+
+    pfrac numerator = do
+      denominator <- to_int 1 10 . reverse <$> many1 numchar
+      pure $ numerator % denominator
+
+    pdec num = do
+      dec <- to_dec 10 10 <$> many1 numchar
+      pure $ (num % 1) + dec
+
+    numchar :: (MonadParsec e Text m) => m Integer
+    numchar = choice n_list
+    n_list :: (MonadParsec e Text m) => [m Integer]
+    n_list = 
+      [ satisfy (== '0') $>  0
+      , satisfy (== '1') $>  1  
+      , satisfy (== '2') $>  2  
+      , satisfy (== '3') $>  3  
+      , satisfy (== '4') $>  4  
+      , satisfy (== '5') $>  5  
+      , satisfy (== '6') $>  6  
+      , satisfy (== '7') $>  7  
+      , satisfy (== '8') $>  8  
+      , satisfy (== '9') $>  9
+      ]
+
 
 anyvar :: (MonadParsec e Text m) => m Text  
 anyvar = lexeme $ takeWhile1P (Just "symbol-character") symchar
