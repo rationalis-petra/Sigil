@@ -13,6 +13,23 @@ module Sigil.Interpret.Canonical.Values
   , lookup_err
   ) where
 
+{--------------------------------- TERM VALUES ---------------------------------}
+{- The term file (Sigil/Interpret/Canonical/Term.hs) implements a kind of      -}
+{- normalization by evaluation (NbE). See that file for more details.          -}
+{-                                                                             -}
+{- What is relevant is that the normalizer relies on a new type of 'semantic'  -}
+{- terms, where Sigil functions are implemented as Haskell functions. This     -}
+{- is the role of the 'Sem' type, which can be either                          -}
+{- • Neutral when the term is 'headed' by a variable, e.g. 'f 2'. The term may -}
+{-   reduce further, depending on the value of f.                              -}
+{- • Normal, when the term is not headed by a variable. Note that this         -}
+{-   includes functions, e.g. of the form `λ x → x 2`, so while the inner body -}
+{-   'x 2' is neutral, the outer term is Normal.                               -}
+{-                                                                             -}
+{- We also have a semantic type of packages, modules and environments.         -}
+{-                                                                             -}
+{-------------------------------------------------------------------------------}
+
 import Data.Map.Internal.Debug as DMap
 
 import Control.Monad.Except (MonadError, throwError)

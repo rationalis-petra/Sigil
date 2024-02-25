@@ -7,7 +7,6 @@ module Sigil.Abstract.AlphaEq
 {- This file contans the AlphaEq typeclass (see more below), along with        -}
 {- several instances of AlphaEq for various syntactic entities                 -}
 {-                                                                             -}
-{-                                                                             -}
 {-------------------------------------------------------------------------------}
 
 import Control.Lens
@@ -39,6 +38,7 @@ import Sigil.Abstract.Names
 {- looking up a in the first map yields the value Nothing, which is different  -}
 {- to looking up a in the second map, as it does not map to a value. Hence,    -}
 {- these two terms are not equal.                                              -}
+{-                                                                             -}
 {-------------------------------------------------------------------------------}
 
 

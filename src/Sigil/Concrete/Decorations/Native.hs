@@ -11,9 +11,24 @@ import Sigil.Abstract.AlphaEq
 
 
 {----------------------------------- NATIVE ------------------------------------}
-{- The Native decoration is designed to encapsulate types which have a much    -}
-{- more efficient 'native' representation, e.g. naturals, integers, etc.       -}
-{- It also encapsulates functions which operate on these types, e.g. +, -, ... -}
+{- When normalizing, the 'natural' representation of some types - particularly -}
+{- numbers - is horribly inefficient.For example, the Natural number type,     -}
+{- defined:                                                                    -}
+{-   μ ℕ ⮜ 𝕌.                                                                  -}
+{-     zero ⮜ ℕ                                                                -}
+{-     succ ⮜ ℕ → ℕ                                                            -}
+{- Meaning that, e.g. 3 is represented as (succ (succ (succ zero))). Addition  -}
+{- and subtraction are linear, while multiplication is O(mn)! Further, these   -}
+{- numbers take linear storage... none of this is good!                        -}
+{-                                                                             -}
+{- To solve this problem, we recognise certain types that have a much more     -}
+{- efficient isomorphic representation. The types we use are as follows:       -}
+{-                                                                             -}
+{- • Unary naturals convert to Haskell big integers                            -}
+{-                                                                             -}
+{- The following are planned, but not implemented                              -}
+{- • Unary integers convert to Haskell big integers                            -}
+{- • Rationals convert to Haskell Rationals                                    -}
 {-                                                                             -}
 {-------------------------------------------------------------------------------}
 
